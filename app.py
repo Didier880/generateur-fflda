@@ -24,9 +24,9 @@ with st.sidebar:
     type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
     duree_pesee = st.selectbox("Durée allouée à la pesée (min)", [30, 45, 60, 90], index=1)
     
-    heure_pesee_u9 = st.time_input("Heure de pesée U9", value=time(8, 30))
+    heure_pesee_u9 = st.time_input("Heure de pesée U9", value=time(13, 0))
     if "2" in type_pesee:
-        heure_pesee_u11 = st.time_input("Heure de pesée U11", value=time(10, 30))
+        heure_pesee_u11 = st.time_input("Heure de pesée U11", value=time(14, 0))
     else:
         heure_pesee_u11 = None
         
@@ -258,6 +258,21 @@ if fichier_upload is not None:
 
         fin_estimee = max(tapis_dispo)
 
+        # --- AFFICHAGE DU TABLEAU RÉCAPITULATIF SUR LA PAGE D'ACCUEIL ---
+        st.success("Fichier analysé avec succès !")
+        st.subheader("📊 Résumé prévisionnel de la journée")
+        
+        df_resume_affichage = pd.DataFrame([
+            {"Étape de la journée": "Pesée Générale (U9)", "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+            {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
+            {"Étape de la journée": "Début effectif U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
+            {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+            {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
+        ])
+        
+        st.table(df_resume_affichage)
+
+        # --- EXPORT EXCEL ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
@@ -370,14 +385,13 @@ if fichier_upload is not None:
                     c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
                     c.fill = entete_noir
                 
-                # --- CALCUL AUTOMATIQUE DE LA LARGEUR DES COLONNES NOM & CLUB ---
                 max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
                 max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
                 
                 ws_poule.column_dimensions['A'].width = 6
                 ws_poule.column_dimensions['B'].width = 6
-                ws_poule.column_dimensions['C'].width = max(max_len_nom + 4, 25) # S'adapte au nom le plus long !
-                ws_poule.column_dimensions['D'].width = max(max_len_club + 4, 18) # S'adapte au club le plus long !
+                ws_poule.column_dimensions['C'].width = max(max_len_nom + 4, 25)
+                ws_poule.column_dimensions['D'].width = max(max_len_club + 4, 18)
                 ws_poule.column_dimensions['E'].width = 10
                 ws_poule.column_dimensions['F'].width = 10
                 ws_poule.column_dimensions['G'].width = 10
