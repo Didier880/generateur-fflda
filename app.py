@@ -162,17 +162,24 @@ if fichier_upload is not None:
                         poule_courante.append(p)
                     else:
                         nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
-                        rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
+                        
+                        # CORRECTION ICI : On sauvegarde la composition AVANT de rajouter le fantôme (BYE)
                         for lutteur in poule_courante:
-                            composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur["Poids"]})
+                            composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur.get("Poids", "")})
+                            
+                        rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
                         
                         index_poule += 1
                         poule_courante = [p]
+                        
             if poule_courante:
                 nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
-                rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
+                
+                # CORRECTION ICI AUSSI
                 for lutteur in poule_courante:
-                    composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur["Poids"]})
+                    composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur.get("Poids", "")})
+                    
+                rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
 
         # --- SÉPARATION DES FILES D'ATTENTE U9 PUIS U11 ---
         rondes_u9 = {k: v for k, v in rondes_par_categorie.items() if k.startswith("U9")}
@@ -201,7 +208,7 @@ if fichier_upload is not None:
         planning_tapis = {t: [] for t in range(nb_tapis)}
         last_match_time = {} 
         total_matchs_calcules = 0
-        heure_pesee_u11 = None # Pour sauvegarder l'heure de la pesée
+        heure_pesee_u11 = None
 
         phases = [("U9", file_u9), ("U11", file_u11)]
 
@@ -216,7 +223,6 @@ if fichier_upload is not None:
                 heure_reprise = heure_synchro + timedelta(minutes=duree_pesee_u11)
                 
                 for t in range(nb_tapis):
-                    # On bloque un espace "Pesée" sur tous les tapis
                     planning_tapis[t].append({
                         "Type": "PESEE", 
                         "Heure": heure_synchro.strftime("%H:%M"), 
@@ -295,7 +301,7 @@ if fichier_upload is not None:
             resume_data.append({"Information": "Heure pesée U11", "Valeur": heure_pesee_u11.strftime('%H:%M')})
         resume_data.append({"Information": "Heure fin totale", "Valeur": fin_estimee.strftime('%H:%M')})
         
-        max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
+        max_lignes = max(len(liste) for planning in planning_tapis.values() for liste in [planning]) if planning_tapis else 0
         grille = []
         for row_idx in range(max_lignes):
             ligne_donnees = {}
@@ -360,7 +366,6 @@ if fichier_upload is not None:
 
         st.subheader("📊 Statistiques du tournoi")
         
-        # Affichage dynamique selon si les U11 sont présents ou non
         if heure_pesee_u11:
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Matchs", total_matchs_calcules)
