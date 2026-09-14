@@ -19,7 +19,6 @@ with st.sidebar:
     st.caption("Tournoi exclusif U9 / U11")
     
     st.subheader("1. Logistique & Pesées")
-    # Gère de 1 jusqu'à 10 tapis
     nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
     
     type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
@@ -167,7 +166,6 @@ if fichier_upload is not None:
         participants_par_poule = {p['nom']: p['participants'] for p in poules_u9 + poules_u11}
         rondes_par_categorie = {p['nom']: p['rondes'] for p in poules_u9 + poules_u11}
 
-        # --- RÉPARTITION SUR LE NOMBRE EXACT DE TAPIS SÉLECTIONNÉ (1 à 10) ---
         tapis_poules_u9 = {i: [] for i in range(nb_tapis)}
         tapis_poules_u11 = {i: [] for i in range(nb_tapis)}
         
@@ -218,14 +216,14 @@ if fichier_upload is not None:
                     
             return heure_actuelle
 
-        # Exécution U9 sur les N tapis
+        # Exécution U9
         for t in range(nb_tapis):
             if tapis_poules_u9[t]:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u9[t], t, tapis_dispo[t], duree_u9)
 
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
 
-        # --- CALCUL AUTOMATIQUE DE LA PESÉE U11 ---
+        # --- CALCUL AUTOMATIQUE DE LA 2ÈME PESÉE (Fin U9 + Durée de la pause) ---
         dt_pesee_u11 = None
         if "2" in type_pesee:
             dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause)
@@ -252,7 +250,7 @@ if fichier_upload is not None:
                     planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": f"Attente lancement U11"})
                 tapis_dispo[t] = debut_u11_reel
 
-        # Exécution U11 sur les N tapis
+        # Exécution U11
         for t in range(nb_tapis):
             if tapis_poules_u11[t]:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u11[t], t, tapis_dispo[t], duree_u11)
@@ -266,7 +264,7 @@ if fichier_upload is not None:
         str_comp_u9 = f"{dt_debut_u9.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"
         str_comp_u11 = f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
 
-        # --- RÉSUMÉ PRÉVISIONNEL ---
+        # --- ORDRE CHRONOLOGIQUE STRICT DU RÉSUMÉ ---
         lignes_accueil = [
             {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
             {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
@@ -274,7 +272,7 @@ if fichier_upload is not None:
         ]
         
         if "2" in type_pesee and dt_pesee_u11:
-            lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+            lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
 
         lignes_accueil.extend([
             {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
@@ -296,7 +294,7 @@ if fichier_upload is not None:
                 {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
             ]
             if "2" in type_pesee and dt_pesee_u11:
-                resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+                resume_data.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             
             resume_data.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
