@@ -22,7 +22,7 @@ with st.sidebar:
     nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
     
     type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
-    duree_pesee = st.selectbox("Durée allouée à la pesée (min)", [30, 45, 60, 90], index=1)
+    duree_pesee = st.selectbox("Durée allouée à la pesée (min) + échauffement", [30, 45, 60, 90], index=1)
     
     label_pesee_1 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
     heure_pesee_u9 = st.time_input(label_pesee_1, value=time(9, 0))
