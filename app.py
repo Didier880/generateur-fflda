@@ -233,25 +233,8 @@ if fichier_upload is not None:
 
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
 
-        # Calcul de la pause déjeuner (si activée) placée entre la pesée U9 et U11 (ou placée chronologiquement)
-        # Ici la demande est de placer la pause déjeuner entre les 2 pesées dans le résumé
-        pause_debut_calculee = None
-        pause_fin_calculee = None
-        if activer_pause and duree_pause > 0:
-            # On positionne la pause par défaut juste après la fin U9 ou entre les pesées si les horaires le dictent
-            pass
-
-        debut_u11_reel = max(fin_u9_globale) if isinstance(fin_u9_globale, datetime) else fin_u9_globale
-        # Correction de la gestion du temps globale pour la pause dans le planning si besoin
-        if activer_pause and duree_pause > 0:
-            pause_debut_calculee = fin_u9_globale
-            pause_fin_calculee = pause_debut_calculee + timedelta(minutes=duree_pause)
-            for t in range(nb_tapis):
-                planning_tapis[t].append({"Type": "PAUSE", "Heure": pause_debut_calculee.strftime("%H:%M")})
-                tapis_dispo[t] = pause_fin_calculee
-        else:
-            for t in range(nb_tapis):
-                tapis_dispo[t] = fin_u9_globale
+        for t in range(nb_tapis):
+            tapis_dispo[t] = fin_u9_globale
 
         debut_u11_reel = max(tapis_dispo)
         if dt_debut_u11_theorique and debut_u11_reel < dt_debut_u11_theorique:
@@ -282,16 +265,17 @@ if fichier_upload is not None:
             {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')}
         ]
         
-        # Placement de la pause déjeuner entre les 2 pesées si 2 pesées et pause active
-        if "2" in type_pesee:
-            if activer_pause and duree_pause > 0:
-                lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": "Entre les pesées"})
-            if dt_pesee_u11:
-                lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
-        else:
-            if activer_pause and duree_pause > 0 and pause_debut_calculee and pause_fin_calculee:
-                lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{pause_debut_calculee.strftime('%H:%M')} - {pause_fin_calculee.strftime('%H:%M')}"})
+        # Placement de la pause déjeuner entre les deux pesées si 2 pesées et pause active
+        if "2" in type_pesee and activer_pause and duree_pause > 0:
+            lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
 
+        if "2" in type_pesee and dt_pesee_u11:
+            lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+
+        # Si 1 seule pesée, on peut placer la pause déjeuner après
+        if "1" in type_pesee and activer_pause and duree_pause > 0:
+            lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+            
         lignes_accueil.extend([
             {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
             {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
@@ -310,12 +294,12 @@ if fichier_upload is not None:
             ]
             if "2" in type_pesee:
                 if activer_pause and duree_pause > 0:
-                    resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": "Entre les pesées"})
+                    resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
                 if dt_pesee_u11:
                     resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             else:
-                if activer_pause and duree_pause > 0 and pause_debut_calculee and pause_fin_calculee:
-                    resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{pause_debut_calculee.strftime('%H:%M')} - {pause_fin_calculee.strftime('%H:%M')}"})
+                if activer_pause and duree_pause > 0:
+                    resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
             
             resume_data.extend([
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
