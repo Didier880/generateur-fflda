@@ -24,9 +24,11 @@ with st.sidebar:
     type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
     duree_pesee = st.selectbox("Durée allouée à la pesée (min)", [30, 45, 60, 90], index=1)
     
-    heure_pesee_u9 = st.time_input("Heure de pesée U9", value=time(13, 0))
+    label_pesee_1 = "Pesée Générale (U9-U11)" if "1" in type_pesee else "Pesée U9"
+    heure_pesee_u9 = st.time_input(label_pesee_1, value=time(13, 0))
+    
     if "2" in type_pesee:
-        heure_pesee_u11 = st.time_input("Heure de pesée U11", value=time(14, 0))
+        heure_pesee_u11 = st.time_input("Pesée U11", value=time(14, 0))
     else:
         heure_pesee_u11 = None
         
@@ -258,12 +260,15 @@ if fichier_upload is not None:
 
         fin_estimee = max(tapis_dispo)
 
+        # --- DÉTERMINATION DU LIBELLÉ DE PESÉE ---
+        texte_pesee_u9 = "Pesée Générale (U9-U11)" if "1" in type_pesee else "Pesée U9"
+
         # --- AFFICHAGE DU TABLEAU RÉCAPITULATIF SUR LA PAGE D'ACCUEIL ---
         st.success("Fichier analysé avec succès !")
         st.subheader("📊 Résumé prévisionnel de la journée")
         
         lignes_accueil = [
-            {"Étape de la journée": "Pesée Générale (U9)", "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+            {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
             {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
         ]
         if "2" in type_pesee and dt_pesee_u11:
@@ -282,7 +287,7 @@ if fichier_upload is not None:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
             resume_data = [
-                {"Étape de la journée": "Pesée Générale (U9)", "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
             ]
             if "2" in type_pesee and dt_pesee_u11:
