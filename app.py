@@ -223,7 +223,7 @@ if fichier_upload is not None:
 
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
 
-        # --- CALCUL AUTOMATIQUE DE LA 2ÈME PESÉE (Fin U9 + Durée de la pause) ---
+        # --- CALCUL AUTOMATIQUE DE LA 2ÈME PESÉE ---
         dt_pesee_u11 = None
         if "2" in type_pesee:
             dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause)
@@ -264,7 +264,7 @@ if fichier_upload is not None:
         str_comp_u9 = f"{dt_debut_u9.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"
         str_comp_u11 = f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
 
-        # --- ORDRE CHRONOLOGIQUE STRICT DU RÉSUMÉ ---
+        # --- RÉSUMÉ PRÉVISIONNEL ---
         lignes_accueil = [
             {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
             {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
@@ -399,15 +399,19 @@ if fichier_upload is not None:
                 max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
                 max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
                 
+                largeur_nom_col = max(max_len_nom + 4, 25)
+                largeur_club_col = max(max_len_club + 4, 18)
+
+                # Attributions symétriques et indépendantes pour éviter les noms rognés
                 ws_poule.column_dimensions['A'].width = 6
                 ws_poule.column_dimensions['B'].width = 6
-                ws_poule.column_dimensions['C'].width = max(max_len_nom + 4, 25)
-                ws_poule.column_dimensions['D'].width = max(max_len_club + 4, 18)
-                ws_poule.column_dimensions['E'].width = 10
-                ws_poule.column_dimensions['F'].width = 10
-                ws_poule.column_dimensions['G'].width = 10
-                ws_poule.column_dimensions['H'].width = 10
-                ws_poule.column_dimensions['I'].width = 10
+                ws_poule.column_dimensions['C'].width = largeur_nom_col  # Nom Rouge
+                ws_poule.column_dimensions['D'].width = largeur_club_col # Club Rouge
+                ws_poule.column_dimensions['E'].width = 10               # Pt Clt Rouge
+                ws_poule.column_dimensions['F'].width = 6                # Espace
+                ws_poule.column_dimensions['G'].width = largeur_nom_col  # Nom Bleu (Identique à C)
+                ws_poule.column_dimensions['H'].width = largeur_club_col # Club Bleu (Identique à D)
+                ws_poule.column_dimensions['I'].width = 10               # Pt Clt Bleu
                 
                 row_cursor += 1
                 for i, p in enumerate(liste_p, 1):
