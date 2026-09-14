@@ -259,27 +259,23 @@ if fichier_upload is not None:
 
         # --- DÉTERMINATION DU LIBELLÉ DE PESÉE ---
         texte_pesee_u9 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
+        valeur_pause = f"{duree_pause} min" if (activer_pause and duree_pause > 0) else "0 min"
 
-        # --- ORDRE CHRONOLOGIQUE STRICT DU RÉSUMÉ PRÉVISIONNEL ---
+        # --- ORDRE CHRONOLOGIQUE STRICT DU RÉSUMÉ ---
         lignes_accueil = [
-            {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')}
+            {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+            {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
         ]
         
-        if "2" in type_pesee:
-            if activer_pause and duree_pause > 0:
-                lignes_accueil.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
-            if dt_pesee_u11:
-                lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+        if activer_pause and duree_pause > 0:
+            lignes_accueil.append({"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause})
 
-        lignes_accueil.append({"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')})
-
-        if "1" in type_pesee:
-            if activer_pause and duree_pause > 0:
-                lignes_accueil.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+        if "2" in type_pesee and dt_pesee_u11:
+            lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
 
         lignes_accueil.extend([
             {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
-            {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+            {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
             {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
         ])
 
@@ -292,23 +288,17 @@ if fichier_upload is not None:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
             resume_data = [
-                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')}
+                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
             ]
-            if "2" in type_pesee:
-                if activer_pause and duree_pause > 0:
-                    resume_data.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
-                if dt_pesee_u11:
-                    resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
-
-            resume_data.append({"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')})
-
-            if "1" in type_pesee:
-                if activer_pause and duree_pause > 0:
-                    resume_data.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+            if activer_pause and duree_pause > 0:
+                resume_data.append({"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause})
+            if "2" in type_pesee and dt_pesee_u11:
+                resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             
             resume_data.extend([
                 {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
-                {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
             pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
@@ -514,3 +504,4 @@ if fichier_upload is not None:
         st.download_button(label="📥 Télécharger le Planning & Poules", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         st.error(f"Une erreur est survenue : {e}")
+        
