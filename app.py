@@ -223,7 +223,7 @@ if fichier_upload is not None:
 
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
 
-        # --- CALCUL AUTOMATIQUE DE LA PESÉE U11 (Fin U9 + Durée de la pause) ---
+        # --- CALCUL AUTOMATIQUE DE LA PESÉE U11 & COMPÉTITION U9 ---
         dt_pesee_u11 = None
         if "2" in type_pesee:
             dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause)
@@ -257,24 +257,28 @@ if fichier_upload is not None:
 
         fin_estimee = max(tapis_dispo)
 
-        # --- DÉTERMINATION DU LIBELLÉ DE PESÉE ---
+        # --- DÉTERMINATION DES LIBELLÉS ET PLages HORAIRES ---
         texte_pesee_u9 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
         valeur_pause = f"{duree_pause} min" if (activer_pause and duree_pause > 0) else "0 min"
+
+        # Plage horaire Compétition U9 (De son début jusqu'à la fin des matchs U9)
+        str_comp_u9 = f"{dt_debut_u9.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"
+        
+        # Plage horaire Compétition U11 (De son début effectif jusqu'à la fin estimée)
+        str_comp_u11 = f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
 
         # --- ORDRE CHRONOLOGIQUE STRICT DU RÉSUMÉ ---
         lignes_accueil = [
             {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
-            {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
+            {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+            {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
         ]
         
-        if activer_pause and duree_pause > 0:
-            lignes_accueil.append({"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause})
-
         if "2" in type_pesee and dt_pesee_u11:
             lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
 
         lignes_accueil.extend([
-            {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
+            {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
             {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
             {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
         ])
@@ -289,15 +293,14 @@ if fichier_upload is not None:
             
             resume_data = [
                 {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
-                {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
+                {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+                {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
             ]
-            if activer_pause and duree_pause > 0:
-                resume_data.append({"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause})
             if "2" in type_pesee and dt_pesee_u11:
                 resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             
             resume_data.extend([
-                {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
+                {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
@@ -504,4 +507,3 @@ if fichier_upload is not None:
         st.download_button(label="📥 Télécharger le Planning & Poules", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         st.error(f"Une erreur est survenue : {e}")
-        
