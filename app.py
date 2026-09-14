@@ -115,28 +115,37 @@ if fichier_upload is not None:
         if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
             df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
-        df_inscr = df_raw.copy()
+        df_inscr_total = df_raw.copy()
         
-        df_inscr = df_inscr[df_inscr['Age'].isin(['U9', 'U11'])]
-        if df_inscr.empty:
-            st.error("❌ Aucun lutteur U9 ou U11 n'a été trouvé dans le fichier.")
-            st.stop()
+        # Filtrer uniquement les catégories U9 ou U11 initiales
+        if "Age" in df_inscr_total.columns:
+            df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])]
         
-        if "Maîtrise" not in df_inscr.columns: df_inscr["Maîtrise"] = ""
+        total_inscrits_global = len(df_inscr_total)
+
+        if "Maîtrise" not in df_inscr_total.columns: df_inscr_total["Maîtrise"] = ""
         def attribuer_niveau(val):
             val_str = str(val).strip().lower()
             if val_str == 'd': return 'Débutant'
             elif val_str == 'c': return 'Confirmé'
             return ''
-        df_inscr['Niveau'] = df_inscr['Maîtrise'].apply(attribuer_niveau)
+        df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
 
-        df_inscr['Poids'] = df_inscr['Poids'].astype(str).str.replace(',', '.')
-        df_inscr['Poids_Num'] = pd.to_numeric(df_inscr['Poids'], errors='coerce')
-        df_inscr = df_inscr[df_inscr['Poids_Num'] > 0]
+        # Nettoyage et identification des poids valides vs absents/non pesés
+        df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
+        df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
         
-        # Nombre total de participants valides (pesés)
+        # Athlètes pesés (poids numérique > 0)
+        df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
         total_participants_peses = len(df_inscr)
+        
+        # Athlètes non pesés ou absents (poids vide, absent, ou 0/-)
+        total_non_peses = total_inscrits_global - total_participants_peses
 
+        if df_inscr.empty:
+            st.error("❌ Aucun lutteur U9 ou U11 avec un poids valide n'a été trouvé dans le fichier.")
+            st.stop()
+        
         if mixte_active:
             df_inscr['Sexe'] = 'Mixte'
         
@@ -291,15 +300,18 @@ if fichier_upload is not None:
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
                 {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
+                {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
             st.table(pd.DataFrame(lignes_accueil))
             
-            # Affichage des métriques côte à côte (Participants pesés à gauche de Matchs générés)
-            col_metrique_1, col_metrique_2 = st.columns(2)
+            # Affichage des métriques côte à côte
+            col_metrique_1, col_metrique_2, col_metrique_3 = st.columns(3)
             with col_metrique_1:
                 st.metric("Participants (pesés)", total_participants_peses)
             with col_metrique_2:
+                st.metric("Non pesés / Absents", total_non_peses)
+            with col_metrique_3:
                 st.metric("Matchs générés", total_matchs_calcules)
                 
             bouton_imprimer("🖨️ Imprimer ce Résumé")
@@ -347,6 +359,7 @@ if fichier_upload is not None:
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
                 {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
+                {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
             pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
