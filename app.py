@@ -27,8 +27,8 @@ with st.sidebar:
     label_pesee_1 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
     heure_pesee_u9 = st.time_input(label_pesee_1, value=time(9, 0))
         
-    st.subheader("2. Pause Déjeuner")
-    activer_pause = st.checkbox("Activer la pause déjeuner", value=True)
+    st.subheader("2. Pause de la compétition")
+    activer_pause = st.checkbox("Activer la pause de la compétition", value=True)
     if activer_pause:
         duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2)
     else:
@@ -269,12 +269,12 @@ if fichier_upload is not None:
         
         if "2" in type_pesee:
             if activer_pause and duree_pause > 0:
-                lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+                lignes_accueil.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
             if dt_pesee_u11:
                 lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
         else:
             if activer_pause and duree_pause > 0:
-                lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+                lignes_accueil.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
 
         lignes_accueil.extend([
             {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
@@ -294,12 +294,12 @@ if fichier_upload is not None:
             ]
             if "2" in type_pesee:
                 if activer_pause and duree_pause > 0:
-                    resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+                    resume_data.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
                 if dt_pesee_u11:
                     resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             else:
                 if activer_pause and duree_pause > 0:
-                    resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+                    resume_data.append({"Étape de la journée": f"Pause de la compétition ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
             
             resume_data.extend([
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
@@ -317,7 +317,7 @@ if fichier_upload is not None:
                     col = f"Tapis {t + 1}"
                     if row_idx < len(planning_tapis[t]):
                         m = planning_tapis[t][row_idx]
-                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DÉJEUNER"
+                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
                         elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
                         else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                     else: ligne[col] = ""
