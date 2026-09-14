@@ -274,7 +274,6 @@ if fichier_upload is not None:
         noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
         onglets_ui = st.tabs(noms_onglets)
         
-        # Onglet 1 : Résumé
         with onglets_ui[0]:
             st.subheader("📊 Résumé prévisionnel de la journée")
             lignes_accueil = [
@@ -294,7 +293,6 @@ if fichier_upload is not None:
             st.metric("Matchs générés", total_matchs_calcules)
             bouton_imprimer("🖨️ Imprimer ce Résumé")
 
-        # Onglet 2 : Grille de Passage
         with onglets_ui[1]:
             st.subheader("📅 Grille de Passage - Tapis")
             max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
@@ -313,7 +311,6 @@ if fichier_upload is not None:
             st.dataframe(pd.DataFrame(grille_ui), use_container_width=True)
             bouton_imprimer("🖨️ Imprimer la Grille de Passage")
 
-        # Onglets suivants : Chaque Poule
         for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
             with onglets_ui[idx]:
                 st.subheader(f"Feuille de Poule : {nom_poule}")
@@ -333,7 +330,7 @@ if fichier_upload is not None:
                 {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
             ]
             if "2" in type_pesee and dt_pesee_u11:
-                resume_data.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')},)
+                resume_data.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             
             resume_data.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
@@ -486,6 +483,7 @@ if fichier_upload is not None:
                 rondes = rondes_par_categorie[nom_poule]
                 col_offset_tours = 5 
                 
+                # Suivi des cellules source des matchs pour injecter les formules dans le tableau du haut
                 for tour_idx, ronde in enumerate(rondes, 1):
                     ws_poule.cell(row=row_cursor, column=2, value=f"TOUR {tour_idx}").font = Font(bold=True, size=14)
                     row_cursor += 1
@@ -518,6 +516,7 @@ if fichier_upload is not None:
                         
                         box_ptr = ws_poule.cell(row=row_cursor, column=5)
                         box_ptr.border, box_ptr.fill = b_style, gris_clair
+                        box_ptr.alignment = Alignment(horizontal="center", vertical="center")
                         
                         ws_poule.cell(row=row_cursor, column=6, value=idx2).alignment = Alignment(horizontal="center")
                         ws_poule.cell(row=row_cursor, column=6).font = Font(bold=True, color="1E88E5", size=14)
@@ -526,22 +525,25 @@ if fichier_upload is not None:
                         
                         box_ptb = ws_poule.cell(row=row_cursor, column=9)
                         box_ptb.border, box_ptb.fill = b_style, gris_clair
+                        box_ptb.alignment = Alignment(horizontal="center", vertical="center")
                         
-                        # --- FORMULE BIDIRECTIONNELLE DYNAMIQUE ---
-                        # Ici, la cellule du match en bas pointe vers la case du tableau du haut (ex: =E5)
-                        # Inversement, si tu saisis dans le bas, tu peux aussi faire pointer le haut vers le bas.
+                        # --- LIAISON INVERSÉE : Le tableau du haut pointe vers le match du bas ---
+                        cellule_match_p1_coord = box_ptr.coordinate
+                        cellule_match_p2_coord = box_ptb.coordinate
+                        
                         col_tour_lettre = openpyxl.utils.get_column_letter(col_offset_tours + (tour_idx - 1))
                         
                         if p1['Nom'] in lignes_lutteurs:
                             lig_haut_p1 = lignes_lutteurs[p1['Nom']]
-                            # Pour que la modification saisie dans le tableau du haut (ex: case E5) s'affiche dans le match du bas :
-                            box_ptr.value = f"={col_tour_lettre}{lig_haut_p1}"
-                            box_ptr.alignment = Alignment(horizontal="center", vertical="center")
+                            cell_haut_p1 = ws_poule.cell(row=lig_haut_p1, column=col_offset_tours + (tour_idx - 1))
+                            cell_haut_p1.value = f"={cellule_match_p1_coord}"
+                            cell_haut_p1.alignment = Alignment(horizontal="center", vertical="center")
                         
                         if p2['Nom'] in lignes_lutteurs:
                             lig_haut_p2 = lignes_lutteurs[p2['Nom']]
-                            box_ptb.value = f"={col_tour_lettre}{lig_haut_p2}"
-                            box_ptb.alignment = Alignment(horizontal="center", vertical="center")
+                            cell_haut_p2 = ws_poule.cell(row=lig_haut_p2, column=col_offset_tours + (tour_idx - 1))
+                            cell_haut_p2.value = f"={cellule_match_p2_coord}"
+                            cell_haut_p2.alignment = Alignment(horizontal="center", vertical="center")
 
                         row_cursor += 1
                         
