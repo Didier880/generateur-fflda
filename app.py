@@ -134,6 +134,9 @@ if fichier_upload is not None:
         df_inscr['Poids_Num'] = pd.to_numeric(df_inscr['Poids'], errors='coerce')
         df_inscr = df_inscr[df_inscr['Poids_Num'] > 0]
         
+        # Nombre total de participants valides (pesés)
+        total_participants_peses = len(df_inscr)
+
         if mixte_active:
             df_inscr['Sexe'] = 'Mixte'
         
@@ -287,10 +290,18 @@ if fichier_upload is not None:
             lignes_accueil.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
             st.table(pd.DataFrame(lignes_accueil))
-            st.metric("Matchs générés", total_matchs_calcules)
+            
+            # Affichage des métriques côte à côte (Participants pesés à gauche de Matchs générés)
+            col_metrique_1, col_metrique_2 = st.columns(2)
+            with col_metrique_1:
+                st.metric("Participants (pesés)", total_participants_peses)
+            with col_metrique_2:
+                st.metric("Matchs générés", total_matchs_calcules)
+                
             bouton_imprimer("🖨️ Imprimer ce Résumé")
 
         with onglets_ui[1]:
@@ -335,6 +346,7 @@ if fichier_upload is not None:
             resume_data.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
             pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
@@ -458,6 +470,7 @@ if fichier_upload is not None:
                 
                 lignes_lutteurs = {}
                 row_cursor += 1
+                
                 for i, p in enumerate(liste_p, 1):
                     lignes_lutteurs[p['Nom']] = row_cursor
                     ws_poule.cell(row=row_cursor, column=1).border = b_style 
@@ -472,10 +485,21 @@ if fichier_upload is not None:
                         cell_tour.border = b_style 
                         cell_tour.alignment = Alignment(horizontal="center", vertical="center")
                     
-                    ws_poule.cell(row=row_cursor, column=col_offset+nb_tours).border = b_style 
-                    ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1).border = b_style 
-                    ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+2, value=p.get('Poids', '')).border = b_style 
-                    ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+2).alignment = Alignment(horizontal="center")
+                    col_lettre_debut = openpyxl.utils.get_column_letter(col_offset)
+                    col_lettre_fin = openpyxl.utils.get_column_letter(col_offset + nb_tours - 1)
+                    cell_total_pts = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours, value=f"=SUM({col_lettre_debut}{row_cursor}:{col_lettre_fin}{row_cursor})")
+                    cell_total_pts.border = b_style
+                    cell_total_pts.alignment = Alignment(horizontal="center", vertical="center")
+                    cell_total_pts.font = Font(bold=True)
+                    
+                    cell_total_vict = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1, value="")
+                    cell_total_vict.border = b_style 
+                    cell_total_vict.alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    cell_poids = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+2, value=p.get('Poids', ''))
+                    cell_poids.border = b_style 
+                    cell_poids.alignment = Alignment(horizontal="center", vertical="center")
+                    
                     row_cursor += 1
                 
                 row_cursor += 2
@@ -483,7 +507,6 @@ if fichier_upload is not None:
                 rondes = rondes_par_categorie[nom_poule]
                 col_offset_tours = 5 
                 
-                # Suivi des cellules source des matchs pour injecter les formules dans le tableau du haut
                 for tour_idx, ronde in enumerate(rondes, 1):
                     ws_poule.cell(row=row_cursor, column=2, value=f"TOUR {tour_idx}").font = Font(bold=True, size=14)
                     row_cursor += 1
@@ -527,22 +550,16 @@ if fichier_upload is not None:
                         box_ptb.border, box_ptb.fill = b_style, gris_clair
                         box_ptb.alignment = Alignment(horizontal="center", vertical="center")
                         
-                        # --- LIAISON INVERSÉE : Le tableau du haut pointe vers le match du bas ---
-                        cellule_match_p1_coord = box_ptr.coordinate
-                        cellule_match_p2_coord = box_ptb.coordinate
-                        
-                        col_tour_lettre = openpyxl.utils.get_column_letter(col_offset_tours + (tour_idx - 1))
-                        
                         if p1['Nom'] in lignes_lutteurs:
                             lig_haut_p1 = lignes_lutteurs[p1['Nom']]
                             cell_haut_p1 = ws_poule.cell(row=lig_haut_p1, column=col_offset_tours + (tour_idx - 1))
-                            cell_haut_p1.value = f"={cellule_match_p1_coord}"
+                            cell_haut_p1.value = f"={box_ptr.coordinate}"
                             cell_haut_p1.alignment = Alignment(horizontal="center", vertical="center")
                         
                         if p2['Nom'] in lignes_lutteurs:
                             lig_haut_p2 = lignes_lutteurs[p2['Nom']]
                             cell_haut_p2 = ws_poule.cell(row=lig_haut_p2, column=col_offset_tours + (tour_idx - 1))
-                            cell_haut_p2.value = f"={cellule_match_p2_coord}"
+                            cell_haut_p2.value = f"={box_ptb.coordinate}"
                             cell_haut_p2.alignment = Alignment(horizontal="center", vertical="center")
 
                         row_cursor += 1
