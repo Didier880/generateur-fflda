@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, time
 import io
 import urllib.request
 import streamlit.components.v1 as components
+import openpyxl
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
@@ -458,7 +459,6 @@ if fichier_upload is not None:
                 ws_poule.column_dimensions['H'].width = largeur_club_col 
                 ws_poule.column_dimensions['I'].width = 10               
                 
-                # Dictionnaire pour retrouver facilement la ligne Excel de chaque lutteur dans le tableau du haut
                 lignes_lutteurs = {}
                 row_cursor += 1
                 for i, p in enumerate(liste_p, 1):
@@ -482,7 +482,7 @@ if fichier_upload is not None:
                 row_cursor += 2
                 
                 rondes = rondes_par_categorie[nom_poule]
-                col_offset_tours = 5 # Colonne E (1er tour)
+                col_offset_tours = 5 
                 
                 for tour_idx, ronde in enumerate(rondes, 1):
                     ws_poule.cell(row=row_cursor, column=2, value=f"TOUR {tour_idx}").font = Font(bold=True, size=14)
@@ -509,10 +509,6 @@ if fichier_upload is not None:
                         
                         row_cursor += 1
                         
-                        # Ligne des noms des lutteurs dans le bloc match
-                        r_nom_, c_nom_ = row_cursor, 3
-                        r_nom_bleu, c_nom_bleu = row_cursor, 7
-                        
                         ws_poule.cell(row=row_cursor, column=2, value=idx1).alignment = Alignment(horizontal="center")
                         ws_poule.cell(row=row_cursor, column=2).font = Font(bold=True, color="E53935", size=14)
                         ws_poule.cell(row=row_cursor, column=3, value=p1['Nom']).border = b_style
@@ -529,7 +525,6 @@ if fichier_upload is not None:
                         box_ptb = ws_poule.cell(row=row_cursor, column=9)
                         box_ptb.border, box_ptb.fill = b_style, gris_clair
                         
-                        # Liaison automatique des scores avec le tableau du haut selon le tour
                         col_tour_lettre = openpyxl.utils.get_column_letter(col_offset_tours + (tour_idx - 1))
                         if p1['Nom'] in lignes_lutteurs:
                             lig_haut_p1 = lignes_lutteurs[p1['Nom']]
