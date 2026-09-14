@@ -35,10 +35,9 @@ with st.sidebar:
     st.subheader("2. Pause Déjeuner")
     activer_pause = st.checkbox("Activer la pause déjeuner", value=True)
     if activer_pause:
-        pause_debut = st.time_input("Début de la pause", value=time(12, 0))
-        pause_fin = st.time_input("Fin de la pause", value=time(13, 0))
+        duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2) # 60 min par défaut
     else:
-        pause_debut, pause_fin = None, None
+        duree_pause = 0
     
     st.subheader("3. Règles Sportives")
     mixte_active = st.checkbox("Catégories Mixtes (U9/U11 filles et garçons ensemble)", value=True)
@@ -186,13 +185,14 @@ if fichier_upload is not None:
         else:
             dt_pesee_u11, dt_debut_u11_theorique = None, None
 
-        dt_pause_debut = datetime.combine(datetime.today(), pause_debut) if activer_pause else None
-        dt_pause_fin = datetime.combine(datetime.today(), pause_fin) if activer_pause else None
-        
         tapis_dispo = [dt_debut_u9 for _ in range(nb_tapis)]
         planning_tapis = {t: [] for t in range(nb_tapis)}
         last_match_time = {} 
         total_matchs_calcules = 0
+        
+        # Variable pour stocker l'heure de début et de fin de pause calculée dynamiquement après les U9
+        pause_debut_calculee = None
+        pause_fin_calculee = None
 
         def executer_vagues(poules_du_tapis, t_idx, heure_actuelle, duree_combat):
             global total_matchs_calcules
@@ -209,22 +209,12 @@ if fichier_upload is not None:
                 for cat, m in matches_vague:
                     p1, p2 = m[0]['Nom'], m[1]['Nom']
                     
-                    if activer_pause and dt_pause_debut <= heure_actuelle < dt_pause_fin:
-                        planning_tapis[t_idx].append({"Type": "PAUSE", "Heure": dt_pause_debut.strftime("%H:%M")})
-                        heure_actuelle = max(heure_actuelle, dt_pause_fin)
-                    
                     dispo = max(last_match_time.get(p1, heure_actuelle), last_match_time.get(p2, heure_actuelle))
                     if dispo > heure_actuelle:
-                        if activer_pause and heure_actuelle < dt_pause_debut and dispo > dt_pause_debut:
-                            dispo = dt_pause_debut
                         attente = int((dispo - heure_actuelle).total_seconds() // 60)
                         if attente > 0:
                             planning_tapis[t_idx].append({"Type": "ATTENTE", "Heure": heure_actuelle.strftime("%H:%M"), "Texte": f"⏳ Repos ({attente} min)"})
                         heure_actuelle = dispo
-                        
-                    if activer_pause and dt_pause_debut <= heure_actuelle < dt_pause_fin:
-                        planning_tapis[t_idx].append({"Type": "PAUSE", "Heure": dt_pause_debut.strftime("%H:%M")})
-                        heure_actuelle = max(heure_actuelle, dt_pause_fin)
 
                     planning_tapis[t_idx].append({
                         "Type": "MATCH", "Heure": heure_actuelle.strftime("%H:%M"), "Duree": duree_combat,
@@ -240,13 +230,28 @@ if fichier_upload is not None:
                     
             return heure_actuelle
 
+        # Exécution U9
         for t in range(nb_tapis):
             if tapis_poules_u9[t]:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u9[t], t, tapis_dispo[t], duree_u9)
 
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
-        debut_u11_reel = max(fin_u9_globale, dt_debut_u11_theorique) if dt_debut_u11_theorique else fin_u9_globale
-        
+
+        # Insertion de la pause déjeuner juste après la fin des U9 si activée
+        if activer_pause and duree_pause > 0:
+            pause_debut_calculee = fin_u9_globale
+            pause_fin_calculee = pause_debut_calculee + timedelta(minutes=duree_pause)
+            for t in range(nb_tapis):
+                planning_tapis[t].append({"Type": "PAUSE", "Heure": pause_debut_calculee.strftime("%H:%M")})
+                tapis_dispo[t] = pause_fin_calculee
+        else:
+            for t in range(nb_tapis):
+                tapis_dispo[t] = fin_u9_globale
+
+        debut_u11_reel = max(tapis_dispo)
+        if dt_debut_u11_theorique and debut_u11_reel < dt_debut_u11_theorique:
+            debut_u11_reel = dt_debut_u11_theorique
+
         for t in range(nb_tapis):
             if tapis_poules_u11[t] and tapis_dispo[t] < debut_u11_reel:
                 attente = int((debut_u11_reel - tapis_dispo[t]).total_seconds() // 60)
@@ -254,6 +259,7 @@ if fichier_upload is not None:
                     planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": f"Attente lancement U11"})
                 tapis_dispo[t] = debut_u11_reel
 
+        # Exécution U11
         for t in range(nb_tapis):
             if tapis_poules_u11[t]:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u11[t], t, tapis_dispo[t], duree_u11)
@@ -272,9 +278,8 @@ if fichier_upload is not None:
             {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
         ]
         
-        # Ajout de la pause déjeuner juste après la fin U9 si activée
-        if activer_pause and pause_debut and pause_fin:
-            lignes_accueil.append({"Étape de la journée": "Pause Déjeuner", "Horaire / Valeur": f"{pause_debut.strftime('%H:%M')} - {pause_fin.strftime('%H:%M')}"})
+        if activer_pause and duree_pause > 0 and pause_debut_calculee and pause_fin_calculee:
+            lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{pause_debut_calculee.strftime('%H:%M')} - {pause_fin_calculee.strftime('%H:%M')}"})
 
         if "2" in type_pesee and dt_pesee_u11:
             lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
@@ -295,8 +300,8 @@ if fichier_upload is not None:
                 {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
             ]
-            if activer_pause and pause_debut and pause_fin:
-                resume_data.append({"Étape de la journée": "Pause Déjeuner", "Horaire / Valeur": f"{pause_debut.strftime('%H:%M')} - {pause_fin.strftime('%H:%M')}"})
+            if activer_pause and duree_pause > 0 and pause_debut_calculee and pause_fin_calculee:
+                resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{pause_debut_calculee.strftime('%H:%M')} - {pause_fin_calculee.strftime('%H:%M')}"})
             if "2" in type_pesee and dt_pesee_u11:
                 resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             resume_data.append({"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')})
@@ -487,24 +492,4 @@ if fichier_upload is not None:
                         
                         row_cursor += 1
                         
-                        ws_poule.row_dimensions[row_cursor].height = 25
-                        ws_poule.cell(row=row_cursor, column=3).border = b_style
-                        ws_poule.cell(row=row_cursor, column=4).border = b_style
-                        ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
-                        ws_poule.cell(row=row_cursor, column=5).border = b_style
-                        
-                        ws_poule.cell(row=row_cursor, column=7).border = b_style
-                        ws_poule.cell(row=row_cursor, column=8).border = b_style
-                        ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
-                        ws_poule.cell(row=row_cursor, column=9).border = b_style
-                        
-                        row_cursor += 2 
-                    
-                    row_cursor += 1 
-
-        st.subheader("📊 Statistiques")
-        st.metric("Matchs générés", total_matchs_calcules)
-
-        st.download_button(label="📥 Télécharger le Planning & Poules", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    except Exception as e:
-        st.error(f"Une erreur est survenue : {e}")
+...
