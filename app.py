@@ -22,7 +22,7 @@ with st.sidebar:
     nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
     
     type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
-    duree_pesee = st.selectbox("Durée allouée à la pesée (min)", [30, 45, 60, 90], index=1) # 45 min par défaut
+    duree_pesee = st.selectbox("Durée allouée à la pesée (min)", [30, 45, 60, 90], index=1)
     
     heure_pesee_u9 = st.time_input("Heure de pesée U9", value=time(8, 30))
     if "2" in type_pesee:
@@ -43,8 +43,8 @@ with st.sidebar:
     repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
     
     st.subheader("4. Temps des Combats (Match + Rotation)")
-    duree_u9 = st.number_input("Temps total U9 (min)", value=3) # 2min + 1min rotation
-    duree_u11 = st.number_input("Temps total U11 (min)", value=4) # 3min + 1min rotation
+    duree_u9 = st.number_input("Temps total U9 (min)", value=3)
+    duree_u11 = st.number_input("Temps total U11 (min)", value=4)
 
 # --- CORPS PRINCIPAL ---
 st.title("Générateur de Planning FFLDA 🚀")
@@ -72,7 +72,6 @@ fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou
 
 if fichier_upload is not None:
     try:
-        # --- LECTURE DU FICHIER ---
         if fichier_upload.name.endswith('.csv'):
             df_raw = pd.read_csv(fichier_upload, sep=';', encoding='utf-8')
             if len(df_raw.columns) == 1:
@@ -95,7 +94,6 @@ if fichier_upload is not None:
 
         df_inscr = df_raw.copy()
         
-        # --- FILTRAGE STRICT U9 ET U11 ---
         df_inscr = df_inscr[df_inscr['Age'].isin(['U9', 'U11'])]
         if df_inscr.empty:
             st.error("❌ Aucun lutteur U9 ou U11 n'a été trouvé dans le fichier.")
@@ -116,7 +114,6 @@ if fichier_upload is not None:
         if mixte_active:
             df_inscr['Sexe'] = 'Mixte'
         
-        # --- CRÉATION DES POULES INTELLIGENTES ---
         poules_u9, poules_u11 = [], []
         
         for age in ['U9', 'U11']:
@@ -153,14 +150,12 @@ if fichier_upload is not None:
         participants_par_poule = {p['nom']: p['participants'] for p in poules_u9 + poules_u11}
         rondes_par_categorie = {p['nom']: p['rondes'] for p in poules_u9 + poules_u11}
 
-        # --- AFFECTATION DES POULES AUX TAPIS ---
         tapis_poules_u9 = {i: [] for i in range(nb_tapis)}
         tapis_poules_u11 = {i: [] for i in range(nb_tapis)}
         
         for i, p in enumerate(poules_u9): tapis_poules_u9[i % nb_tapis].append(p)
         for i, p in enumerate(poules_u11): tapis_poules_u11[i % nb_tapis].append(p)
 
-        # --- GESTION DES HORAIRES ET VAGUES ---
         dt_pesee_u9 = datetime.combine(datetime.today(), heure_pesee_u9)
         dt_debut_u9 = dt_pesee_u9 + timedelta(minutes=duree_pesee)
         
@@ -179,20 +174,17 @@ if fichier_upload is not None:
         total_matchs_calcules = 0
 
         def executer_vagues(poules_du_tapis, t_idx, heure_actuelle, duree_combat):
-            nonlocal total_matchs_calcules
-            # On groupe les poules par paquet de 3 (Vagues)
+            global total_matchs_calcules
             vagues = [poules_du_tapis[i:i+3] for i in range(0, len(poules_du_tapis), 3)]
             
             for vague in vagues:
                 matches_vague = []
                 max_r = max((len(p['rondes']) for p in vague), default=0)
-                # Entrelacement parfait des matchs
                 for r in range(max_r):
                     for p in vague:
                         if r < len(p['rondes']):
                             for m in p['rondes'][r]: matches_vague.append((p['nom'], m))
                 
-                # Exécution des matchs de la vague
                 for cat, m in matches_vague:
                     p1, p2 = m[0]['Nom'], m[1]['Nom']
                     
@@ -227,12 +219,10 @@ if fichier_upload is not None:
                     
             return heure_actuelle
 
-        # --- PHASE 1 : U9 ---
         for t in range(nb_tapis):
             if tapis_poules_u9[t]:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u9[t], t, tapis_dispo[t], duree_u9)
 
-        # --- SYNCHRONISATION AVANT U11 ---
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
         debut_u11_reel = max(fin_u9_globale, dt_debut_u11_theorique) if dt_debut_u11_theorique else fin_u9_globale
         
@@ -243,18 +233,15 @@ if fichier_upload is not None:
                     planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": f"Attente lancement U11"})
                 tapis_dispo[t] = debut_u11_reel
 
-        # --- PHASE 2 : U11 ---
         for t in range(nb_tapis):
             if tapis_poules_u11[t]:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u11[t], t, tapis_dispo[t], duree_u11)
 
         fin_estimee = max(tapis_dispo)
 
-        # --- EXPORT EXCEL ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
-            # --- ONGLET 1 : RÉSUMÉ ---
             resume_data = [
                 {"Étape de la journée": "Pesée Générale (U9)", "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
@@ -271,7 +258,6 @@ if fichier_upload is not None:
             ])
             pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
             
-            # --- ONGLET 2 : GRILLE DE PASSAGE ---
             max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
             grille = []
             for row_idx in range(max_lignes):
@@ -293,7 +279,6 @@ if fichier_upload is not None:
             rouge = PatternFill("solid", fgColor="EF4135")
             bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
             
-            # Design Résumé
             ws_res = writer.sheets["Résumé"]
             for cell in ws_res[1]: 
                 cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
@@ -304,7 +289,6 @@ if fichier_upload is not None:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                     cell.font = Font(size=12)
             
-            # Design Grille
             ws_grille = writer.sheets["Grille de Passage"]
             ws_grille.row_dimensions[1].height = 65
             ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
@@ -343,7 +327,6 @@ if fichier_upload is not None:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
             
-            # --- ONGLET 3 : FEUILLES DE POULES ---
             ws_poules = writer.book.create_sheet("Feuilles de Poules")
             row_cursor = 1
             gris_fonce = PatternFill("solid", fgColor="404040")
