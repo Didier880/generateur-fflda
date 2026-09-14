@@ -35,7 +35,7 @@ with st.sidebar:
     st.subheader("2. Pause Déjeuner")
     activer_pause = st.checkbox("Activer la pause déjeuner", value=True)
     if activer_pause:
-        duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2) # 60 min par défaut
+        duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2)
     else:
         duree_pause = 0
     
@@ -190,7 +190,6 @@ if fichier_upload is not None:
         last_match_time = {} 
         total_matchs_calcules = 0
         
-        # Variable pour stocker l'heure de début et de fin de pause calculée dynamiquement après les U9
         pause_debut_calculee = None
         pause_fin_calculee = None
 
@@ -492,4 +491,24 @@ if fichier_upload is not None:
                         
                         row_cursor += 1
                         
-...
+                        ws_poule.row_dimensions[row_cursor].height = 25
+                        ws_poule.cell(row=row_cursor, column=3).border = b_style
+                        ws_poule.cell(row=row_cursor, column=4).border = b_style
+                        ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
+                        ws_poule.cell(row=row_cursor, column=5).border = b_style
+                        
+                        ws_poule.cell(row=row_cursor, column=7).border = b_style
+                        ws_poule.cell(row=row_cursor, column=8).border = b_style
+                        ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
+                        ws_poule.cell(row=row_cursor, column=9).border = b_style
+                        
+                        row_cursor += 2 
+                    
+                    row_cursor += 1 
+
+        st.subheader("📊 Statistiques")
+        st.metric("Matchs générés", total_matchs_calcules)
+
+        st.download_button(label="📥 Télécharger le Planning & Poules", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except Exception as e:
+        st.error(f"Une erreur est survenue : {e}")
