@@ -242,6 +242,7 @@ if fichier_upload is not None:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
+            # --- ONGLET 1 : RÉSUMÉ ---
             resume_data = [
                 {"Étape de la journée": "Pesée Générale (U9)", "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
@@ -258,6 +259,7 @@ if fichier_upload is not None:
             ])
             pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
             
+            # --- ONGLET 2 : GRILLE DE PASSAGE ---
             max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
             grille = []
             for row_idx in range(max_lignes):
@@ -327,43 +329,49 @@ if fichier_upload is not None:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
             
-            ws_poules = writer.book.create_sheet("Feuilles de Poules")
-            row_cursor = 1
+            # --- ONGLETS DE POULES (MODÈLE NORDIQUE : 1 ONGLET / POULE) ---
             gris_fonce = PatternFill("solid", fgColor="404040")
             entete_noir = PatternFill("solid", fgColor="000000")
             
             for nom_poule, liste_p in participants_par_poule.items():
                 n_lutteurs = len(liste_p)
-                ws_poules.cell(row=row_cursor, column=1, value=nom_poule).font = Font(bold=True, size=14, color="0055A4")
+                
+                # Excel limite les noms d'onglets à 31 caractères maximum
+                nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
+                ws_poule = writer.book.create_sheet(nom_onglet_court)
+                
+                row_cursor = 1
+                
+                ws_poule.cell(row=row_cursor, column=1, value=nom_poule).font = Font(bold=True, size=14, color="0055A4")
                 row_cursor += 2
                 
                 headers = ["N°", "NOM", "CLUB"] + [str(i) for i in range(1, n_lutteurs+1)] + ["Matchs Gagnés", "Matchs Perdus", "Total Pts", "Classement"]
                 for col_idx, h in enumerate(headers, 1):
-                    c = ws_poules.cell(row=row_cursor, column=col_idx, value=h)
+                    c = ws_poule.cell(row=row_cursor, column=col_idx, value=h)
                     c.font, c.alignment, c.border = Font(bold=True), Alignment(horizontal="center", vertical="center", wrap_text=True), b_style
-                    lettre_col = ws_poules.cell(row=row_cursor, column=col_idx).column_letter
+                    lettre_col = ws_poule.cell(row=row_cursor, column=col_idx).column_letter
                     if 3 < col_idx <= 3 + n_lutteurs:
-                        ws_poules.column_dimensions[lettre_col].width = 5
+                        ws_poule.column_dimensions[lettre_col].width = 5
                         c.fill, c.font = entete_noir, Font(bold=True, color="FFFFFF")
                     elif col_idx > 3 + n_lutteurs:
-                        ws_poules.column_dimensions[lettre_col].width = 12
+                        ws_poule.column_dimensions[lettre_col].width = 12
                         
-                ws_poules.column_dimensions['A'].width, ws_poules.column_dimensions['B'].width, ws_poules.column_dimensions['C'].width = 5, 25, 20
+                ws_poule.column_dimensions['A'].width, ws_poule.column_dimensions['B'].width, ws_poule.column_dimensions['C'].width = 5, 25, 20
                 row_cursor += 1
                 
                 for i, p in enumerate(liste_p, 1):
-                    ws_poules.row_dimensions[row_cursor].height = 25 
-                    ws_poules.cell(row=row_cursor, column=1, value=i).border = b_style
-                    ws_poules.cell(row=row_cursor, column=1).alignment = Alignment(horizontal="center", vertical="center")
-                    ws_poules.cell(row=row_cursor, column=2, value=p['Nom']).border = b_style
-                    ws_poules.cell(row=row_cursor, column=3, value=p.get('Club', '')).border = b_style
+                    ws_poule.row_dimensions[row_cursor].height = 25 
+                    ws_poule.cell(row=row_cursor, column=1, value=i).border = b_style
+                    ws_poule.cell(row=row_cursor, column=1).alignment = Alignment(horizontal="center", vertical="center")
+                    ws_poule.cell(row=row_cursor, column=2, value=p['Nom']).border = b_style
+                    ws_poule.cell(row=row_cursor, column=3, value=p.get('Club', '')).border = b_style
                     
                     for j in range(1, n_lutteurs+1):
-                        c = ws_poules.cell(row=row_cursor, column=3+j)
+                        c = ws_poule.cell(row=row_cursor, column=3+j)
                         c.border = b_style
                         if i == j: c.fill = gris_fonce
                             
-                    for j in range(4): ws_poules.cell(row=row_cursor, column=3+n_lutteurs+1+j).border = b_style
+                    for j in range(4): ws_poule.cell(row=row_cursor, column=3+n_lutteurs+1+j).border = b_style
                     row_cursor += 1
                     
                 row_cursor += 1
@@ -375,8 +383,7 @@ if fichier_upload is not None:
                         idx2 = next((i+1 for i, x in enumerate(liste_p) if x['Nom'] == m[1]['Nom']), None)
                         if idx1 and idx2: ordre.append(f"{idx1}-{idx2}")
                 
-                ws_poules.cell(row=row_cursor, column=1, value="Ordre des combats : " + " // ".join(ordre)).font = Font(italic=True, bold=True)
-                row_cursor += 4 
+                ws_poule.cell(row=row_cursor, column=1, value="Ordre des combats : " + " // ".join(ordre)).font = Font(italic=True, bold=True)
 
         st.subheader("📊 Statistiques")
         st.metric("Matchs générés", total_matchs_calcules)
