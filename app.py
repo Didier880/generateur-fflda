@@ -362,7 +362,6 @@ if fichier_upload is not None:
             rouge = PatternFill("solid", fgColor="EF4135")
             bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
             
-            # Paramètres de mise en page pour l'impression du classeur Excel
             for ws_name in writer.book.sheetnames:
                 ws_sheet = writer.book[ws_name]
                 ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
@@ -449,7 +448,7 @@ if fichier_upload is not None:
                 largeur_nom_col = max(max_len_nom + 4, 25)
                 largeur_club_col = max(max_len_club + 4, 18)
 
-                # Insertion d'un en-tête / bloc visible d'information d'impression/partage sur chaque onglet de poule
+                # Information visible en haut de chaque onglet de poule dans Excel
                 ws_poule.cell(row=3, column=1, value=f"Tournoi FFLDA U9/U11 — Catégorie : {nom_poule}").font = Font(bold=True, size=11, color="555555")
 
                 ws_poule.column_dimensions['A'].width = 6
@@ -552,5 +551,5 @@ if fichier_upload is not None:
                     row_cursor += 1 
 
         st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    exceptException as e:
+    except Exception as e:
         st.error(f"Une erreur est survenue : {e}")
