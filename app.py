@@ -262,15 +262,20 @@ if fichier_upload is not None:
         st.success("Fichier analysé avec succès !")
         st.subheader("📊 Résumé prévisionnel de la journée")
         
-        df_resume_affichage = pd.DataFrame([
+        lignes_accueil = [
             {"Étape de la journée": "Pesée Générale (U9)", "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
-            {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
+            {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
+        ]
+        if "2" in type_pesee and dt_pesee_u11:
+            lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+            
+        lignes_accueil.extend([
             {"Étape de la journée": "Début effectif U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
             {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
             {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
         ])
         
-        st.table(df_resume_affichage)
+        st.table(pd.DataFrame(lignes_accueil))
 
         # --- EXPORT EXCEL ---
         output = io.BytesIO()
@@ -280,7 +285,7 @@ if fichier_upload is not None:
                 {"Étape de la journée": "Pesée Générale (U9)", "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
             ]
-            if "2" in type_pesee:
+            if "2" in type_pesee and dt_pesee_u11:
                 resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             resume_data.append({"Étape de la journée": "Début effectif U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')})
             if activer_pause:
