@@ -240,14 +240,13 @@ if fichier_upload is not None:
                         else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                     else: ligne[col] = ""
                 grille.append(ligne)
-            # On écrit à partir de la ligne 2 pour laisser la place au gros titre !
             pd.DataFrame(grille).to_excel(writer, sheet_name="Grille de Passage", index=False, startrow=1)
             
             from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             bleu = PatternFill("solid", fgColor="0055A4")
             rouge = PatternFill("solid", fgColor="EF4135")
-            bleu_tres_clair = PatternFill("solid", fgColor="F4F8FC")
+            bleu_clair = PatternFill("solid", fgColor="DDEBF7") # <--- MODIFICATION ICI : Bleu plus soutenu pour un meilleur contraste
             
             # Design Résumé
             ws_res = writer.sheets["Résumé"]
@@ -283,9 +282,9 @@ if fichier_upload is not None:
                 img.width = 70
                 ws_grille.add_image(img, 'A1')
             except Exception as e:
-                pass # Si pas d'accès internet, on affiche juste le texte, pas de bug !
+                pass 
 
-            # On fige les volets à partir de la ligne 3 ! (En-tête et Titre toujours visibles)
+            # On fige les volets à partir de la ligne 3
             ws_grille.freeze_panes = 'A3'
             
             # Design des en-têtes de Tapis (Ligne 2)
@@ -308,8 +307,8 @@ if fichier_upload is not None:
                         elif "Attente" in str(cell.value) or "Fin des U9" in str(cell.value): 
                             cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
                         else:
-                            # Couleur alternée pour aider la lecture
-                            cell.fill = bleu_tres_clair if is_even else PatternFill(fill_type=None)
+                            # Zébré plus prononcé avec le nouveau bleu
+                            cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
             
             # --- ONGLET 3 : FEUILLES DE POULES ---
