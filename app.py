@@ -20,6 +20,7 @@ with st.sidebar:
     st.subheader("Logistique")
     nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
     heure_debut = st.time_input("Heure de début (U9)", value=time(9, 0))
+    duree_pesee_u11 = st.number_input("Durée de la pesée U11 (min)", min_value=0, max_value=120, value=30, step=15)
     pause_debut = st.time_input("Début de la pause", value=time(12, 0))
     pause_fin = st.time_input("Fin de la pause", value=time(13, 0))
     
@@ -141,7 +142,7 @@ if fichier_upload is not None:
             st.success("✅ Règle appliquée : Filles et Garçons sont regroupés dans la catégorie 'Mixte'.")
         
         rondes_par_categorie = {}
-        composition_poules = [] # Liste pour le nouvel onglet Excel
+        composition_poules = [] 
         
         df_morpho_valide = df_inscr.sort_values('Poids_Num')
         
@@ -162,7 +163,6 @@ if fichier_upload is not None:
                     else:
                         nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                         rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
-                        # Ajout à la composition
                         for lutteur in poule_courante:
                             composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur["Poids"]})
                         
@@ -171,7 +171,6 @@ if fichier_upload is not None:
             if poule_courante:
                 nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                 rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
-                # Ajout à la composition
                 for lutteur in poule_courante:
                     composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur["Poids"]})
 
@@ -202,6 +201,7 @@ if fichier_upload is not None:
         planning_tapis = {t: [] for t in range(nb_tapis)}
         last_match_time = {} 
         total_matchs_calcules = 0
+        heure_pesee_u11 = None # Pour sauvegarder l'heure de la pesée
 
         phases = [("U9", file_u9), ("U11", file_u11)]
 
@@ -209,14 +209,20 @@ if fichier_upload is not None:
             if not file_attente:
                 continue
                 
-            if total_matchs_calcules > 0:
+            # --- SYNCHRONISATION ET BLOC PESÉE ---
+            if total_matchs_calcules > 0 and nom_phase == "U11":
                 heure_synchro = max(tapis_dispo)
+                heure_pesee_u11 = heure_synchro
+                heure_reprise = heure_synchro + timedelta(minutes=duree_pesee_u11)
+                
                 for t in range(nb_tapis):
-                    if tapis_dispo[t] < heure_synchro:
-                        attente = (heure_synchro - tapis_dispo[t]).seconds // 60
-                        if attente > 0:
-                            planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": f"Fin des U9 - En attente U11"})
-                        tapis_dispo[t] = heure_synchro
+                    # On bloque un espace "Pesée" sur tous les tapis
+                    planning_tapis[t].append({
+                        "Type": "PESEE", 
+                        "Heure": heure_synchro.strftime("%H:%M"), 
+                        "Texte": f"⚖️ PESÉE DES U11\n({duree_pesee_u11} minutes)"
+                    })
+                    tapis_dispo[t] = heure_reprise
             
             while file_attente:
                 t_idx = tapis_dispo.index(min(tapis_dispo))
@@ -284,8 +290,10 @@ if fichier_upload is not None:
         resume_data = [
             {"Information": "Matchs générés", "Valeur": str(total_matchs_calcules)},
             {"Information": "Heure début U9", "Valeur": dt_debut.strftime('%H:%M')},
-            {"Information": "Heure fin totale", "Valeur": fin_estimee.strftime('%H:%M')}
         ]
+        if heure_pesee_u11:
+            resume_data.append({"Information": "Heure pesée U11", "Valeur": heure_pesee_u11.strftime('%H:%M')})
+        resume_data.append({"Information": "Heure fin totale", "Valeur": fin_estimee.strftime('%H:%M')})
         
         max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
         grille = []
@@ -297,6 +305,8 @@ if fichier_upload is not None:
                     m = planning_tapis[t][row_idx]
                     if m["Type"] == "PAUSE":
                         ligne_donnees[nom_colonne] = f"[{m['Heure']}]\n⏸️ PAUSE DÉJEUNER"
+                    elif m["Type"] == "PESEE":
+                        ligne_donnees[nom_colonne] = f"[{m['Heure']}]\n{m['Texte']}"
                     elif m["Type"] == "ATTENTE":
                         ligne_donnees[nom_colonne] = f"[{m['Heure']}]\n{m['Texte']}"
                     else:
@@ -307,25 +317,20 @@ if fichier_upload is not None:
             
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Création des 3 onglets
             pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
-            
             df_compo = pd.DataFrame(composition_poules)
             df_compo.to_excel(writer, sheet_name="Composition des Poules", index=False)
-            
             df_grille = pd.DataFrame(grille)
             df_grille.to_excel(writer, sheet_name="Grille de Passage", index=False)
             
             from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
-            bleu, rouge, gris = PatternFill("solid", fgColor="0055A4"), PatternFill("solid", fgColor="EF4135"), PatternFill("solid", fgColor="F2F2F2")
+            bleu, rouge, gris, jaune = PatternFill("solid", fgColor="0055A4"), PatternFill("solid", fgColor="EF4135"), PatternFill("solid", fgColor="F2F2F2"), PatternFill("solid", fgColor="FFD966")
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             
-            # Style Résumé
             ws_res = writer.sheets["Résumé"]
             for cell in ws_res[1]: cell.fill, cell.font = bleu, Font(bold=True, color="FFFFFF")
             ws_res.column_dimensions['A'].width, ws_res.column_dimensions['B'].width = 30, 25
             
-            # Style Composition des Poules
             ws_compo = writer.sheets["Composition des Poules"]
             for cell in ws_compo[1]: 
                 cell.fill, cell.font = bleu, Font(bold=True, color="FFFFFF")
@@ -335,10 +340,8 @@ if fichier_upload is not None:
             ws_compo.column_dimensions['C'].width = 30
             ws_compo.column_dimensions['D'].width = 15
             for row in ws_compo.iter_rows(min_row=2, max_row=ws_compo.max_row):
-                for cell in row:
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                for cell in row: cell.alignment = Alignment(horizontal="center", vertical="center")
             
-            # Style Grille de Passage
             ws_grille = writer.sheets["Grille de Passage"]
             for cell in ws_grille[1]:
                 cell.fill, cell.font, cell.border = bleu, Font(bold=True, color="FFFFFF"), b_style
@@ -351,14 +354,24 @@ if fichier_upload is not None:
                 for cell in row:
                     cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
                     if cell.value:
-                        if "PAUSE" in str(cell.value): cell.fill, cell.font = rouge, Font(bold=True, color="FFFFFF")
-                        elif "Attente" in str(cell.value) or "Fin des U9" in str(cell.value): cell.fill, cell.font = gris, Font(italic=True, color="666666")
+                        if "PAUSE DÉJEUNER" in str(cell.value): cell.fill, cell.font = rouge, Font(bold=True, color="FFFFFF")
+                        elif "PESÉE" in str(cell.value): cell.fill, cell.font = jaune, Font(bold=True, color="000000")
+                        elif "Attente" in str(cell.value): cell.fill, cell.font = gris, Font(italic=True, color="666666")
 
-        st.subheader("📊 Statistiques")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Matchs générés", total_matchs_calcules)
-        col2.metric("Fin estimée", fin_estimee.strftime('%H:%M'))
-        col3.metric("Durée totale", format_duree(duree_totale))
+        st.subheader("📊 Statistiques du tournoi")
+        
+        # Affichage dynamique selon si les U11 sont présents ou non
+        if heure_pesee_u11:
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Matchs", total_matchs_calcules)
+            col2.metric("Début Pesée U11", heure_pesee_u11.strftime('%H:%M'))
+            col3.metric("Fin estimée", fin_estimee.strftime('%H:%M'))
+            col4.metric("Durée totale", format_duree(duree_totale))
+        else:
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Matchs générés", total_matchs_calcules)
+            col2.metric("Fin estimée", fin_estimee.strftime('%H:%M'))
+            col3.metric("Durée totale", format_duree(duree_totale))
 
         st.download_button(label="📥 Télécharger le Planning", data=output.getvalue(), file_name="Planning_U9_U11_FFLDA.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
