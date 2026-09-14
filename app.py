@@ -40,8 +40,7 @@ with st.sidebar:
     
     st.subheader("3. Règles Sportives")
     mixte_active = st.checkbox("Catégories Mixtes (U9/U11 filles et garçons ensemble)", value=True)
-    # NOUVEAU RÉGLAGE : Pourcentage de poids
-    tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=5, max_value=25, value=10, step=1)
+    tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=10, max_value=15, value=10, step=1)
     repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
     
     st.subheader("4. Temps des Combats (Match + Rotation)")
@@ -134,8 +133,6 @@ if fichier_upload is not None:
             df_inscr['Sexe'] = 'Mixte'
         
         poules_u9, poules_u11 = [], []
-        
-        # Le multiplicateur est calculé en fonction du réglage de l'utilisateur
         multiplicateur_poids = 1 + (tolerance_poids / 100.0)
         
         for age in ['U9', 'U11']:
@@ -153,7 +150,6 @@ if fichier_upload is not None:
                         poule_courante.append(p)
                     else:
                         poids_min = poule_courante[0]['Poids_Num']
-                        # APPLICATION DE LA NOUVELLE TOLÉRANCE DYNAMIQUE
                         if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
                             poule_courante.append(p)
                         else:
@@ -374,10 +370,14 @@ if fichier_upload is not None:
                     c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
                     c.fill = entete_noir
                 
+                # --- CALCUL AUTOMATIQUE DE LA LARGEUR DES COLONNES NOM & CLUB ---
+                max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
+                max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
+                
                 ws_poule.column_dimensions['A'].width = 6
                 ws_poule.column_dimensions['B'].width = 6
-                ws_poule.column_dimensions['C'].width = 25
-                ws_poule.column_dimensions['D'].width = 18
+                ws_poule.column_dimensions['C'].width = max(max_len_nom + 4, 25) # S'adapte au nom le plus long !
+                ws_poule.column_dimensions['D'].width = max(max_len_club + 4, 18) # S'adapte au club le plus long !
                 ws_poule.column_dimensions['E'].width = 10
                 ws_poule.column_dimensions['F'].width = 10
                 ws_poule.column_dimensions['G'].width = 10
