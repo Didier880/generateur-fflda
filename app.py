@@ -85,6 +85,7 @@ def generer_rondes_fflda(participants_in):
         return rondes
 
 def bouton_imprimer(label="🖨️ Imprimer cette vue"):
+    # Composant HTML/JS propre pour déclencher la fenêtre d'impression du navigateur
     print_code = f"""
     {label}
     """
