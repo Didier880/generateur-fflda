@@ -428,7 +428,7 @@ if fichier_upload is not None:
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
                 
                 ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
-                ws_poule.cell(row=2, column=1, value="* POINT DE CLASSEMENT (Pt Clt) : 4 ou 5 pt = Victoire par tombé ou supériorité technique / 3 pt = Victoire aux points / 1 pt = Défaite aux points / 0 pt = Défaite").font = Font(italic=True, size=9)
+                ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite").font = Font(italic=True, size=9)
                 
                 row_cursor = 4
                 headers = ["CLT", "N°", "NOM Prénom", "CLUB"]
@@ -448,9 +448,6 @@ if fichier_upload is not None:
                 largeur_nom_col = max(max_len_nom + 4, 25)
                 largeur_club_col = max(max_len_club + 4, 18)
 
-                # Information visible en haut de chaque onglet de poule dans Excel
-                ws_poule.cell(row=3, column=1, value=f"Tournoi FFLDA U9/U11 — Catégorie : {nom_poule}").font = Font(bold=True, size=11, color="555555")
-
                 ws_poule.column_dimensions['A'].width = 6
                 ws_poule.column_dimensions['B'].width = 6
                 ws_poule.column_dimensions['C'].width = largeur_nom_col  
@@ -461,8 +458,11 @@ if fichier_upload is not None:
                 ws_poule.column_dimensions['H'].width = largeur_club_col 
                 ws_poule.column_dimensions['I'].width = 10               
                 
+                # Dictionnaire pour retrouver facilement la ligne Excel de chaque lutteur dans le tableau du haut
+                lignes_lutteurs = {}
                 row_cursor += 1
                 for i, p in enumerate(liste_p, 1):
+                    lignes_lutteurs[p['Nom']] = row_cursor
                     ws_poule.cell(row=row_cursor, column=1).border = b_style 
                     ws_poule.cell(row=row_cursor, column=2, value=i).border = b_style 
                     ws_poule.cell(row=row_cursor, column=2).alignment = Alignment(horizontal="center")
@@ -482,6 +482,8 @@ if fichier_upload is not None:
                 row_cursor += 2
                 
                 rondes = rondes_par_categorie[nom_poule]
+                col_offset_tours = 5 # Colonne E (1er tour)
+                
                 for tour_idx, ronde in enumerate(rondes, 1):
                     ws_poule.cell(row=row_cursor, column=2, value=f"TOUR {tour_idx}").font = Font(bold=True, size=14)
                     row_cursor += 1
@@ -507,6 +509,10 @@ if fichier_upload is not None:
                         
                         row_cursor += 1
                         
+                        # Ligne des noms des lutteurs dans le bloc match
+                        r_nom_, c_nom_ = row_cursor, 3
+                        r_nom_bleu, c_nom_bleu = row_cursor, 7
+                        
                         ws_poule.cell(row=row_cursor, column=2, value=idx1).alignment = Alignment(horizontal="center")
                         ws_poule.cell(row=row_cursor, column=2).font = Font(bold=True, color="E53935", size=14)
                         ws_poule.cell(row=row_cursor, column=3, value=p1['Nom']).border = b_style
@@ -523,6 +529,18 @@ if fichier_upload is not None:
                         box_ptb = ws_poule.cell(row=row_cursor, column=9)
                         box_ptb.border, box_ptb.fill = b_style, gris_clair
                         
+                        # Liaison automatique des scores avec le tableau du haut selon le tour
+                        col_tour_lettre = openpyxl.utils.get_column_letter(col_offset_tours + (tour_idx - 1))
+                        if p1['Nom'] in lignes_lutteurs:
+                            lig_haut_p1 = lignes_lutteurs[p1['Nom']]
+                            box_ptr.value = f"={col_tour_lettre}{lig_haut_p1}"
+                            box_ptr.alignment = Alignment(horizontal="center", vertical="center")
+                        
+                        if p2['Nom'] in lignes_lutteurs:
+                            lig_haut_p2 = lignes_lutteurs[p2['Nom']]
+                            box_ptb.value = f"={col_tour_lettre}{lig_haut_p2}"
+                            box_ptb.alignment = Alignment(horizontal="center", vertical="center")
+
                         row_cursor += 1
                         
                         ws_poule.cell(row=row_cursor, column=3, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
