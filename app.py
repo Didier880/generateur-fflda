@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta, time
 import io
+import urllib.request
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
@@ -133,7 +134,7 @@ if fichier_upload is not None:
                 participants_par_poule[nom_groupe] = list(poule_courante)
                 rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
 
-        # --- SÉPARATION FILES D'ATTENTE U9 PUIS U11 ---
+        # --- SÉPARATION FILES D'ATTENTE ---
         file_u9, file_u11 = [], []
         for nom, rondes in rondes_par_categorie.items():
             if nom.startswith("U9"):
@@ -210,7 +211,7 @@ if fichier_upload is not None:
 
         fin_estimee = max(tapis_dispo) if tapis_dispo else dt_debut
 
-        # --- EXPORT EXCEL (AVEC FEUILLES DE MARQUE) ---
+        # --- EXPORT EXCEL ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
@@ -239,11 +240,14 @@ if fichier_upload is not None:
                         else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                     else: ligne[col] = ""
                 grille.append(ligne)
-            pd.DataFrame(grille).to_excel(writer, sheet_name="Grille de Passage", index=False)
+            # On écrit à partir de la ligne 2 pour laisser la place au gros titre !
+            pd.DataFrame(grille).to_excel(writer, sheet_name="Grille de Passage", index=False, startrow=1)
             
             from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             bleu = PatternFill("solid", fgColor="0055A4")
+            rouge = PatternFill("solid", fgColor="EF4135")
+            bleu_tres_clair = PatternFill("solid", fgColor="F4F8FC")
             
             # Design Résumé
             ws_res = writer.sheets["Résumé"]
@@ -256,20 +260,57 @@ if fichier_upload is not None:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                     cell.font = Font(size=12)
             
-            # Design Grille
+            # --- SUPER DESIGN DE LA GRILLE DE PASSAGE ---
             ws_grille = writer.sheets["Grille de Passage"]
-            ws_grille.freeze_panes = 'A2' # <--- VOICI LA LIGNE QUI FIGE L'EN-TÊTE
             
-            for cell in ws_grille[1]:
-                cell.fill, cell.font, cell.border = bleu, Font(bold=True, color="FFFFFF"), b_style
-                cell.alignment = Alignment(horizontal="center", vertical="center")
+            # 1. Le Titre FFLDA
+            ws_grille.row_dimensions[1].height = 65
+            ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
+            titre_cell = ws_grille.cell(row=1, column=1, value="🏆 PLANNING OFFICIEL DES COMBATS - FFLDA 🏆")
+            titre_cell.font = Font(name="Arial", size=22, bold=True, color="FFFFFF")
+            titre_cell.fill = bleu
+            titre_cell.alignment = Alignment(horizontal="center", vertical="center")
+            
+            # Insertion du Logo FFLDA
+            try:
+                from openpyxl.drawing.image import Image as OpenpyxlImage
+                url_logo = "https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png"
+                req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req) as response:
+                    img_data = io.BytesIO(response.read())
+                img = OpenpyxlImage(img_data)
+                img.height = 70
+                img.width = 70
+                ws_grille.add_image(img, 'A1')
+            except Exception as e:
+                pass # Si pas d'accès internet, on affiche juste le texte, pas de bug !
+
+            # On fige les volets à partir de la ligne 3 ! (En-tête et Titre toujours visibles)
+            ws_grille.freeze_panes = 'A3'
+            
+            # Design des en-têtes de Tapis (Ligne 2)
             for col in range(1, nb_tapis + 1):
-                ws_grille.column_dimensions[ws_grille.cell(row=1, column=col).column_letter].width = 45
-            for row in ws_grille.iter_rows(min_row=2, max_row=ws_grille.max_row):
+                c = ws_grille.cell(row=2, column=col)
+                c.fill, c.font, c.border = rouge, Font(bold=True, size=14, color="FFFFFF"), b_style
+                c.alignment = Alignment(horizontal="center", vertical="center")
+                ws_grille.column_dimensions[c.column_letter].width = 45
+                
+            # Design Zébré des combats (à partir de la ligne 3)
+            for row in ws_grille.iter_rows(min_row=3, max_row=ws_grille.max_row):
                 ws_grille.row_dimensions[row[0].row].height = 90
+                is_even = (row[0].row % 2 == 0)
+                
                 for cell in row:
                     cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
-                    if cell.value and "PAUSE" in str(cell.value): cell.fill, cell.font = PatternFill("solid", fgColor="EF4135"), Font(bold=True, color="FFFFFF")
+                    if cell.value:
+                        if "PAUSE" in str(cell.value): 
+                            cell.fill, cell.font = rouge, Font(bold=True, color="FFFFFF", size=12)
+                        elif "Attente" in str(cell.value) or "Fin des U9" in str(cell.value): 
+                            cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
+                        else:
+                            # Couleur alternée pour aider la lecture
+                            cell.fill = bleu_tres_clair if is_even else PatternFill(fill_type=None)
+                            cell.font = Font(size=12)
             
             # --- ONGLET 3 : FEUILLES DE POULES ---
             ws_poules = writer.book.create_sheet("Feuilles de Poules")
