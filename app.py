@@ -25,12 +25,7 @@ with st.sidebar:
     duree_pesee = st.selectbox("Durée allouée à la pesée (min)", [30, 45, 60, 90], index=1)
     
     label_pesee_1 = "Pesée Générale (U9-U11)" if "1" in type_pesee else "Pesée U9"
-    heure_pesee_u9 = st.time_input(label_pesee_1, value=time(13, 0))
-    
-    if "2" in type_pesee:
-        heure_pesee_u11 = st.time_input("Pesée U11", value=time(14, 0))
-    else:
-        heure_pesee_u11 = None
+    heure_pesee_u9 = st.time_input(label_pesee_1, value=time(9, 0))
         
     st.subheader("2. Pause Déjeuner")
     activer_pause = st.checkbox("Activer la pause déjeuner", value=True)
@@ -179,12 +174,6 @@ if fichier_upload is not None:
         dt_pesee_u9 = datetime.combine(datetime.today(), heure_pesee_u9)
         dt_debut_u9 = dt_pesee_u9 + timedelta(minutes=duree_pesee)
         
-        if heure_pesee_u11:
-            dt_pesee_u11 = datetime.combine(datetime.today(), heure_pesee_u11)
-            dt_debut_u11_theorique = dt_pesee_u11 + timedelta(minutes=duree_pesee)
-        else:
-            dt_pesee_u11, dt_debut_u11_theorique = None, None
-
         tapis_dispo = [dt_debut_u9 for _ in range(nb_tapis)]
         planning_tapis = {t: [] for t in range(nb_tapis)}
         last_match_time = {} 
@@ -233,8 +222,23 @@ if fichier_upload is not None:
 
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
 
-        for t in range(nb_tapis):
-            tapis_dispo[t] = fin_u9_globale
+        # --- CALCUL AUTOMATIQUE DE LA PESÉE U11 (Fin U9 + Durée de la pause) ---
+        dt_pesee_u11 = None
+        if "2" in type_pesee:
+            # L'heure de pesée U11 devient automatiquement la fin des U9 + la durée de la pause déjeuner
+            dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause)
+            dt_debut_u11_theorique = dt_pesee_u11 + timedelta(minutes=duree_pesee)
+        else:
+            dt_debut_u11_theorique = fin_u9_globale
+
+        # Inscription de la pause déjeuner sur les tapis
+        if activer_pause and duree_pause > 0:
+            for t in range(nb_tapis):
+                planning_tapis[t].append({"Type": "PAUSE", "Heure": fin_u9_globale.strftime("%H:%M")})
+                tapis_dispo[t] = fin_u9_globale + timedelta(minutes=duree_pause)
+        else:
+            for t in range(nb_tapis):
+                tapis_dispo[t] = fin_u9_globale
 
         debut_u11_reel = max(tapis_dispo)
         if dt_debut_u11_theorique and debut_u11_reel < dt_debut_u11_theorique:
@@ -262,22 +266,20 @@ if fichier_upload is not None:
         st.subheader("📊 Résumé prévisionnel de la journée")
         
         lignes_accueil = [
-            {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')}
+            {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+            {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
         ]
         
-        # Placement de la pause déjeuner entre les deux pesées si 2 pesées et pause active
-        if "2" in type_pesee and activer_pause and duree_pause > 0:
-            lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+        if "2" in type_pesee:
+            if activer_pause and duree_pause > 0:
+                lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
+            if dt_pesee_u11:
+                lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+        else:
+            if activer_pause and duree_pause > 0:
+                lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
 
-        if "2" in type_pesee and dt_pesee_u11:
-            lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
-
-        # Si 1 seule pesée, on peut placer la pause déjeuner après
-        if "1" in type_pesee and activer_pause and duree_pause > 0:
-            lignes_accueil.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
-            
         lignes_accueil.extend([
-            {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
             {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
             {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
             {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
@@ -290,7 +292,8 @@ if fichier_upload is not None:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
             resume_data = [
-                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')}
+                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
             ]
             if "2" in type_pesee:
                 if activer_pause and duree_pause > 0:
@@ -302,7 +305,6 @@ if fichier_upload is not None:
                     resume_data.append({"Étape de la journée": f"Pause Déjeuner ({duree_pause} min)", "Horaire / Valeur": f"{duree_pause} min"})
             
             resume_data.extend([
-                {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
                 {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
