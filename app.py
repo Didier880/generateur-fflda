@@ -20,6 +20,7 @@ with st.sidebar:
     st.subheader("Logistique")
     nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
     heure_debut = st.time_input("Heure de début (U9)", value=time(9, 0))
+    heure_pesee_u11 = st.time_input("Heure de pesée 2ème caté (U11)", value=time(10, 30))
     pause_debut = st.time_input("Début de la pause", value=time(12, 0))
     pause_fin = st.time_input("Fin de la pause", value=time(13, 0))
     
@@ -53,13 +54,6 @@ def generer_rondes(participants_in):
         rondes.append(matchs_ronde)
         participants.insert(1, participants.pop())
     return rondes
-
-def format_duree(td):
-    total_seconds = int(td.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
-    if hours > 0: return f"{hours}h {minutes}min"
-    return f"{minutes}min"
 
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
@@ -220,13 +214,18 @@ if fichier_upload is not None:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
-            # Onglet 1 : Résumé
-            pd.DataFrame([
-                {"Information": "Matchs générés", "Valeur": str(total_matchs_calcules)},
-                {"Information": "Heure fin totale", "Valeur": fin_estimee.strftime('%H:%M')}
-            ]).to_excel(writer, sheet_name="Résumé", index=False)
+            # --- ONGLET 1 : RÉSUMÉ ---
+            resume_data = [
+                {"Étape de la journée": "Heure de début de la compétition (U9)", "Horaire / Valeur": heure_debut.strftime('%H:%M')},
+                {"Étape de la journée": "Heure de pesée 2ème catégorie (U11)", "Horaire / Valeur": heure_pesee_u11.strftime('%H:%M')},
+                {"Étape de la journée": "Heure de début de la pause", "Horaire / Valeur": pause_debut.strftime('%H:%M')},
+                {"Étape de la journée": "Heure de fin de la pause", "Horaire / Valeur": pause_fin.strftime('%H:%M')},
+                {"Étape de la journée": "Heure de fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Nombre total de matchs prévus", "Horaire / Valeur": str(total_matchs_calcules)}
+            ]
+            pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
             
-            # Onglet 2 : Grille de Passage
+            # --- ONGLET 2 : GRILLE DE PASSAGE ---
             max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
             grille = []
             for row_idx in range(max_lignes):
@@ -246,22 +245,33 @@ if fichier_upload is not None:
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             bleu = PatternFill("solid", fgColor="0055A4")
             
-            # Design Résumé et Grille
-            for sheet_name in ["Résumé", "Grille de Passage"]:
-                ws = writer.sheets[sheet_name]
-                for cell in ws[1]: 
-                    cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
-                    if sheet_name == "Grille de Passage": cell.border = b_style
-                if sheet_name == "Grille de Passage":
-                    for col in range(1, nb_tapis + 1):
-                        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = 45
-                    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-                        ws.row_dimensions[row[0].row].height = 90
-                        for cell in row:
-                            cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
-                            if cell.value and "PAUSE" in str(cell.value): cell.fill, cell.font = PatternFill("solid", fgColor="EF4135"), Font(bold=True, color="FFFFFF")
+            # Design Résumé
+            ws_res = writer.sheets["Résumé"]
+            for cell in ws_res[1]: 
+                cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
+            ws_res.column_dimensions['A'].width = 50
+            ws_res.column_dimensions['B'].width = 25
+            for row in ws_res.iter_rows(min_row=2, max_row=ws_res.max_row):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.font = Font(size=12)
             
-            # --- ONGLET 3 : FEUILLES DE POULES (NOUVEAU DESIGN TABLE DE MARQUE) ---
+            # Design Grille
+            ws_grille = writer.sheets["Grille de Passage"]
+            ws_grille.freeze_panes = 'A2' # <--- VOICI LA LIGNE QUI FIGE L'EN-TÊTE
+            
+            for cell in ws_grille[1]:
+                cell.fill, cell.font, cell.border = bleu, Font(bold=True, color="FFFFFF"), b_style
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            for col in range(1, nb_tapis + 1):
+                ws_grille.column_dimensions[ws_grille.cell(row=1, column=col).column_letter].width = 45
+            for row in ws_grille.iter_rows(min_row=2, max_row=ws_grille.max_row):
+                ws_grille.row_dimensions[row[0].row].height = 90
+                for cell in row:
+                    cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
+                    if cell.value and "PAUSE" in str(cell.value): cell.fill, cell.font = PatternFill("solid", fgColor="EF4135"), Font(bold=True, color="FFFFFF")
+            
+            # --- ONGLET 3 : FEUILLES DE POULES ---
             ws_poules = writer.book.create_sheet("Feuilles de Poules")
             row_cursor = 1
             gris_fonce = PatternFill("solid", fgColor="404040")
@@ -270,25 +280,19 @@ if fichier_upload is not None:
             for nom_poule, liste_p in participants_par_poule.items():
                 n_lutteurs = len(liste_p)
                 
-                # Titre de la poule
                 cell_titre = ws_poules.cell(row=row_cursor, column=1, value=nom_poule)
                 cell_titre.font = Font(bold=True, size=14, color="0055A4")
                 row_cursor += 2
                 
-                # En-têtes du tableau (MISE À JOUR DES COLONNES)
                 headers = ["N°", "NOM", "CLUB"] + [str(i) for i in range(1, n_lutteurs+1)] + ["Matchs Gagnés", "Matchs Perdus", "Total Pts", "Classement"]
                 for col_idx, h in enumerate(headers, 1):
                     c = ws_poules.cell(row=row_cursor, column=col_idx, value=h)
-                    c.font = Font(bold=True)
-                    c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                    c.border = b_style
+                    c.font, c.alignment, c.border = Font(bold=True), Alignment(horizontal="center", vertical="center", wrap_text=True), b_style
                     lettre_col = ws_poules.cell(row=row_cursor, column=col_idx).column_letter
                     if 3 < col_idx <= 3 + n_lutteurs:
                         ws_poules.column_dimensions[lettre_col].width = 5
-                        c.fill = entete_noir
-                        c.font = Font(bold=True, color="FFFFFF")
+                        c.fill, c.font = entete_noir, Font(bold=True, color="FFFFFF")
                     elif col_idx > 3 + n_lutteurs:
-                        # On élargit les nouvelles colonnes de totaux pour laisser la place d'écrire
                         ws_poules.column_dimensions[lettre_col].width = 12
                         
                 ws_poules.column_dimensions['A'].width = 5
@@ -296,9 +300,8 @@ if fichier_upload is not None:
                 ws_poules.column_dimensions['C'].width = 20
                 row_cursor += 1
                 
-                # Lignes des lutteurs
                 for i, p in enumerate(liste_p, 1):
-                    ws_poules.row_dimensions[row_cursor].height = 25 # Plus de hauteur pour écrire confortablement
+                    ws_poules.row_dimensions[row_cursor].height = 25 
                     ws_poules.cell(row=row_cursor, column=1, value=i).border = b_style
                     ws_poules.cell(row=row_cursor, column=1).alignment = Alignment(horizontal="center", vertical="center")
                     ws_poules.cell(row=row_cursor, column=2, value=p['Nom']).border = b_style
@@ -307,17 +310,11 @@ if fichier_upload is not None:
                     for j in range(1, n_lutteurs+1):
                         c = ws_poules.cell(row=row_cursor, column=3+j)
                         c.border = b_style
-                        if i == j: c.fill = gris_fonce # Diagonale
+                        if i == j: c.fill = gris_fonce
                             
-                    # Création des bordures pour les cases vides à remplir au stylo (Gagnés, Perdus, Pts, Class.)
-                    ws_poules.cell(row=row_cursor, column=3+n_lutteurs+1).border = b_style
-                    ws_poules.cell(row=row_cursor, column=3+n_lutteurs+2).border = b_style
-                    ws_poules.cell(row=row_cursor, column=3+n_lutteurs+3).border = b_style
-                    ws_poules.cell(row=row_cursor, column=3+n_lutteurs+4).border = b_style
-                    
+                    for j in range(4): ws_poules.cell(row=row_cursor, column=3+n_lutteurs+1+j).border = b_style
                     row_cursor += 1
                     
-                # Ordre des combats calculé automatiquement
                 row_cursor += 1
                 rondes = rondes_par_categorie[nom_poule]
                 ordre = []
@@ -325,13 +322,11 @@ if fichier_upload is not None:
                     for m in r:
                         idx1 = next((i+1 for i, x in enumerate(liste_p) if x['Nom'] == m[0]['Nom']), None)
                         idx2 = next((i+1 for i, x in enumerate(liste_p) if x['Nom'] == m[1]['Nom']), None)
-                        if idx1 and idx2: # Ignore les BYE
-                            ordre.append(f"{idx1}-{idx2}")
+                        if idx1 and idx2: ordre.append(f"{idx1}-{idx2}")
                 
                 ws_poules.cell(row=row_cursor, column=1, value="Ordre des combats : " + " // ".join(ordre))
                 ws_poules.cell(row=row_cursor, column=1).font = Font(italic=True, bold=True)
-                
-                row_cursor += 4 # Espace avant la poule suivante
+                row_cursor += 4 
 
         st.subheader("📊 Statistiques")
         st.metric("Matchs générés", total_matchs_calcules)
