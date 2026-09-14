@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta, time
 import io
 import urllib.request
+import streamlit.components.v1 as components
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
@@ -82,6 +83,12 @@ def generer_rondes_fflda(participants_in):
             rondes.append(matchs_ronde)
             participants.insert(1, participants.pop())
         return rondes
+
+def bouton_imprimer(label="🖨️ Imprimer cette vue"):
+    print_code = f"""
+    {label}
+    """
+    components.html(print_code, height=50)
 
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
@@ -261,23 +268,57 @@ if fichier_upload is not None:
         str_comp_u11 = f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
 
         st.success("Fichier analysé avec succès !")
-        st.subheader("📊 Résumé prévisionnel de la journée")
         
-        lignes_accueil = [
-            {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
-            {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
-            {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
-        ]
-        if "2" in type_pesee and dt_pesee_u11:
-            lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+        # --- CRÉATION D'ONGLETS INTERACTIFS DANS L'APPLICATION ---
+        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+        onglets_ui = st.tabs(noms_onglets)
+        
+        # Onglet 1 : Résumé
+        with onglets_ui[0]:
+            st.subheader("📊 Résumé prévisionnel de la journée")
+            lignes_accueil = [
+                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+                {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
+            ]
+            if "2" in type_pesee and dt_pesee_u11:
+                lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
 
-        lignes_accueil.extend([
-            {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
-            {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
-            {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
-        ])
-        st.table(pd.DataFrame(lignes_accueil))
-        st.metric("Matchs générés", total_matchs_calcules)
+            lignes_accueil.extend([
+                {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
+                {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
+            ])
+            st.table(pd.DataFrame(lignes_accueil))
+            st.metric("Matchs générés", total_matchs_calcules)
+            bouton_imprimer("🖨️ Imprimer ce Résumé")
+
+        # Onglet 2 : Grille de Passage
+        with onglets_ui[1]:
+            st.subheader("📅 Grille de Passage - Tapis")
+            max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
+            grille_ui = []
+            for row_idx in range(max_lignes):
+                ligne = {}
+                for t in range(nb_tapis):
+                    col = f"Tapis {t + 1}"
+                    if row_idx < len(planning_tapis[t]):
+                        m = planning_tapis[t][row_idx]
+                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}] ⏸️ PAUSE"
+                        elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
+                        else: ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}"
+                    else: ligne[col] = ""
+                grille_ui.append(ligne)
+            st.dataframe(pd.DataFrame(grille_ui), use_container_width=True)
+            bouton_imprimer("🖨️ Imprimer la Grille de Passage")
+
+        # Onglets suivants : Chaque Poule
+        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
+            with onglets_ui[idx]:
+                st.subheader(f"Feuille de Poule : {nom_poule}")
+                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                st.table(df_poule_vue)
+                bouton_imprimer(f"🖨️ Imprimer cette Feuille de Poule")
 
         st.markdown("---")
         
@@ -298,8 +339,7 @@ if fichier_upload is not None:
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
-            df_resume = pd.DataFrame(resume_data)
-            df_resume.to_excel(writer, sheet_name="Résumé", index=False)
+            pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
             
             max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
             grille = []
@@ -322,7 +362,6 @@ if fichier_upload is not None:
             rouge = PatternFill("solid", fgColor="EF4135")
             bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
             
-            # Application automatique des paramètres d'impression pour chaque feuille Excel (Orientation paysage + Ajustement à la page)
             for ws_name in writer.book.sheetnames:
                 ws_sheet = writer.book[ws_name]
                 ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
@@ -508,6 +547,6 @@ if fichier_upload is not None:
                     
                     row_cursor += 1 
 
-        st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Prêt à imprimer)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         st.error(f"Une erreur est survenue : {e}")
