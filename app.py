@@ -333,7 +333,7 @@ if fichier_upload is not None:
                 {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
             ]
             if "2" in type_pesee and dt_pesee_u11:
-                resume_data.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+                resume_data.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')},)
             
             resume_data.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
@@ -471,7 +471,9 @@ if fichier_upload is not None:
                     
                     col_offset = 5
                     for t in range(nb_tours):
-                        ws_poule.cell(row=row_cursor, column=col_offset+t).border = b_style 
+                        cell_tour = ws_poule.cell(row=row_cursor, column=col_offset+t)
+                        cell_tour.border = b_style 
+                        cell_tour.alignment = Alignment(horizontal="center", vertical="center")
                     
                     ws_poule.cell(row=row_cursor, column=col_offset+nb_tours).border = b_style 
                     ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1).border = b_style 
@@ -525,9 +527,14 @@ if fichier_upload is not None:
                         box_ptb = ws_poule.cell(row=row_cursor, column=9)
                         box_ptb.border, box_ptb.fill = b_style, gris_clair
                         
+                        # --- FORMULE BIDIRECTIONNELLE DYNAMIQUE ---
+                        # Ici, la cellule du match en bas pointe vers la case du tableau du haut (ex: =E5)
+                        # Inversement, si tu saisis dans le bas, tu peux aussi faire pointer le haut vers le bas.
                         col_tour_lettre = openpyxl.utils.get_column_letter(col_offset_tours + (tour_idx - 1))
+                        
                         if p1['Nom'] in lignes_lutteurs:
                             lig_haut_p1 = lignes_lutteurs[p1['Nom']]
+                            # Pour que la modification saisie dans le tableau du haut (ex: case E5) s'affiche dans le match du bas :
                             box_ptr.value = f"={col_tour_lettre}{lig_haut_p1}"
                             box_ptr.alignment = Alignment(horizontal="center", vertical="center")
                         
