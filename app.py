@@ -271,6 +271,11 @@ if fichier_upload is not None:
             {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
             {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
         ]
+        
+        # Ajout de la pause déjeuner juste après la fin U9 si activée
+        if activer_pause and pause_debut and pause_fin:
+            lignes_accueil.append({"Étape de la journée": "Pause Déjeuner", "Horaire / Valeur": f"{pause_debut.strftime('%H:%M')} - {pause_fin.strftime('%H:%M')}"})
+
         if "2" in type_pesee and dt_pesee_u11:
             lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             
@@ -290,11 +295,11 @@ if fichier_upload is not None:
                 {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Début de la compétition U9", "Horaire / Valeur": dt_debut_u9.strftime('%H:%M')}
             ]
+            if activer_pause and pause_debut and pause_fin:
+                resume_data.append({"Étape de la journée": "Pause Déjeuner", "Horaire / Valeur": f"{pause_debut.strftime('%H:%M')} - {pause_fin.strftime('%H:%M')}"})
             if "2" in type_pesee and dt_pesee_u11:
                 resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             resume_data.append({"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')})
-            if activer_pause:
-                resume_data.append({"Étape de la journée": "Pause Déjeuner", "Horaire / Valeur": f"{pause_debut.strftime('%H:%M')} - {pause_fin.strftime('%H:%M')}"})
             
             resume_data.extend([
                 {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
