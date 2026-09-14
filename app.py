@@ -25,6 +25,8 @@ with st.sidebar:
     
     st.subheader("Santé & Arbitrage")
     repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
+    # LA NOUVELLE OPTION VISIBLE ICI :
+    option_mixte = st.checkbox("☑️ Regrouper les U9/U11 en catégorie 'Mixte'", value=True)
     
     st.subheader("Durée globale (Match + Rotation)")
     duree_u9 = st.number_input("Temps U9 (min)", value=4)
@@ -132,8 +134,10 @@ if fichier_upload is not None:
             
         df_inscr = df_inscr[df_inscr['Poids_Num'] > 0]
         
-        # Mixte par défaut pour U9/U11
-        df_inscr['Sexe'] = 'Mixte'
+        # --- OPTION MIXTE APPLIQUÉE ICI ---
+        if option_mixte:
+            df_inscr['Sexe'] = 'Mixte'
+            st.success("✅ Règle appliquée : Filles et Garçons sont regroupés dans la catégorie 'Mixte'.")
         
         rondes_par_categorie = {}
         df_morpho_valide = df_inscr.sort_values('Poids_Num')
