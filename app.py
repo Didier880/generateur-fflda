@@ -275,7 +275,7 @@ if fichier_upload is not None:
             lignes_accueil.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
             
         lignes_accueil.extend([
-            {"Étape de la journée": "Début effectif U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
+            {"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')},
             {"Étape de la journée": "Fin de compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
             {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
         ])
@@ -292,7 +292,7 @@ if fichier_upload is not None:
             ]
             if "2" in type_pesee and dt_pesee_u11:
                 resume_data.append({"Étape de la journée": "Pesée U11", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
-            resume_data.append({"Étape de la journée": "Début effectif U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')})
+            resume_data.append({"Étape de la journée": "Début de la compétition U11", "Horaire / Valeur": debut_u11_reel.strftime('%H:%M')})
             if activer_pause:
                 resume_data.append({"Étape de la journée": "Pause Déjeuner", "Horaire / Valeur": f"{pause_debut.strftime('%H:%M')} - {pause_fin.strftime('%H:%M')}"})
             
