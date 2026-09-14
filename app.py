@@ -25,7 +25,6 @@ with st.sidebar:
     
     st.subheader("Santé & Arbitrage")
     repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
-    # LA NOUVELLE OPTION VISIBLE ICI :
     option_mixte = st.checkbox("☑️ Regrouper les U9/U11 en catégorie 'Mixte'", value=True)
     
     st.subheader("Durée globale (Match + Rotation)")
@@ -88,6 +87,8 @@ if fichier_upload is not None:
             df_raw = df_raw.rename(columns={"Catégorie d'âge": "Age"})
         if "Sigle du Club" in df_raw.columns:
             df_raw = df_raw.rename(columns={"Sigle du Club": "Club"})
+        if "Club" not in df_raw.columns and "Nom du Club" in df_raw.columns:
+            df_raw = df_raw.rename(columns={"Nom du Club": "Club"})
             
         if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
             df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
@@ -100,7 +101,7 @@ if fichier_upload is not None:
         nb_apres_filtre = len(df_inscr)
         
         if nb_apres_filtre < nb_avant_filtre:
-            st.info(f"ℹ️ {nb_avant_filtre - nb_apres_filtre} lutteur(s) hors U9/U11 ont été ignorés pour ce tournoi spécifique.")
+            st.info(f"ℹ️ {nb_avant_filtre - nb_apres_filtre} lutteur(s) hors U9/U11 ont été ignorés pour ce tournoi.")
 
         if df_inscr.empty:
             st.error("❌ Aucun lutteur U9 ou U11 n'a été trouvé dans le fichier.")
@@ -134,12 +135,14 @@ if fichier_upload is not None:
             
         df_inscr = df_inscr[df_inscr['Poids_Num'] > 0]
         
-        # --- OPTION MIXTE APPLIQUÉE ICI ---
+        # --- OPTION MIXTE ---
         if option_mixte:
             df_inscr['Sexe'] = 'Mixte'
             st.success("✅ Règle appliquée : Filles et Garçons sont regroupés dans la catégorie 'Mixte'.")
         
         rondes_par_categorie = {}
+        composition_poules = [] # Liste pour le nouvel onglet Excel
+        
         df_morpho_valide = df_inscr.sort_values('Poids_Num')
         
         # Création des poules
@@ -159,11 +162,18 @@ if fichier_upload is not None:
                     else:
                         nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                         rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
+                        # Ajout à la composition
+                        for lutteur in poule_courante:
+                            composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur["Poids"]})
+                        
                         index_poule += 1
                         poule_courante = [p]
             if poule_courante:
                 nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                 rondes_par_categorie[nom_groupe] = generer_rondes(poule_courante)
+                # Ajout à la composition
+                for lutteur in poule_courante:
+                    composition_poules.append({"Poule": nom_groupe, "Nom": lutteur["Nom"], "Club": lutteur.get("Club", "-"), "Poids": lutteur["Poids"]})
 
         # --- SÉPARATION DES FILES D'ATTENTE U9 PUIS U11 ---
         rondes_u9 = {k: v for k, v in rondes_par_categorie.items() if k.startswith("U9")}
@@ -199,7 +209,6 @@ if fichier_upload is not None:
             if not file_attente:
                 continue
                 
-            # --- SYNCHRONISATION : On aligne tous les tapis à l'heure du dernier match U9 ---
             if total_matchs_calcules > 0:
                 heure_synchro = max(tapis_dispo)
                 for t in range(nb_tapis):
@@ -209,7 +218,6 @@ if fichier_upload is not None:
                             planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": f"Fin des U9 - En attente U11"})
                         tapis_dispo[t] = heure_synchro
             
-            # --- TRAITEMENT DE LA FILE D'ATTENTE ---
             while file_attente:
                 t_idx = tapis_dispo.index(min(tapis_dispo))
                 horaire_actuel = tapis_dispo[t_idx]
@@ -299,7 +307,12 @@ if fichier_upload is not None:
             
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Création des 3 onglets
             pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
+            
+            df_compo = pd.DataFrame(composition_poules)
+            df_compo.to_excel(writer, sheet_name="Composition des Poules", index=False)
+            
             df_grille = pd.DataFrame(grille)
             df_grille.to_excel(writer, sheet_name="Grille de Passage", index=False)
             
@@ -307,10 +320,25 @@ if fichier_upload is not None:
             bleu, rouge, gris = PatternFill("solid", fgColor="0055A4"), PatternFill("solid", fgColor="EF4135"), PatternFill("solid", fgColor="F2F2F2")
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             
+            # Style Résumé
             ws_res = writer.sheets["Résumé"]
             for cell in ws_res[1]: cell.fill, cell.font = bleu, Font(bold=True, color="FFFFFF")
             ws_res.column_dimensions['A'].width, ws_res.column_dimensions['B'].width = 30, 25
             
+            # Style Composition des Poules
+            ws_compo = writer.sheets["Composition des Poules"]
+            for cell in ws_compo[1]: 
+                cell.fill, cell.font = bleu, Font(bold=True, color="FFFFFF")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws_compo.column_dimensions['A'].width = 40
+            ws_compo.column_dimensions['B'].width = 25
+            ws_compo.column_dimensions['C'].width = 30
+            ws_compo.column_dimensions['D'].width = 15
+            for row in ws_compo.iter_rows(min_row=2, max_row=ws_compo.max_row):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+            
+            # Style Grille de Passage
             ws_grille = writer.sheets["Grille de Passage"]
             for cell in ws_grille[1]:
                 cell.fill, cell.font, cell.border = bleu, Font(bold=True, color="FFFFFF"), b_style
