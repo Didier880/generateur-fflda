@@ -5,7 +5,6 @@ import io
 import urllib.request
 import streamlit.components.v1 as components
 import openpyxl
-from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
@@ -94,13 +93,7 @@ def bouton_imprimer(label="🖨️ Imprimer cette vue"):
 
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
-if fichier_upload is None:
-    st.info("👈 Veuillez importer un fichier d'inscrits (.csv ou .xlsx) dans le menu ou ci-dessus pour générer le tournoi.")
-    tab_accueil = st.tabs(["📊 Résumé & Stats"])
-    with tab_accueil[0]:
-        st.subheader("📊 Résumé prévisionnel de la journée")
-        st.write("En attente de l'import d'une liste de participants...")
-else:
+if fichier_upload is not None:
     try:
         if fichier_upload.name.endswith('.csv'):
             df_raw = pd.read_csv(fichier_upload, sep=';', encoding='utf-8')
@@ -117,35 +110,16 @@ else:
             fichier_upload.seek(0)
             df_raw = pd.read_excel(fichier_upload, header=header_row)
 
-        df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].reset_index(drop=True)
-
-        renNom = {}
-        for col in df_raw.columns:
-            col_lower = str(col).lower()
-            if 'âge' in col_lower or 'age' in col_lower: renNom[col] = "Age"
-            elif 'poids' in col_lower: renNom[col] = "Poids"
-            elif 'nom' in col_lower: renNom[col] = "Nom"
-            elif 'prénom' in col_lower or 'prenom' in col_lower: renNom[col] = "Prénom"
-        
-        df_raw = df_raw.rename(columns=renNom)
-        df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].reset_index(drop=True)
-
-        # Extraction explicite du nom du club depuis la colonne P (index 15) si elle existe dans le fichier source
-        if len(df_raw.columns) > 15:
-            df_raw["Club"] = df_raw.iloc[:, 15].astype(str)
-        elif "Club" not in df_raw.columns:
-            df_raw["Club"] = "-"
-
+        if "Catégorie d'âge" in df_raw.columns: df_raw = df_raw.rename(columns={"Catégorie d'âge": "Age"})
+        if "Sigle du Club" in df_raw.columns: df_raw = df_raw.rename(columns={"Sigle du Club": "Club"})
         if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
-            s_nom = df_raw["Nom"].astype(str)
-            s_prenom = df_raw["Prénom"].astype(str)
-            if not s_nom.str.contains(s_prenom.iloc[0], na=False).any():
-                df_raw["Nom"] = s_nom + " " + s_prenom
+            df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
-        df_inscr_total = df_raw.copy().reset_index(drop=True)
+        df_inscr_total = df_raw.copy()
         
+        # Filtrer uniquement les catégories U9 ou U11 initiales
         if "Age" in df_inscr_total.columns:
-            df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])].reset_index(drop=True)
+            df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])]
         
         total_inscrits_global = len(df_inscr_total)
 
@@ -157,11 +131,15 @@ else:
             return ''
         df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
 
+        # Nettoyage et identification des poids valides vs absents/non pesés
         df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
         df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
         
-        df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy().reset_index(drop=True)
+        # Athlètes pesés (poids numérique > 0)
+        df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
         total_participants_peses = len(df_inscr)
+        
+        # Athlètes non pesés ou absents (poids vide, absent, ou 0/-)
         total_non_peses = total_inscrits_global - total_participants_peses
 
         if df_inscr.empty:
@@ -175,12 +153,11 @@ else:
         multiplicateur_poids = 1 + (tolerance_poids / 100.0)
         
         for age in ['U9', 'U11']:
-            df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num').reset_index(drop=True)
+            df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num')
             max_size = 4 if age == 'U9' else 5
             index_poule = 1
             
-            for (sexe, niveau), groupe in df_age.groupby(['Sexe', 'Niveau'], as_index=False):
-                groupe = groupe.reset_index(drop=True)
+            for (sexe, niveau), groupe in df_age.groupby(['Sexe', 'Niveau']):
                 participants = groupe.to_dict('records')
                 poule_courante = []
                 suffixe_niveau = f" | {niveau}" if niveau != "" else ""
@@ -305,8 +282,8 @@ else:
 
         st.success("Fichier analysé avec succès !")
         
-        # --- ONGLETS INTERACTIFS DE LA PAGE PRINCIPALE ---
-        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis", "🏆 Suivi Live des Scores & Podiums"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+        # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
+        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
         onglets_ui = st.tabs(noms_onglets)
         
         with onglets_ui[0]:
@@ -328,6 +305,7 @@ else:
             ])
             st.table(pd.DataFrame(lignes_accueil))
             
+            # Affichage des métriques côte à côte
             col_metrique_1, col_metrique_2, col_metrique_3 = st.columns(3)
             with col_metrique_1:
                 st.metric("Participants (pesés)", total_participants_peses)
@@ -356,15 +334,7 @@ else:
             st.dataframe(pd.DataFrame(grille_ui), use_container_width=True)
             bouton_imprimer("🖨️ Imprimer la Grille de Passage")
 
-        with onglets_ui[2]:
-            st.subheader("🏆 Suivi Live des Scores & Classements")
-            st.markdown("Saisissez les points de classement en direct pour simuler les podiums avant l'exportation.")
-            for nom_poule, participants in participants_par_poule.items():
-                with st.expander(f"Poule : {nom_poule}"):
-                    df_live = pd.DataFrame([{"Lutteur": p["Nom"], "Club": p.get("Club", "-"), "Points Clt": 0} for p in participants])
-                    st.data_editor(df_live, key=f"live_{nom_poule}", use_container_width=True)
-
-        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
+        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
             with onglets_ui[idx]:
                 st.subheader(f"Feuille de Poule : {nom_poule}")
                 df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
@@ -409,6 +379,7 @@ else:
                 grille.append(ligne)
             pd.DataFrame(grille).to_excel(writer, sheet_name="Grille de Passage", index=False, startrow=1)
             
+            from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             bleu = PatternFill("solid", fgColor="0055A4")
             rouge = PatternFill("solid", fgColor="EF4135")
@@ -497,8 +468,8 @@ else:
                 max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
                 max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
                 
-                largeur_nom_col = max(max_len_nom + 8, 32)
-                largeur_club_col = max(max_len_club + 6, 25)
+                largeur_nom_col = max(max_len_nom + 4, 25)
+                largeur_club_col = max(max_len_club + 4, 18)
 
                 ws_poule.column_dimensions['A'].width = 6
                 ws_poule.column_dimensions['B'].width = 6
@@ -518,14 +489,8 @@ else:
                     ws_poule.cell(row=row_cursor, column=1).border = b_style 
                     ws_poule.cell(row=row_cursor, column=2, value=i).border = b_style 
                     ws_poule.cell(row=row_cursor, column=2).alignment = Alignment(horizontal="center")
-                    
-                    cell_nom = ws_poule.cell(row=row_cursor, column=3, value=p['Nom'])
-                    cell_nom.border = b_style
-                    cell_nom.alignment = Alignment(horizontal="left", vertical="center")
-                    
-                    cell_club = ws_poule.cell(row=row_cursor, column=4, value=str(p.get('Club', '')))
-                    cell_club.border = b_style
-                    cell_club.alignment = Alignment(horizontal="left", vertical="center")
+                    ws_poule.cell(row=row_cursor, column=3, value=p['Nom']).border = b_style
+                    ws_poule.cell(row=row_cursor, column=4, value=p.get('Club', '')).border = b_style
                     
                     col_offset = 5
                     for t in range(nb_tours):
@@ -582,14 +547,8 @@ else:
                         
                         ws_poule.cell(row=row_cursor, column=2, value=idx1).alignment = Alignment(horizontal="center")
                         ws_poule.cell(row=row_cursor, column=2).font = Font(bold=True, color="E53935", size=14)
-                        
-                        cn1 = ws_poule.cell(row=row_cursor, column=3, value=p1['Nom'])
-                        cn1.border = b_style
-                        cn1.alignment = Alignment(horizontal="left", vertical="center")
-                        
-                        cc1 = ws_poule.cell(row=row_cursor, column=4, value=str(p1.get('Club', '')))
-                        cc1.border = b_style
-                        cc1.alignment = Alignment(horizontal="left", vertical="center")
+                        ws_poule.cell(row=row_cursor, column=3, value=p1['Nom']).border = b_style
+                        ws_poule.cell(row=row_cursor, column=4, value=p1.get('Club', '')).border = b_style
                         
                         box_ptr = ws_poule.cell(row=row_cursor, column=5)
                         box_ptr.border, box_ptr.fill = b_style, gris_clair
@@ -597,14 +556,8 @@ else:
                         
                         ws_poule.cell(row=row_cursor, column=6, value=idx2).alignment = Alignment(horizontal="center")
                         ws_poule.cell(row=row_cursor, column=6).font = Font(bold=True, color="1E88E5", size=14)
-                        
-                        cn2 = ws_poule.cell(row=row_cursor, column=7, value=p2['Nom'])
-                        cn2.border = b_style
-                        cn2.alignment = Alignment(horizontal="left", vertical="center")
-                        
-                        cc2 = ws_poule.cell(row=row_cursor, column=8, value=str(p2.get('Club', '')))
-                        cc2.border = b_style
-                        cc2.alignment = Alignment(horizontal="left", vertical="center")
+                        ws_poule.cell(row=row_cursor, column=7, value=p2['Nom']).border = b_style
+                        ws_poule.cell(row=row_cursor, column=8, value=p2.get('Club', '')).border = b_style
                         
                         box_ptb = ws_poule.cell(row=row_cursor, column=9)
                         box_ptb.border, box_ptb.fill = b_style, gris_clair
