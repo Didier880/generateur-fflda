@@ -338,21 +338,12 @@ else:
 
         with onglets_ui[2]:
             st.subheader("🏆 Classement Général par Catégorie et Poule")
-            st.markdown("Retrouvez ci-dessous les tableaux classés. **Utilisez le bouton ci-dessous pour trier automatiquement par ordre de classement (du 1er au dernier).**")
-            
-            # Bouton interactif Streamlit pour simuler le tri en direct à l'écran !
-            trier_classement = st.button("🔄 Trier le classement (Rang 1 en haut)")
-
+            st.markdown("Retrouvez ci-dessous les tableaux de classement pour chaque groupe.")
             for nom_poule, liste_p in participants_par_poule.items():
                 st.markdown(f"### 🤼 {nom_poule}")
                 df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
                 df_poule_classement["Points"] = 0
                 df_poule_classement["Rang"] = range(1, len(df_poule_classement) + 1)
-                
-                if trier_classement:
-                    # Simulation d'un tri dynamique par le rang dans l'interface
-                    df_poule_classement = df_poule_classement.sort_values(by="Rang", ascending=True)
-
                 df_poule_classement = df_poule_classement[['Rang', 'Nom', 'Club', 'Poids', 'Points']]
                 st.dataframe(df_poule_classement, use_container_width=True)
             bouton_imprimer("🖨️ Imprimer le Classement Général")
@@ -639,9 +630,9 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL ---
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (FEUILLE SYNTHÉTIQUE PROPRE) ---
             ws_cg = writer.book.create_sheet("Classement Général", index=2) 
-            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
+            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT OFFICIEL PAR POULE").font = Font(bold=True, size=16, color="0055A4")
             
             row_cg = 3
             for nom_poule, liste_p in participants_par_poule.items():
@@ -655,33 +646,26 @@ else:
                     c.fill = entete_noir
                 row_cg += 1
                 
-                ligne_debut_poule_cg = row_cg
-                nb_p = len(liste_p)
+                # Dans chaque feuille de poule officielle, les lignes de classement contiennent déjà la colonne CLT (Rang) et Total Pts.
+                # Sur cette feuille de synthèse, on fait pointer directement le classement de chaque lutteur vers sa ligne officielle de poule triée.
+                nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
                 
-                for i, p in enumerate(liste_p, 1):
+                for idx, p in enumerate(liste_p, 1):
                     current_row = row_cg
-                    ws_cg.cell(row=current_row, column=2, value=p.get('Nom', '')).border = b_style
-                    ws_cg.cell(row=current_row, column=3, value=p.get('Club', '')).border = b_style
-                    ws_cg.cell(row=current_row, column=4, value=p.get('Poids', '')).border = b_style
+                    # Formule de liaison directe sur le rang et le score de la feuille de poule
+                    ligne_poule_lutteur = 5 + idx # Correspond à la ligne du lutteur dans son onglet de poule
                     
-                    coord_poule = cellules_points_poules.get((nom_poule, p['Nom']), "0")
-                    cell_pts = ws_cg.cell(row=current_row, column=5, value=f"={coord_poule}")
-                    cell_pts.border = b_style
-                    cell_pts.font = Font(bold=True, color="0055A4")
+                    ws_cg.cell(row=current_row, column=1, value=f"='{nom_onglet_court}'!A{ligne_poule_lutteur}").border = b_style
+                    ws_cg.cell(row=current_row, column=2, value=f"='{nom_onglet_court}'!C{ligne_poule_lutteur}").border = b_style
+                    ws_cg.cell(row=current_row, column=3, value=f"='{nom_onglet_court}'!D{ligne_poule_lutteur}").border = b_style
+                    ws_cg.cell(row=current_row, column=4, value=f"='{nom_onglet_court}'!{openpyxl.utils.get_column_letter(5 + len(rondes_par_categorie[nom_poule]) + 2)}{ligne_poule_lutteur}").border = b_style
+                    ws_cg.cell(row=current_row, column=5, value=f"='{nom_onglet_court}'!{openpyxl.utils.get_column_letter(5 + len(rondes_par_categorie[nom_poule]))}{ligne_poule_lutteur}").border = b_style
                     
-                    row_cg += 1
-                
-                plage_points_cg = f"E{ligne_debut_poule_cg}:E{ligne_debut_poule_cg + nb_p - 1}"
-                
-                for idx_lutteur in range(nb_p):
-                    r_target = ligne_debut_poule_cg + idx_lutteur
-                    cell_rang = ws_cg.cell(row=r_target, column=1, value=f"=RANK(E{r_target}, {plage_points_cg})")
-                    cell_rang.border = b_style
-                    cell_rang.font = Font(bold=True, color="0055A4")
-                
-                for r_idx in range(ligne_debut_poule_cg, ligne_debut_poule_cg + nb_p):
                     for c_idx in range(1, 6):
-                        ws_cg.cell(row=r_idx, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
+                        cell = ws_cg.cell(row=current_row, column=c_idx)
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        cell.font = Font(bold=(c_idx == 1 or c_idx == 5), color="0055A4" if c_idx == 1 or c_idx == 5 else "000000")
+                    row_cg += 1
                 
                 row_cg += 2  
             
