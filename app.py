@@ -94,6 +94,7 @@ def bouton_imprimer(label="🖨️ Imprimer cette vue"):
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
 if fichier_upload is None:
+    # Page d'accueil épurée : Un seul onglet Résumé & Stats d'attente
     st.info("👈 Veuillez importer un fichier d'inscrits (.csv ou .xlsx) dans le menu ou ci-dessus pour générer le tournoi.")
     tab_accueil = st.tabs(["📊 Résumé & Stats"])
     with tab_accueil[0]:
@@ -446,8 +447,6 @@ else:
             entete_noir = PatternFill("solid", fgColor="000000")
             gris_clair = PatternFill("solid", fgColor="F2F2F2")
             
-            suivi_classement_global = []
-
             for nom_poule, liste_p in participants_par_poule.items():
                 nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
@@ -477,11 +476,11 @@ else:
                 ws_poule.column_dimensions['B'].width = 6
                 ws_poule.column_dimensions['C'].width = largeur_nom_col  
                 ws_poule.column_dimensions['D'].width = largeur_club_col 
-                ws_poule.column_dimensions['E'].width = 10                
+                ws_poule.column_dimensions['E'].width = 10               
                 ws_poule.column_dimensions['F'].width = 6                
                 ws_poule.column_dimensions['G'].width = largeur_nom_col  
                 ws_poule.column_dimensions['H'].width = largeur_club_col 
-                ws_poule.column_dimensions['I'].width = 10                
+                ws_poule.column_dimensions['I'].width = 10               
                 
                 lignes_lutteurs = {}
                 row_cursor += 1
@@ -515,14 +514,6 @@ else:
                     cell_poids.border = b_style 
                     cell_poids.alignment = Alignment(horizontal="center", vertical="center")
                     
-                    suivi_classement_global.append({
-                        "Nom": p['Nom'],
-                        "Club": p.get('Club', ''),
-                        "Categorie": nom_poule,
-                        "cell_pts": f"'{nom_onglet_court}'!{cell_total_pts.coordinate}",
-                        "cell_poids": p.get('Poids', '')
-                    })
-
                     row_cursor += 1
                 
                 row_cursor += 2
@@ -612,42 +603,6 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE L'ONGLET CLASSEMENT INDIVIDUEL ---
-            ws_classement = writer.book.create_sheet(title="Classement Individuel", index=2)
-            ws_classement.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL INDIVIDUEL 🏆").font = Font(name="Arial", size=16, bold=True, color="0055A4")
-            
-            headers_clt = ["Rang", "Nom Prénom", "Club", "Catégorie / Poule", "Points Totaux", "Poids"]
-            for col_idx, h in enumerate(headers_clt, 1):
-                c = ws_classement.cell(row=3, column=col_idx, value=h)
-                c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                c.fill = entete_noir
-
-            ws_classement.column_dimensions['A'].width = 8
-            ws_classement.column_dimensions['B'].width = 30
-            ws_classement.column_dimensions['C'].width = 20
-            ws_classement.column_dimensions['D'].width = 35
-            ws_classement.column_dimensions['E'].width = 15
-            ws_classement.column_dimensions['F'].width = 10
-
-            row_clt = 4
-            for item in suivi_classement_global:
-                ws_classement.cell(row=row_clt, column=1, value="")
-                ws_classement.cell(row=row_clt, column=2, value=item["Nom"]).border = b_style
-                ws_classement.cell(row=row_clt, column=3, value=item["Club"]).border = b_style
-                ws_classement.cell(row=row_clt, column=4, value=item["Categorie"]).border = b_style
-                
-                cell_pts_ref = ws_classement.cell(row=row_clt, column=5, value=f"={item['cell_pts']}")
-                cell_pts_ref.border = b_style
-                cell_pts_ref.alignment = Alignment(horizontal="center", vertical="center")
-                cell_pts_ref.font = Font(bold=True)
-
-                cell_pds = ws_classement.cell(row=row_clt, column=6, value=item["cell_poids"])
-                cell_pds.border = b_style
-                cell_pds.alignment = Alignment(horizontal="center", vertical="center")
-
-                ws_classement.row_dimensions[row_clt].height = 20
-                row_clt += 1
-
-            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         st.error(f"Une erreur est survenue : {e}")
