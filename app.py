@@ -87,9 +87,11 @@ def generer_rondes_fflda(participants_in):
 
 def bouton_imprimer(label="🖨️ Imprimer cette vue"):
     print_code = f"""
-    {label}
+    
+        {label}
+    
     """
-    components.html(print_code, height=50)
+    components.html(print_code, height=60)
 
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
@@ -488,7 +490,6 @@ else:
                 for i, p in enumerate(liste_p, 1):
                     lignes_lutteurs[p['Nom']] = row_cursor
                     
-                    # Formule de classement dynamique (RANK) basée sur le total des points de la poule
                     col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
                     plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                     
