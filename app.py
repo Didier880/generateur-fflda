@@ -6,10 +6,6 @@ import urllib.request
 import streamlit.components.v1 as components
 import openpyxl
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
@@ -116,6 +112,9 @@ else:
             fichier_upload.seek(0)
             df_raw = pd.read_excel(fichier_upload, header=header_row)
 
+        # Nettoyage et réinitialisation des index pour éviter les doublons d'étiquettes
+        df_raw = df_raw.reset_index(drop=True)
+
         # Mappage flexible des colonnes
         for col in df_raw.columns:
             col_lower = str(col).lower()
@@ -128,9 +127,9 @@ else:
         if "Prénom" in df_raw.columns and "Nom" in df_raw.columns and not df_raw['Nom'].str.contains(df_raw['Prénom'].iloc[0], na=False).any():
             df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
-        df_inscr_total = df_raw.copy()
+        df_inscr_total = df_raw.copy().reset_index(drop=True)
         if "Age" in df_inscr_total.columns:
-            df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])]
+            df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])].reset_index(drop=True)
         
         total_inscrits_global = len(df_inscr_total)
 
@@ -145,7 +144,7 @@ else:
         df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
         df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
         
-        df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
+        df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy().reset_index(drop=True)
         total_participants_peses = len(df_inscr)
         total_non_peses = total_inscrits_global - total_participants_peses
 
@@ -160,7 +159,7 @@ else:
         multiplicateur_poids = 1 + (tolerance_poids / 100.0)
         
         for age in ['U9', 'U11']:
-            df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num')
+            df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num').reset_index(drop=True)
             max_size = 4 if age == 'U9' else 5
             index_poule = 1
             
@@ -330,7 +329,6 @@ else:
                     df_live = pd.DataFrame([{"Lutteur": p["Nom"], "Club": p.get("Club", "-"), "Points Clt": 0} for p in participants])
                     st.data_editor(df_live, key=f"live_{nom_poule}", use_container_width=True)
 
-        # Onglets individuels de poules
         for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
             with onglets_ui[idx]:
                 st.subheader(f"Feuille de Poule : {nom_poule}")
