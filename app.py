@@ -23,15 +23,20 @@ with st.sidebar:
     
     st.subheader("1. Logistique & Pesées")
     nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
+    
     type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
     
     label_pesee_1 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
     heure_pesee_u9 = st.time_input(label_pesee_1, value=time(9, 0))
+    
     duree_pesee = st.selectbox("Durée allouée à la pesée (min) + échauffement", [30, 45, 60, 90], index=1)
         
     st.subheader("2. Pause de la compétition")
     activer_pause = st.checkbox("Activer la pause de la compétition", value=True)
-    duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2) if activer_pause else 0
+    if activer_pause:
+        duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2)
+    else:
+        duree_pause = 0
     
     st.subheader("3. Règles Sportives")
     mixte_active = st.checkbox("Catégories Mixtes (U9/U11 filles et garçons ensemble)", value=True)
@@ -43,8 +48,8 @@ with st.sidebar:
     duree_u11 = st.number_input("Temps total U11 (min)", value=4)
 
 # --- CORPS PRINCIPAL ---
-st.title("Générateur de Planning & Gestion FFLDA 🚀")
-st.markdown("**Outil officiel d'optimisation, de suivi en direct et d'exports multicouches**")
+st.title("Générateur de Planning FFLDA 🚀")
+st.markdown("**Outil officiel d'optimisation (Compatible imports Exalto)**")
 st.markdown("---")
 
 def generer_rondes_fflda(participants_in):
@@ -126,9 +131,6 @@ else:
         df_raw = df_raw.rename(columns=renNom)
         df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].reset_index(drop=True)
 
-        # Si le fichier contient une colonne de nom de club textuelle distincte, on l'utilise prioritairement
-        club_candidates = [c for c in df_raw.columns if any(k in str(c).lower() for k in ['club', 'sigle', 'structure'])]
-        
         if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
             s_nom = df_raw["Nom"].astype(str)
             s_prenom = df_raw["Prénom"].astype(str)
@@ -136,6 +138,7 @@ else:
                 df_raw["Nom"] = s_nom + " " + s_prenom
 
         df_inscr_total = df_raw.copy().reset_index(drop=True)
+        
         if "Age" in df_inscr_total.columns:
             df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])].reset_index(drop=True)
         
@@ -229,6 +232,7 @@ else:
                 
                 for cat, m in matches_vague:
                     p1, p2 = m[0]['Nom'], m[1]['Nom']
+                    
                     dispo = max(last_match_time.get(p1, heure_actuelle), last_match_time.get(p2, heure_actuelle))
                     if dispo > heure_actuelle:
                         attente = int((dispo - heure_actuelle).total_seconds() // 60)
@@ -240,12 +244,14 @@ else:
                         "Type": "MATCH", "Heure": heure_actuelle.strftime("%H:%M"), "Duree": duree_combat,
                         "Cat": cat, "Combattant 1": p1, "Combattant 2": p2
                     })
+                    
                     total_matchs_calcules += 1
                     fin_match = heure_actuelle + timedelta(minutes=duree_combat)
                     repos = timedelta(minutes=(repos_matchs * duree_combat))
                     last_match_time[p1] = fin_match + repos
                     last_match_time[p2] = fin_match + repos
                     heure_actuelle = fin_match
+                    
             return heure_actuelle
 
         for t in range(nb_tapis):
@@ -253,8 +259,13 @@ else:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u9[t], t, tapis_dispo[t], duree_u9)
 
         fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
-        dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause) if "2" in type_pesee else None
-        dt_debut_u11_theorique = dt_pesee_u11 + timedelta(minutes=duree_pesee) if dt_pesee_u11 else fin_u9_globale
+
+        dt_pesee_u11 = None
+        if "2" in type_pesee:
+            dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause)
+            dt_debut_u11_theorique = dt_pesee_u11 + timedelta(minutes=duree_pesee)
+        else:
+            dt_debut_u11_theorique = fin_u9_globale
 
         if activer_pause and duree_pause > 0:
             for t in range(nb_tapis):
@@ -270,7 +281,9 @@ else:
 
         for t in range(nb_tapis):
             if tapis_poules_u11[t] and tapis_dispo[t] < debut_u11_reel:
-                planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": "Attente lancement U11"})
+                attente = int((debut_u11_reel - tapis_dispo[t]).total_seconds() // 60)
+                if attente > 0:
+                    planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": f"Attente lancement U11"})
                 tapis_dispo[t] = debut_u11_reel
 
         for t in range(nb_tapis):
@@ -278,38 +291,46 @@ else:
                 tapis_dispo[t] = executer_vagues(tapis_poules_u11[t], t, tapis_dispo[t], duree_u11)
 
         fin_estimee = max(tapis_dispo)
+
         texte_pesee_u9 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
         valeur_pause = f"{duree_pause} min" if (activer_pause and duree_pause > 0) else "0 min"
 
-        st.success("Fichier analysé avec succès ! Tournoi optimisé.")
+        str_comp_u9 = f"{dt_debut_u9.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"
+        str_comp_u11 = f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
+
+        st.success("Fichier analysé avec succès !")
         
-        # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
-        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis", "🏆 Suivi Live des Scores & Podiums"] + [f"Poule : {p[:12]}" for p in participants_par_poule.keys()]
+        # --- ONGLETS INTERACTIFS DE LA PAGE PRINCIPALE ---
+        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
         onglets_ui = st.tabs(noms_onglets)
         
         with onglets_ui[0]:
             st.subheader("📊 Résumé prévisionnel de la journée")
             lignes_accueil = [
                 {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
-                {"Étape de la journée": "Compétition U9", "Horaire / Valeur": f"{dt_debut_u9.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"},
+                {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
                 {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
             ]
             if "2" in type_pesee and dt_pesee_u11:
                 lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
 
             lignes_accueil.extend([
-                {"Étape de la journée": "Compétition U11", "Horaire / Valeur": f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"},
+                {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
-                {"Étape de la journée": "Participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
+                {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
                 {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
                 {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
             ])
             st.table(pd.DataFrame(lignes_accueil))
             
-            c1, c2, c3 = st.columns(3)
-            with c1: st.metric("Participants (pesés)", total_participants_peses)
-            with c2: st.metric("Non pesés / Absents", total_non_peses)
-            with c3: st.metric("Matchs générés", total_matchs_calcules)
+            col_metrique_1, col_metrique_2, col_metrique_3 = st.columns(3)
+            with col_metrique_1:
+                st.metric("Participants (pesés)", total_participants_peses)
+            with col_metrique_2:
+                st.metric("Non pesés / Absents", total_non_peses)
+            with col_metrique_3:
+                st.metric("Matchs générés", total_matchs_calcules)
+                
             bouton_imprimer("🖨️ Imprimer ce Résumé")
 
         with onglets_ui[1]:
@@ -330,40 +351,36 @@ else:
             st.dataframe(pd.DataFrame(grille_ui), use_container_width=True)
             bouton_imprimer("🖨️ Imprimer la Grille de Passage")
 
-        with onglets_ui[2]:
-            st.subheader("🏆 Suivi Live des Scores & Classements")
-            st.markdown("Saisissez les points de classement en direct pour simuler les podiums avant l'exportation.")
-            for nom_poule, participants in participants_par_poule.items():
-                with st.expander(f"Poule : {nom_poule}"):
-                    df_live = pd.DataFrame([{"Lutteur": p["Nom"], "Club": p.get("Club", "-"), "Points Clt": 0} for p in participants])
-                    st.data_editor(df_live, key=f"live_{nom_poule}", use_container_width=True)
-
-        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
+        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
             with onglets_ui[idx]:
                 st.subheader(f"Feuille de Poule : {nom_poule}")
-                st.table(pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']])
-                bouton_imprimer(f"🖨️ Imprimer la Feuille de Poule : {nom_poule}")
+                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                st.table(df_poule_vue)
+                bouton_imprimer(f"🖨️ Imprimer cette Feuille de Poule")
 
         st.markdown("---")
         
-        # --- EXPORT EXCEL OFFICIEL ---
+        # --- EXPORT EXCEL ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            pd.DataFrame(lignes_accueil).to_excel(writer, sheet_name="Résumé", index=False)
             
-            classement_global_data = []
-            for nom_poule, participants in participants_par_poule.items():
-                for p in participants:
-                    classement_global_data.append({
-                        "Catégorie / Poule": nom_poule,
-                        "Nom Prénom": p["Nom"],
-                        "Club": p.get("Club", "-"),
-                        "Poids (kg)": p.get("Poids", "-"),
-                        "Classement": "-"
-                    })
-            df_classement_indiv = pd.DataFrame(classement_global_data)
-            df_classement_indiv.to_excel(writer, sheet_name="classement_indiv", index=False)
-
+            resume_data = [
+                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+                {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
+            ]
+            if "2" in type_pesee and dt_pesee_u11:
+                resume_data.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+            
+            resume_data.extend([
+                {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
+                {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
+                {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
+                {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
+            ])
+            pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
+            
             max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
             grille = []
             for row_idx in range(max_lignes):
@@ -401,20 +418,7 @@ else:
                 for cell in row:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                     cell.font = Font(size=12)
-
-            ws_class = writer.sheets["classement_indiv"]
-            for cell in ws_class[1]:
-                cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
-            ws_class.column_dimensions['A'].width = 35
-            ws_class.column_dimensions['B'].width = 28
-            ws_class.column_dimensions['C'].width = 25
-            ws_class.column_dimensions['D'].width = 15
-            ws_class.column_dimensions['E'].width = 15
-            for row in ws_class.iter_rows(min_row=2, max_row=ws_class.max_row):
-                for cell in row:
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-                    cell.border = b_style
-
+            
             ws_grille = writer.sheets["Grille de Passage"]
             ws_grille.row_dimensions[1].height = 65
             ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
@@ -452,9 +456,14 @@ else:
                         else:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
-
+            
+            rouge_lutte = PatternFill("solid", fgColor="E53935") 
+            bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
+            entete_noir = PatternFill("solid", fgColor="000000")
+            gris_clair = PatternFill("solid", fgColor="F2F2F2")
+            
             for nom_poule, liste_p in participants_par_poule.items():
-                nom_onglet_court = nom_poule[:31].strip()
+                nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
                 
                 ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
@@ -463,18 +472,20 @@ else:
                 row_cursor = 4
                 headers = ["CLT", "N°", "NOM Prénom", "CLUB"]
                 nb_tours = len(rondes_par_categorie[nom_poule])
-                for t in range(1, nb_tours + 1): headers.append(f"Tour {t}")
+                for t in range(1, nb_tours + 1):
+                    headers.append(f"Tour {t}")
                 headers.extend(["Total Pts", "Total Vict", "Poids"])
                 
                 for col_idx, h in enumerate(headers, 1):
                     c = ws_poule.cell(row=row_cursor, column=col_idx, value=h)
                     c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                    c.fill = PatternFill("solid", fgColor="000000")
+                    c.fill = entete_noir
                 
                 max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
                 max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
-                largeur_nom_col = max(max_len_nom + 8, 32)   
-                largeur_club_col = max(max_len_club + 6, 25) 
+                
+                largeur_nom_col = max(max_len_nom + 8, 32)
+                largeur_club_col = max(max_len_club + 6, 25)
 
                 ws_poule.column_dimensions['A'].width = 6
                 ws_poule.column_dimensions['B'].width = 6
@@ -484,10 +495,11 @@ else:
                 ws_poule.column_dimensions['F'].width = 6                
                 ws_poule.column_dimensions['G'].width = largeur_nom_col  
                 ws_poule.column_dimensions['H'].width = largeur_club_col 
-                ws_poule.column_dimensions['I'].width = 10 
-
+                ws_poule.column_dimensions['I'].width = 10               
+                
                 lignes_lutteurs = {}
                 row_cursor += 1
+                
                 for i, p in enumerate(liste_p, 1):
                     lignes_lutteurs[p['Nom']] = row_cursor
                     ws_poule.cell(row=row_cursor, column=1).border = b_style 
@@ -498,23 +510,22 @@ else:
                     cell_nom.border = b_style
                     cell_nom.alignment = Alignment(horizontal="left", vertical="center")
                     
-                    club_val = str(p.get('Club', ''))
-                    # Nettoyage si le club est un code numérique brut ou autre pour afficher un texte lisible
-                    cell_club = ws_poule.cell(row=row_cursor, column=4, value=club_val)
+                    cell_club = ws_poule.cell(row=row_cursor, column=4, value=str(p.get('Club', '')))
                     cell_club.border = b_style
                     cell_club.alignment = Alignment(horizontal="left", vertical="center")
                     
                     col_offset = 5
                     for t in range(nb_tours):
-                        cell_t = ws_poule.cell(row=row_cursor, column=col_offset+t)
-                        cell_t.border = b_style 
-                        cell_t.alignment = Alignment(horizontal="center", vertical="center")
+                        cell_tour = ws_poule.cell(row=row_cursor, column=col_offset+t)
+                        cell_tour.border = b_style 
+                        cell_tour.alignment = Alignment(horizontal="center", vertical="center")
                     
                     col_lettre_debut = openpyxl.utils.get_column_letter(col_offset)
                     col_lettre_fin = openpyxl.utils.get_column_letter(col_offset + nb_tours - 1)
                     cell_total_pts = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours, value=f"=SUM({col_lettre_debut}{row_cursor}:{col_lettre_fin}{row_cursor})")
                     cell_total_pts.border = b_style
                     cell_total_pts.alignment = Alignment(horizontal="center", vertical="center")
+                    cell_total_pts.font = Font(bold=True)
                     
                     cell_total_vict = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1, value="")
                     cell_total_vict.border = b_style 
@@ -523,10 +534,14 @@ else:
                     cell_poids = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+2, value=p.get('Poids', ''))
                     cell_poids.border = b_style 
                     cell_poids.alignment = Alignment(horizontal="center", vertical="center")
+                    
                     row_cursor += 1
                 
                 row_cursor += 2
+                
                 rondes = rondes_par_categorie[nom_poule]
+                col_offset_tours = 5 
+                
                 for tour_idx, ronde in enumerate(rondes, 1):
                     ws_poule.cell(row=row_cursor, column=2, value=f"TOUR {tour_idx}").font = Font(bold=True, size=14)
                     row_cursor += 1
@@ -537,22 +552,23 @@ else:
                         idx2 = next((i+1 for i, x in enumerate(liste_p) if x['Nom'] == p2['Nom']), "")
                         
                         c_rouge = ws_poule.cell(row=row_cursor, column=3, value="LUTTEUR ROUGE")
-                        c_rouge.fill, c_rouge.font, c_rouge.alignment, c_rouge.border = rouge, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center"), b_style
+                        c_rouge.fill, c_rouge.font, c_rouge.alignment, c_rouge.border = rouge_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center"), b_style
                         ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
                         
                         c_ptr = ws_poule.cell(row=row_cursor, column=5, value="Pt Clt")
                         c_ptr.font, c_ptr.alignment, c_ptr.border = Font(bold=True), Alignment(horizontal="center"), b_style
                         
                         c_bleu = ws_poule.cell(row=row_cursor, column=7, value="LUTTEUR BLEU")
-                        c_bleu.fill, c_bleu.font, c_bleu.alignment, c_bleu.border = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center"), b_style
-                        ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4) # Fixé ci-dessous
+                        c_bleu.fill, c_bleu.font, c_bleu.alignment, c_bleu.border = bleu_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center"), b_style
                         ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
                         
                         c_ptb = ws_poule.cell(row=row_cursor, column=9, value="Pt Clt")
                         c_ptb.font, c_ptb.alignment, c_ptb.border = Font(bold=True), Alignment(horizontal="center"), b_style
                         
                         row_cursor += 1
+                        
                         ws_poule.cell(row=row_cursor, column=2, value=idx1).alignment = Alignment(horizontal="center")
+                        ws_poule.cell(row=row_cursor, column=2).font = Font(bold=True, color="E53935", size=14)
                         
                         cn1 = ws_poule.cell(row=row_cursor, column=3, value=p1['Nom'])
                         cn1.border = b_style
@@ -563,10 +579,11 @@ else:
                         cc1.alignment = Alignment(horizontal="left", vertical="center")
                         
                         box_ptr = ws_poule.cell(row=row_cursor, column=5)
-                        box_ptr.border, box_ptr.fill = b_style, PatternFill("solid", fgColor="F2F2F2")
+                        box_ptr.border, box_ptr.fill = b_style, gris_clair
                         box_ptr.alignment = Alignment(horizontal="center", vertical="center")
                         
                         ws_poule.cell(row=row_cursor, column=6, value=idx2).alignment = Alignment(horizontal="center")
+                        ws_poule.cell(row=row_cursor, column=6).font = Font(bold=True, color="1E88E5", size=14)
                         
                         cn2 = ws_poule.cell(row=row_cursor, column=7, value=p2['Nom'])
                         cn2.border = b_style
@@ -577,16 +594,48 @@ else:
                         cc2.alignment = Alignment(horizontal="left", vertical="center")
                         
                         box_ptb = ws_poule.cell(row=row_cursor, column=9)
-                        box_ptb.border, box_ptb.fill = b_style, PatternFill("solid", fgColor="F2F2F2")
+                        box_ptb.border, box_ptb.fill = b_style, gris_clair
                         box_ptb.alignment = Alignment(horizontal="center", vertical="center")
                         
                         if p1['Nom'] in lignes_lutteurs:
-                            ws_poule.cell(row=lignes_lutteurs[p1['Nom']], column=5 + (tour_idx - 1)).value = f"={box_ptr.coordinate}"
+                            lig_haut_p1 = lignes_lutteurs[p1['Nom']]
+                            cell_haut_p1 = ws_poule.cell(row=lig_haut_p1, column=col_offset_tours + (tour_idx - 1))
+                            cell_haut_p1.value = f"={box_ptr.coordinate}"
+                            cell_haut_p1.alignment = Alignment(horizontal="center", vertical="center")
+                        
                         if p2['Nom'] in lignes_lutteurs:
-                            ws_poule.cell(row=lignes_lutteurs[p2['Nom']], column=5 + (tour_idx - 1)).value = f"={box_ptb.coordinate}"
+                            lig_haut_p2 = lignes_lutteurs[p2['Nom']]
+                            cell_haut_p2 = ws_poule.cell(row=lig_haut_p2, column=col_offset_tours + (tour_idx - 1))
+                            cell_haut_p2.value = f"={box_ptb.coordinate}"
+                            cell_haut_p2.alignment = Alignment(horizontal="center", vertical="center")
 
-                        row_cursor += 3 
+                        row_cursor += 1
+                        
+                        ws_poule.cell(row=row_cursor, column=3, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
+                        ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
+                        ws_poule.cell(row=row_cursor, column=5, value="Total Score").font = Font(size=9, italic=True)
+                        
+                        ws_poule.cell(row=row_cursor, column=7, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
+                        ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
+                        ws_poule.cell(row=row_cursor, column=9, value="Total Score").font = Font(size=9, italic=True)
+                        
+                        row_cursor += 1
+                        
+                        ws_poule.row_dimensions[row_cursor].height = 25
+                        ws_poule.cell(row=row_cursor, column=3).border = b_style
+                        ws_poule.cell(row=row_cursor, column=4).border = b_style
+                        ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
+                        ws_poule.cell(row=row_cursor, column=5).border = b_style
+                        
+                        ws_poule.cell(row=row_cursor, column=7).border = b_style
+                        ws_poule.cell(row=row_cursor, column=8).border = b_style
+                        ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
+                        ws_poule.cell(row=row_cursor, column=9).border = b_style
+                        
+                        row_cursor += 2 
+                    
+                    row_cursor += 1 
 
         st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
-        st.error(f"Une erreur est survenue lors du traitement : {e}")
+        st.error(f"Une erreur est survenue : {e}")
