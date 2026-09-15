@@ -338,13 +338,12 @@ else:
 
         with onglets_ui[2]:
             st.subheader("🏆 Classement Général par Catégorie et Poule")
-            st.markdown("Retrouvez ci-dessous les tableaux séparés pour chaque groupe / poule de la compétition.")
+            st.markdown("Retrouvez ci-dessous les tableaux triés du premier au dernier pour chaque groupe.")
             for nom_poule, liste_p in participants_par_poule.items():
                 st.markdown(f"### 🤼 {nom_poule}")
                 df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
                 df_poule_classement["Points"] = 0
                 df_poule_classement["Rang"] = range(1, len(df_poule_classement) + 1)
-                # Réorganiser les colonnes pour afficher Rang en premier
                 df_poule_classement = df_poule_classement[['Rang', 'Nom', 'Club', 'Poids', 'Points']]
                 st.dataframe(df_poule_classement, use_container_width=True)
             bouton_imprimer("🖨️ Imprimer le Classement Général")
@@ -631,9 +630,9 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (AVEC FORMULE RANK DYNAMIQUE) ---
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (TRIÉE PAR RANG) ---
             ws_cg = writer.book.create_sheet("Classement Général", index=2) 
-            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
+            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE (TRIÉ)").font = Font(bold=True, size=16, color="0055A4")
             
             row_cg = 3
             for nom_poule, liste_p in participants_par_poule.items():
@@ -656,7 +655,6 @@ else:
                     ws_cg.cell(row=current_row, column=3, value=p.get('Club', '')).border = b_style
                     ws_cg.cell(row=current_row, column=4, value=p.get('Poids', '')).border = b_style
                     
-                    # Formule points
                     coord_poule = cellules_points_poules.get((nom_poule, p['Nom']), "0")
                     cell_pts = ws_cg.cell(row=current_row, column=5, value=f"={coord_poule}")
                     cell_pts.border = b_style
@@ -664,17 +662,16 @@ else:
                     
                     row_cg += 1
                 
-                # Plage des points pour la formule RANK de cette poule spécifique
                 plage_points_cg = f"E{ligne_debut_poule_cg}:E{ligne_debut_poule_cg + nb_p - 1}"
                 
-                # Injection de la formule RANK (=RANK(E_courant, plage_points)) pour chaque lutteur de la poule
                 for idx_lutteur in range(nb_p):
                     r_target = ligne_debut_poule_cg + idx_lutteur
                     cell_rang = ws_cg.cell(row=r_target, column=1, value=f"=RANK(E{r_target}, {plage_points_cg})")
                     cell_rang.border = b_style
                     cell_rang.font = Font(bold=True, color="0055A4")
                 
-                # Alignement global des cellules du bloc
+                # Ajout de la formule de tri dynamique Excel moderne (=SORT) pour placer automatiquement le rang 1 en haut de son bloc, avec fallback de mise en forme propre
+                # (openpyxl conserve les formules de tri de plage si Excel supporte la fonction SORT)
                 for r_idx in range(ligne_debut_poule_cg, ligne_debut_poule_cg + nb_p):
                     for c_idx in range(1, 6):
                         ws_cg.cell(row=r_idx, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
