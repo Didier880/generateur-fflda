@@ -514,7 +514,8 @@ else:
                     col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
                     plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                     
-                    cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor}; {plage_totaux})")
+                    # Fonction standard OpenXML en anglais avec virgule (,)
+                    cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor},{plage_totaux})")
                     cell_clt.border = b_style
                     cell_clt.alignment = Alignment(horizontal="center", vertical="center")
                     cell_clt.font = Font(bold=True, color="0055A4")
