@@ -94,7 +94,6 @@ def bouton_imprimer(label="🖨️ Imprimer cette vue"):
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
 if fichier_upload is None:
-    # Page d'accueil épurée : Un seul onglet Résumé & Stats d'attente
     st.info("👈 Veuillez importer un fichier d'inscrits (.csv ou .xlsx) dans le menu ou ci-dessus pour générer le tournoi.")
     tab_accueil = st.tabs(["📊 Résumé & Stats"])
     with tab_accueil[0]:
@@ -476,18 +475,28 @@ else:
                 ws_poule.column_dimensions['B'].width = 6
                 ws_poule.column_dimensions['C'].width = largeur_nom_col  
                 ws_poule.column_dimensions['D'].width = largeur_club_col 
-                ws_poule.column_dimensions['E'].width = 10               
-                ws_poule.column_dimensions['F'].width = 6                
+                ws_poule.column_dimensions['E'].width = 10                
+                ws_poule.column_dimensions['F'].width = 6                 
                 ws_poule.column_dimensions['G'].width = largeur_nom_col  
                 ws_poule.column_dimensions['H'].width = largeur_club_col 
-                ws_poule.column_dimensions['I'].width = 10               
+                ws_poule.column_dimensions['I'].width = 10                
                 
                 lignes_lutteurs = {}
                 row_cursor += 1
                 
+                ligne_debut_poule = row_cursor
                 for i, p in enumerate(liste_p, 1):
                     lignes_lutteurs[p['Nom']] = row_cursor
-                    ws_poule.cell(row=row_cursor, column=1).border = b_style 
+                    
+                    # Formule de classement dynamique (RANK) basée sur le total des points de la poule
+                    col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
+                    plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
+                    
+                    cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor}, {plage_totaux})")
+                    cell_clt.border = b_style
+                    cell_clt.alignment = Alignment(horizontal="center", vertical="center")
+                    cell_clt.font = Font(bold=True, color="0055A4")
+
                     ws_poule.cell(row=row_cursor, column=2, value=i).border = b_style 
                     ws_poule.cell(row=row_cursor, column=2).alignment = Alignment(horizontal="center")
                     ws_poule.cell(row=row_cursor, column=3, value=p['Nom']).border = b_style
