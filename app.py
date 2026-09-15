@@ -467,4 +467,4 @@ else:
             row_class_cursor = 3
 
             for nom_poule, liste_p in participants_par_poule.items():
-                clean_name = re.sub(r'[\/\\\?\*
+                clean_name = re.sub(r'[/\\?*
