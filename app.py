@@ -93,7 +93,14 @@ def bouton_imprimer(label="🖨️ Imprimer cette vue"):
 
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
-if fichier_upload is not None:
+if fichier_upload is None:
+    # Page d'accueil épurée : Un seul onglet Résumé & Stats d'attente
+    st.info("👈 Veuillez importer un fichier d'inscrits (.csv ou .xlsx) dans le menu ou ci-dessus pour générer le tournoi.")
+    tab_accueil = st.tabs(["📊 Résumé & Stats"])
+    with tab_accueil[0]:
+        st.subheader("📊 Résumé prévisionnel de la journée")
+        st.write("En attente de l'import d'une liste de participants...")
+else:
     try:
         if fichier_upload.name.endswith('.csv'):
             df_raw = pd.read_csv(fichier_upload, sep=';', encoding='utf-8')
@@ -117,7 +124,6 @@ if fichier_upload is not None:
 
         df_inscr_total = df_raw.copy()
         
-        # Filtrer uniquement les catégories U9 ou U11 initiales
         if "Age" in df_inscr_total.columns:
             df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])]
         
@@ -131,15 +137,11 @@ if fichier_upload is not None:
             return ''
         df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
 
-        # Nettoyage et identification des poids valides vs absents/non pesés
         df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
         df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
         
-        # Athlètes pesés (poids numérique > 0)
         df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
         total_participants_peses = len(df_inscr)
-        
-        # Athlètes non pesés ou absents (poids vide, absent, ou 0/-)
         total_non_peses = total_inscrits_global - total_participants_peses
 
         if df_inscr.empty:
@@ -305,7 +307,6 @@ if fichier_upload is not None:
             ])
             st.table(pd.DataFrame(lignes_accueil))
             
-            # Affichage des métriques côte à côte
             col_metrique_1, col_metrique_2, col_metrique_3 = st.columns(3)
             with col_metrique_1:
                 st.metric("Participants (pesés)", total_participants_peses)
