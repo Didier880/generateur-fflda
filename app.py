@@ -123,13 +123,18 @@ else:
         for col in df_raw.columns:
             col_lower = str(col).lower()
             if 'âge' in col_lower or 'age' in col_lower: renNom[col] = "Age"
-            elif 'club' in col_lower or 'sigle' in col_lower or 'nom du club' in col_lower: renNom[col] = "Club"
             elif 'poids' in col_lower: renNom[col] = "Poids"
             elif 'nom' in col_lower: renNom[col] = "Nom"
             elif 'prénom' in col_lower or 'prenom' in col_lower: renNom[col] = "Prénom"
         
         df_raw = df_raw.rename(columns=renNom)
         df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].reset_index(drop=True)
+
+        # Extraction explicite du nom du club depuis la colonne P (index 15) si elle existe dans le fichier source
+        if len(df_raw.columns) > 15:
+            df_raw["Club"] = df_raw.iloc[:, 15].astype(str)
+        elif "Club" not in df_raw.columns:
+            df_raw["Club"] = "-"
 
         if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
             s_nom = df_raw["Nom"].astype(str)
@@ -301,7 +306,7 @@ else:
         st.success("Fichier analysé avec succès !")
         
         # --- ONGLETS INTERACTIFS DE LA PAGE PRINCIPALE ---
-        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis", "🏆 Suivi Live des Scores & Podiums"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
         onglets_ui = st.tabs(noms_onglets)
         
         with onglets_ui[0]:
@@ -351,7 +356,15 @@ else:
             st.dataframe(pd.DataFrame(grille_ui), use_container_width=True)
             bouton_imprimer("🖨️ Imprimer la Grille de Passage")
 
-        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
+        with onglets_ui[2]:
+            st.subheader("🏆 Suivi Live des Scores & Classements")
+            st.markdown("Saisissez les points de classement en direct pour simuler les podiums avant l'exportation.")
+            for nom_poule, participants in participants_par_poule.items():
+                with st.expander(f"Poule : {nom_poule}"):
+                    df_live = pd.DataFrame([{"Lutteur": p["Nom"], "Club": p.get("Club", "-"), "Points Clt": 0} for p in participants])
+                    st.data_editor(df_live, key=f"live_{nom_poule}", use_container_width=True)
+
+        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
             with onglets_ui[idx]:
                 st.subheader(f"Feuille de Poule : {nom_poule}")
                 df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
