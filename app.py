@@ -467,5 +467,4 @@ else:
             row_class_cursor = 3
 
             for nom_poule, liste_p in participants_par_poule.items():
-                # Nettoyage sécurisé pour le nom d'onglet Excel (retrait des caractères interdits / limitation à 31 caractères)
                 clean_name = re.sub(r'[\/\\\?\*
