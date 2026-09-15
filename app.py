@@ -475,11 +475,11 @@ if fichier_upload is not None:
                 ws_poule.column_dimensions['B'].width = 6
                 ws_poule.column_dimensions['C'].width = largeur_nom_col  
                 ws_poule.column_dimensions['D'].width = largeur_club_col 
-                ws_poule.column_dimensions['E'].width = 10               
+                ws_poule.column_dimensions['E'].width = 10                
                 ws_poule.column_dimensions['F'].width = 6                
                 ws_poule.column_dimensions['G'].width = largeur_nom_col  
                 ws_poule.column_dimensions['H'].width = largeur_club_col 
-                ws_poule.column_dimensions['I'].width = 10               
+                ws_poule.column_dimensions['I'].width = 10                
                 
                 lignes_lutteurs = {}
                 row_cursor += 1
@@ -602,6 +602,38 @@ if fichier_upload is not None:
                     
                     row_cursor += 1 
 
-        st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            # --- AJOUT DE L'ONGLET CLASSEMENT INDIVIDUEL ---
+            ws_class = writer.book.create_sheet("Classement Individuel")
+            ws_class.cell(row=1, column=1, value="🏆 CLASSEMENT INDIVIDUEL GÉNÉRAL 🏆").font = Font(bold=True, size=16, color="0055A4")
+            
+            headers_class = ["Catégorie / Poule", "Nom Prénom", "Club", "Poids (kg)"]
+            for col_idx, h in enumerate(headers_class, 1):
+                c = ws_class.cell(row=3, column=col_idx, value=h)
+                c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
+                c.fill = entete_noir
+            
+            ws_class.column_dimensions['A'].width = 35
+            ws_class.column_dimensions['B'].width = 25
+            ws_class.column_dimensions['C'].width = 20
+            ws_class.column_dimensions['D'].width = 12
+            
+            row_c = 4
+            for nom_poule, liste_p in participants_par_poule.items():
+                for p in liste_p:
+                    ws_class.cell(row=row_c, column=1, value=nom_poule).border = b_style
+                    ws_class.cell(row=row_c, column=1).alignment = Alignment(horizontal="left", vertical="center")
+                    
+                    ws_class.cell(row=row_c, column=2, value=p.get('Nom', '')).border = b_style
+                    ws_class.cell(row=row_c, column=2).alignment = Alignment(horizontal="left", vertical="center")
+                    
+                    ws_class.cell(row=row_c, column=3, value=p.get('Club', '')).border = b_style
+                    ws_class.cell(row=row_c, column=3).alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    ws_class.cell(row=row_c, column=4, value=p.get('Poids', '')).border = b_style
+                    ws_class.cell(row=row_c, column=4).alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    row_c += 1
+
+            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         st.error(f"Une erreur est survenue : {e}")
