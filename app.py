@@ -1,4 +1,349 @@
-# --- EXPORT EXCEL ---
+import streamlit as st
+import pandas as pd
+from datetime import datetime, timedelta, time
+import io
+import urllib.request
+import streamlit.components.v1 as components
+import openpyxl
+
+# --- CONFIGURATION DE LA PAGE ---
+st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
+
+# --- PERSONNALISATION VISUELLE FFLDA (CSS) ---
+st.markdown("""
+
+""", unsafe_allow_html=True)
+
+# --- MENU LATÉRAL (PARAMÈTRES INTERACTIFS) ---
+with st.sidebar:
+    st.image("https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/1200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png", use_container_width=True)
+    st.header("⚙️ Paramètres du Tournoi")
+    st.caption("Tournoi exclusif U9 / U11")
+    
+    st.subheader("1. Logistique & Pesées")
+    nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
+    
+    type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
+    
+    label_pesee_1 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
+    heure_pesee_u9 = st.time_input(label_pesee_1, value=time(9, 0))
+    
+    duree_pesee = st.selectbox("Durée allouée à la pesée (min) + échauffement", [30, 45, 60, 90], index=1)
+        
+    st.subheader("2. Pause de la compétition")
+    activer_pause = st.checkbox("Activer la pause de la compétition", value=True)
+    if activer_pause:
+        duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2)
+    else:
+        duree_pause = 0
+    
+    st.subheader("3. Règles Sportives")
+    mixte_active = st.checkbox("Catégories Mixtes (U9/U11 filles et garçons ensemble)", value=True)
+    tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=10, max_value=15, value=10, step=1)
+    repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
+    
+    st.subheader("4. Temps des Combats (Match + Rotation)")
+    duree_u9 = st.number_input("Temps total U9 (min)", value=3)
+    duree_u11 = st.number_input("Temps total U11 (min)", value=4)
+
+# --- CORPS PRINCIPAL ---
+st.title("Générateur de Planning FFLDA 🚀")
+st.markdown("**Outil officiel d'optimisation (Compatible imports Exalto)**")
+st.markdown("---")
+
+def generer_rondes_fflda(participants_in):
+    participants = list(participants_in)
+    n = len(participants)
+    
+    if n == 3:
+        return [[(participants[0], participants[1])],
+                [(participants[2], participants[0])],
+                [(participants[1], participants[2])]]
+    elif n == 4:
+        return [[(participants[0], participants[1]), (participants[2], participants[3])],
+                [(participants[0], participants[2]), (participants[1], participants[3])],
+                [(participants[0], participants[3]), (participants[1], participants[2])]]
+    elif n == 5:
+        return [[(participants[0], participants[1]), (participants[2], participants[3])],
+                [(participants[4], participants[0]), (participants[1], participants[2])],
+                [(participants[3], participants[4]), (participants[0], participants[2])],
+                [(participants[1], participants[3]), (participants[2], participants[4])],
+                [(participants[0], participants[3]), (participants[1], participants[4])]]
+    else:
+        if len(participants) % 2 != 0:
+            participants.append({"Nom": "BYE", "Club": "-"})
+        num_p = len(participants)
+        rondes = []
+        for i in range(num_p - 1):
+            matchs_ronde = []
+            for j in range(num_p // 2):
+                p1 = participants[j]
+                p2 = participants[num_p - 1 - j]
+                if p1["Nom"] != "BYE" and p2["Nom"] != "BYE":
+                    matchs_ronde.append((p1, p2))
+            rondes.append(matchs_ronde)
+            participants.insert(1, participants.pop())
+        return rondes
+
+def bouton_imprimer(label="🖨️ Imprimer cette vue"):
+    print_code = f"""
+    {label}
+    """
+    components.html(print_code, height=50)
+
+fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
+
+if fichier_upload is None:
+    st.info("👈 Veuillez importer un fichier d'inscrits (.csv ou .xlsx) dans le menu ou ci-dessus pour générer le tournoi.")
+    tab_accueil = st.tabs(["📊 Résumé & Stats"])
+    with tab_accueil[0]:
+        st.subheader("📊 Résumé prévisionnel de la journée")
+        st.write("En attente de l'import d'une liste de participants...")
+else:
+    try:
+        if fichier_upload.name.endswith('.csv'):
+            df_raw = pd.read_csv(fichier_upload, sep=';', encoding='utf-8')
+            if len(df_raw.columns) == 1:
+                fichier_upload.seek(0)
+                df_raw = pd.read_csv(fichier_upload, sep=',', encoding='utf-8')
+        else:
+            df_temp = pd.read_excel(fichier_upload, nrows=5)
+            header_row = 0
+            for i, row in df_temp.iterrows():
+                if 'N° Licence' in str(row.values) or 'Nom' in str(row.values) or "Catégorie d'âge" in str(row.values):
+                    header_row = i + 1
+                    break
+            fichier_upload.seek(0)
+            df_raw = pd.read_excel(fichier_upload, header=header_row)
+
+        if "Catégorie d'âge" in df_raw.columns: df_raw = df_raw.rename(columns={"Catégorie d'âge": "Age"})
+        if "Sigle du Club" in df_raw.columns: df_raw = df_raw.rename(columns={"Sigle du Club": "Club"})
+        if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
+            df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
+
+        df_inscr_total = df_raw.copy()
+        
+        if "Age" in df_inscr_total.columns:
+            df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])]
+        
+        total_inscrits_global = len(df_inscr_total)
+
+        if "Maîtrise" not in df_inscr_total.columns: df_inscr_total["Maîtrise"] = ""
+        def attribuer_niveau(val):
+            val_str = str(val).strip().lower()
+            if val_str == 'd': return 'Débutant'
+            elif val_str == 'c': return 'Confirmé'
+            return ''
+        df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
+
+        df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
+        df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
+        
+        df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
+        total_participants_peses = len(df_inscr)
+        total_non_peses = total_inscrits_global - total_participants_peses
+
+        if df_inscr.empty:
+            st.error("❌ Aucun lutteur U9 ou U11 avec un poids valide n'a été trouvé dans le fichier.")
+            st.stop()
+        
+        if mixte_active:
+            df_inscr['Sexe'] = 'Mixte'
+        
+        poules_u9, poules_u11 = [], []
+        multiplicateur_poids = 1 + (tolerance_poids / 100.0)
+        
+        for age in ['U9', 'U11']:
+            df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num')
+            max_size = 4 if age == 'U9' else 5
+            index_poule = 1
+            
+            for (sexe, niveau), groupe in df_age.groupby(['Sexe', 'Niveau']):
+                participants = groupe.to_dict('records')
+                poule_courante = []
+                suffixe_niveau = f" | {niveau}" if niveau != "" else ""
+                
+                for p in participants:
+                    if not poule_courante:
+                        poule_courante.append(p)
+                    else:
+                        poids_min = poule_courante[0]['Poids_Num']
+                        if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
+                            poule_courante.append(p)
+                        else:
+                            nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                            poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
+                            if age == 'U9': poules_u9.append(poule_obj)
+                            else: poules_u11.append(poule_obj)
+                            index_poule += 1
+                            poule_courante = [p]
+                if poule_courante:
+                    nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                    poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
+                    if age == 'U9': poules_u9.append(poule_obj)
+                    else: poules_u11.append(poule_obj)
+                    index_poule += 1
+
+        participants_par_poule = {p['nom']: p['participants'] for p in poules_u9 + poules_u11}
+        rondes_par_categorie = {p['nom']: p['rondes'] for p in poules_u9 + poules_u11}
+
+        tapis_poules_u9 = {i: [] for i in range(nb_tapis)}
+        tapis_poules_u11 = {i: [] for i in range(nb_tapis)}
+        
+        for i, p in enumerate(poules_u9): tapis_poules_u9[i % nb_tapis].append(p)
+        for i, p in enumerate(poules_u11): tapis_poules_u11[i % nb_tapis].append(p)
+
+        dt_pesee_u9 = datetime.combine(datetime.today(), heure_pesee_u9)
+        dt_debut_u9 = dt_pesee_u9 + timedelta(minutes=duree_pesee)
+        
+        tapis_dispo = [dt_debut_u9 for _ in range(nb_tapis)]
+        planning_tapis = {t: [] for t in range(nb_tapis)}
+        last_match_time = {} 
+        total_matchs_calcules = 0
+
+        def executer_vagues(poules_du_tapis, t_idx, heure_actuelle, duree_combat):
+            global total_matchs_calcules
+            vagues = [poules_du_tapis[i:i+3] for i in range(0, len(poules_du_tapis), 3)]
+            
+            for vague in vagues:
+                matches_vague = []
+                max_r = max((len(p['rondes']) for p in vague), default=0)
+                for r in range(max_r):
+                    for p in vague:
+                        if r < len(p['rondes']):
+                            for m in p['rondes'][r]: matches_vague.append((p['nom'], m))
+                
+                for cat, m in matches_vague:
+                    p1, p2 = m[0]['Nom'], m[1]['Nom']
+                    
+                    dispo = max(last_match_time.get(p1, heure_actuelle), last_match_time.get(p2, heure_actuelle))
+                    if dispo > heure_actuelle:
+                        attente = int((dispo - heure_actuelle).total_seconds() // 60)
+                        if attente > 0:
+                            planning_tapis[t_idx].append({"Type": "ATTENTE", "Heure": heure_actuelle.strftime("%H:%M"), "Texte": f"⏳ Repos ({attente} min)"})
+                        heure_actuelle = dispo
+
+                    planning_tapis[t_idx].append({
+                        "Type": "MATCH", "Heure": heure_actuelle.strftime("%H:%M"), "Duree": duree_combat,
+                        "Cat": cat, "Combattant 1": p1, "Combattant 2": p2
+                    })
+                    
+                    total_matchs_calcules += 1
+                    fin_match = heure_actuelle + timedelta(minutes=duree_combat)
+                    repos = timedelta(minutes=(repos_matchs * duree_combat))
+                    last_match_time[p1] = fin_match + repos
+                    last_match_time[p2] = fin_match + repos
+                    heure_actuelle = fin_match
+                    
+            return heure_actuelle
+
+        for t in range(nb_tapis):
+            if tapis_poules_u9[t]:
+                tapis_dispo[t] = executer_vagues(tapis_poules_u9[t], t, tapis_dispo[t], duree_u9)
+
+        fin_u9_globale = max(tapis_dispo) if total_matchs_calcules > 0 else dt_debut_u9
+
+        dt_pesee_u11 = None
+        if "2" in type_pesee:
+            dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause)
+            dt_debut_u11_theorique = dt_pesee_u11 + timedelta(minutes=duree_pesee)
+        else:
+            dt_debut_u11_theorique = fin_u9_globale
+
+        if activer_pause and duree_pause > 0:
+            for t in range(nb_tapis):
+                planning_tapis[t].append({"Type": "PAUSE", "Heure": fin_u9_globale.strftime("%H:%M")})
+                tapis_dispo[t] = fin_u9_globale + timedelta(minutes=duree_pause)
+        else:
+            for t in range(nb_tapis):
+                tapis_dispo[t] = fin_u9_globale
+
+        debut_u11_reel = max(tapis_dispo)
+        if dt_debut_u11_theorique and debut_u11_reel < dt_debut_u11_theorique:
+            debut_u11_reel = dt_debut_u11_theorique
+
+        for t in range(nb_tapis):
+            if tapis_poules_u11[t] and tapis_dispo[t] < debut_u11_reel:
+                attente = int((debut_u11_reel - tapis_dispo[t]).total_seconds() // 60)
+                if attente > 0:
+                    planning_tapis[t].append({"Type": "ATTENTE", "Heure": tapis_dispo[t].strftime("%H:%M"), "Texte": f"Attente lancement U11"})
+                tapis_dispo[t] = debut_u11_reel
+
+        for t in range(nb_tapis):
+            if tapis_poules_u11[t]:
+                tapis_dispo[t] = executer_vagues(tapis_poules_u11[t], t, tapis_dispo[t], duree_u11)
+
+        fin_estimee = max(tapis_dispo)
+
+        texte_pesee_u9 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
+        valeur_pause = f"{duree_pause} min" if (activer_pause and duree_pause > 0) else "0 min"
+
+        str_comp_u9 = f"{dt_debut_u9.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"
+        str_comp_u11 = f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
+
+        st.success("Fichier analysé avec succès !")
+        
+        # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
+        noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage par Tapis"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+        onglets_ui = st.tabs(noms_onglets)
+        
+        with onglets_ui[0]:
+            st.subheader("📊 Résumé prévisionnel de la journée")
+            lignes_accueil = [
+                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+                {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
+            ]
+            if "2" in type_pesee and dt_pesee_u11:
+                lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+
+            lignes_accueil.extend([
+                {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
+                {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
+                {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
+                {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
+            ])
+            st.table(pd.DataFrame(lignes_accueil))
+            
+            col_metrique_1, col_metrique_2, col_metrique_3 = st.columns(3)
+            with col_metrique_1:
+                st.metric("Participants (pesés)", total_participants_peses)
+            with col_metrique_2:
+                st.metric("Non pesés / Absents", total_non_peses)
+            with col_metrique_3:
+                st.metric("Matchs générés", total_matchs_calcules)
+                
+            bouton_imprimer("🖨️ Imprimer ce Résumé")
+
+        with onglets_ui[1]:
+            st.subheader("📅 Grille de Passage - Tapis")
+            max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
+            grille_ui = []
+            for row_idx in range(max_lignes):
+                ligne = {}
+                for t in range(nb_tapis):
+                    col = f"Tapis {t + 1}"
+                    if row_idx < len(planning_tapis[t]):
+                        m = planning_tapis[t][row_idx]
+                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}] ⏸️ PAUSE"
+                        elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
+                        else: ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}"
+                    else: ligne[col] = ""
+                grille_ui.append(ligne)
+            st.dataframe(pd.DataFrame(grille_ui), use_container_width=True)
+            bouton_imprimer("🖨️ Imprimer la Grille de Passage")
+
+        for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
+            with onglets_ui[idx]:
+                st.subheader(f"Feuille de Poule : {nom_poule}")
+                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                st.table(df_poule_vue)
+                bouton_imprimer(f"🖨️ Imprimer cette Feuille de Poule")
+
+        st.markdown("---")
+        
+        # --- EXPORT EXCEL ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
@@ -101,8 +446,6 @@
             entete_noir = PatternFill("solid", fgColor="000000")
             gris_clair = PatternFill("solid", fgColor="F2F2F2")
             
-            # Dictionnaire pour stocker les coordonnées des cellules de score dans les feuilles de poules (pour le récapitulatif global)
-            # Structure : { "Nom du lutteur": {"feuille": ws_poule, "cell_pts": coord, "cell_vict": coord} }
             suivi_classement_global = []
 
             for nom_poule, liste_p in participants_par_poule.items():
@@ -172,7 +515,6 @@
                     cell_poids.border = b_style 
                     cell_poids.alignment = Alignment(horizontal="center", vertical="center")
                     
-                    # Enregistrer pour l'onglet de classement global
                     suivi_classement_global.append({
                         "Nom": p['Nom'],
                         "Club": p.get('Club', ''),
@@ -271,7 +613,7 @@
                     row_cursor += 1 
 
             # --- CRÉATION DE L'ONGLET CLASSEMENT INDIVIDUEL ---
-            ws_classement = writer.book.create_sheet(title="Classement Individuel", index=2) # Positionné en 3ème position
+            ws_classement = writer.book.create_sheet(title="Classement Individuel", index=2)
             ws_classement.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL INDIVIDUEL 🏆").font = Font(name="Arial", size=16, bold=True, color="0055A4")
             
             headers_clt = ["Rang", "Nom Prénom", "Club", "Catégorie / Poule", "Points Totaux", "Poids"]
@@ -289,7 +631,7 @@
 
             row_clt = 4
             for item in suivi_classement_global:
-                ws_classement.cell(row=row_clt, column=1, value=f"") # Optionnel pour le rang dynamique ou manuel
+                ws_classement.cell(row=row_clt, column=1, value="")
                 ws_classement.cell(row=row_clt, column=2, value=item["Nom"]).border = b_style
                 ws_classement.cell(row=row_clt, column=3, value=item["Club"]).border = b_style
                 ws_classement.cell(row=row_clt, column=4, value=item["Categorie"]).border = b_style
