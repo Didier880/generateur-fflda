@@ -444,7 +444,6 @@ else:
             noms_onglets_utilises = set()
 
             for nom_poule, liste_p in participants_par_poule.items():
-                # Nettoyage et garantie d'unicité stricte du nom d'onglet (max 31 caractères sans doublons)
                 base_nom = re.sub(r'[\\/*?[\]:]', '', nom_poule)[:27].strip()
                 nom_onglet_court = base_nom
                 cpt = 1
@@ -642,7 +641,8 @@ else:
                     cat_end_row = row_clt + len(groupe) - 1
                     
                     for item in groupe.to_dict('records'):
-                        cell_clt_formula = f"=RANK.EQ(E{row_clt}, \(E\){cat_start_row}:\(E\){cat_end_row})"
+                        # Utilisation du point-virgule (;) obligatoire pour Excel en version française
+                        cell_clt_formula = f"=RANK.EQ(E{row_clt}; \(E\){cat_start_row}:\(E\){cat_end_row})"
                         cell_clt = ws_classement.cell(row=row_clt, column=1, value=cell_clt_formula)
                         cell_clt.border = b_style
                         cell_clt.alignment = Alignment(horizontal="center", vertical="center")
