@@ -630,9 +630,9 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL AVEC FORMULE TRIER (SORT) ---
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (STABLE ET SANS ERREUR) ---
             ws_cg = writer.book.create_sheet("Classement Général", index=2) 
-            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE (TRI AUTOMATIQUE)").font = Font(bold=True, size=16, color="0055A4")
+            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
             
             row_cg = 3
             for nom_poule, liste_p in participants_par_poule.items():
@@ -664,20 +664,13 @@ else:
                 
                 plage_points_cg = f"E{ligne_debut_poule_cg}:E{ligne_debut_poule_cg + nb_p - 1}"
                 
-                # Injection de la formule RANK (=RANK(E_courant, plage_points))
+                # Injection de la formule RANK (=RANK(E_courant, plage_points)) standard et universelle sur Excel
                 for idx_lutteur in range(nb_p):
                     r_target = ligne_debut_poule_cg + idx_lutteur
                     cell_rang = ws_cg.cell(row=r_target, column=1, value=f"=RANK(E{r_target}, {plage_points_cg})")
                     cell_rang.border = b_style
                     cell_rang.font = Font(bold=True, color="0055A4")
                 
-                # Utilisation de la fonction Excel `=TRIER()` (ou `=SORT()`) en cellule adjacente ou application directe du tri dynamique Excel 
-                # (Sur Excel moderne, la fonction TRIER permet de réordonner dynamiquement la plage par ordre décroissant sur la colonne des points (colonne 5))
-                plage_bloc = f"A{ligne_debut_poule_cg}:E{ligne_debut_poule_cg + nb_p - 1}"
-                cell_tri_dynamique = ws_cg.cell(row=ligne_debut_poule_cg, column=7, value=f"=TRIER({plage_bloc}; 5; -1)")
-                cell_tri_dynamique.font = Font(size=9, italic=True, color="666666")
-                ws_cg.cell(row=ligne_debut_poule_cg, column=6, value="← Vue triée (Excel Moderne) :").font = Font(size=9, italic=True)
-
                 for r_idx in range(ligne_debut_poule_cg, ligne_debut_poule_cg + nb_p):
                     for c_idx in range(1, 6):
                         ws_cg.cell(row=r_idx, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
@@ -689,8 +682,6 @@ else:
             ws_cg.column_dimensions['C'].width = 25
             ws_cg.column_dimensions['D'].width = 15
             ws_cg.column_dimensions['E'].width = 12
-            ws_cg.column_dimensions['F'].width = 25
-            ws_cg.column_dimensions['G'].width = 35
 
         st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
