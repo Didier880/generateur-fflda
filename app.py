@@ -338,7 +338,7 @@ else:
 
         with onglets_ui[2]:
             st.subheader("🏆 Classement Général par Catégorie et Poule")
-            st.markdown("Retrouvez ci-dessous les tableaux classés du meilleur au moins bon pour chaque groupe.")
+            st.markdown("Retrouvez ci-dessous les tableaux de classement pour chaque groupe.")
             for nom_poule, liste_p in participants_par_poule.items():
                 st.markdown(f"### 🤼 {nom_poule}")
                 df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
@@ -630,7 +630,7 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (AVEC TRI PAR RANG INITIAL INTÉGRÉ) ---
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL AVEC FILTRES DE TRI ACTIFS ---
             ws_cg = writer.book.create_sheet("Classement Général", index=2) 
             ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
             
@@ -644,12 +644,14 @@ else:
                     c = ws_cg.cell(row=row_cg, column=col_idx, value=h)
                     c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
                     c.fill = entete_noir
+                
+                # Active les filtres Excel (flèches de tri) sur la ligne d'en-tête de ce tableau
+                ligne_entete_actuelle = row_cg
                 row_cg += 1
                 
                 ligne_debut_poule_cg = row_cg
                 nb_p = len(liste_p)
                 
-                # Pour chaque lutteur, on calcule dynamiquement le nom, le club, le poids et la formule de points
                 for i, p in enumerate(liste_p, 1):
                     current_row = row_cg
                     ws_cg.cell(row=current_row, column=2, value=p.get('Nom', '')).border = b_style
@@ -665,13 +667,16 @@ else:
                 
                 plage_points_cg = f"E{ligne_debut_poule_cg}:E{ligne_debut_poule_cg + nb_p - 1}"
                 
-                # Dans la colonne RANG (colonne 1), on insère la formule `=RANK(...)` pour que le premier (le plus de points) affiche 1, le deuxième 2, etc.
                 for idx_lutteur in range(nb_p):
                     r_target = ligne_debut_poule_cg + idx_lutteur
                     cell_rang = ws_cg.cell(row=r_target, column=1, value=f"=RANK(E{r_target}, {plage_points_cg})")
                     cell_rang.border = b_style
                     cell_rang.font = Font(bold=True, color="0055A4")
                 
+                # Application de l'AutoFilter openpyxl pour permettre le tri instantané en 1 clic sur Excel
+                plage_tableau = f"A{ligne_entete_actuelle}:E{ligne_debut_poule_cg + nb_p - 1}"
+                ws_cg.auto_filter.ref = plage_tableau
+
                 for r_idx in range(ligne_debut_poule_cg, ligne_debut_poule_cg + nb_p):
                     for c_idx in range(1, 6):
                         ws_cg.cell(row=r_idx, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
