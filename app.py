@@ -48,7 +48,6 @@ st.markdown("**Outil officiel d'optimisation (Compatible imports Exalto)**")
 st.markdown("---")
 
 def nettoyer_nom_onglet(nom):
-    # Nettoie les caractères interdits par Excel dans les noms d'onglets et limite à 31 caractères
     nom_propre = re.sub(r'[\\/*?[\]:]', '', nom)
     return nom_propre[:31].strip()
 
@@ -615,7 +614,7 @@ else:
             ws_classement = writer.book.create_sheet(title="Classement Individuel", index=2)
             ws_classement.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL INDIVIDUEL 🏆").font = Font(name="Arial", size=16, bold=True, color="0055A4")
             
-            headers_clt = ["Rang", "Nom Prénom", "Club", "Catégorie / Poule", "Points Totaux", "Poids"]
+            headers_clt = ["Clt", "Nom Prénom", "Club", "Catégorie / Poule", "Points Totaux", "Poids"]
             for col_idx, h in enumerate(headers_clt, 1):
                 c = ws_classement.cell(row=3, column=col_idx, value=h)
                 c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
@@ -628,24 +627,42 @@ else:
             ws_classement.column_dimensions['E'].width = 15
             ws_classement.column_dimensions['F'].width = 10
 
-            row_clt = 4
-            for item in suivi_classement_global:
-                ws_classement.cell(row=row_clt, column=1, value="")
-                ws_classement.cell(row=row_clt, column=2, value=item["Nom"]).border = b_style
-                ws_classement.cell(row=row_clt, column=3, value=item["Club"]).border = b_style
-                ws_classement.cell(row=row_clt, column=4, value=item["Categorie"]).border = b_style
+            # Organiser/Grouper par catégorie pour calculer dynamiquement les rangs
+            df_suivi = pd.DataFrame(suivi_classement_global)
+            if not df_suivi.empty:
+                # Ajout d'une colonne de tri temporaire ou tri direct par catégorie et points si nécessaire
+                # Ici on trie par catégorie de poids pour que les lutteurs de la même poule se suivent
+                df_suivi['Temp_Val'] = df_suivi['cell_pts']
                 
-                cell_pts_ref = ws_classement.cell(row=row_clt, column=5, value=f"={item['cell_pts']}")
-                cell_pts_ref.border = b_style
-                cell_pts_ref.alignment = Alignment(horizontal="center", vertical="center")
-                cell_pts_ref.font = Font(bold=True)
+            row_clt = 4
+            # On regroupe par catégorie pour attribuer un classement 1, 2, 3... au sein de chaque poule
+            grouped_categories = df_suivi.groupby("Categorie") if not df_suivi.empty else []
+            
+            for categorie, groupe in grouped_categories:
+                # Optionnel : trier le groupe par la cellule de points totaux (ou les lier)
+                # On inscrit les lignes pour cette catégorie
+                cat_start_row = row_clt
+                for idx_cat, item in enumerate(groupe.to_dict('records'), start=1):
+                    # Formule Excel pour le classement dynamique par catégorie ou simple compteur ordonné
+                    ws_classement.cell(row=row_clt, column=1, value=idx_cat).border = b_style
+                    ws_classement.cell(row=row_clt, column=1).alignment = Alignment(horizontal="center", vertical="center")
+                    ws_classement.cell(row=row_clt, column=1).font = Font(bold=True, color="E53935")
+                    
+                    ws_classement.cell(row=row_clt, column=2, value=item["Nom"]).border = b_style
+                    ws_classement.cell(row=row_clt, column=3, value=item["Club"]).border = b_style
+                    ws_classement.cell(row=row_clt, column=4, value=item["Categorie"]).border = b_style
+                    
+                    cell_pts_ref = ws_classement.cell(row=row_clt, column=5, value=f"={item['cell_pts']}")
+                    cell_pts_ref.border = b_style
+                    cell_pts_ref.alignment = Alignment(horizontal="center", vertical="center")
+                    cell_pts_ref.font = Font(bold=True)
 
-                cell_pds = ws_classement.cell(row=row_clt, column=6, value=item["cell_poids"])
-                cell_pds.border = b_style
-                cell_pds.alignment = Alignment(horizontal="center", vertical="center")
+                    cell_pds = ws_classement.cell(row=row_clt, column=6, value=item["cell_poids"])
+                    cell_pds.border = b_style
+                    cell_pds.alignment = Alignment(horizontal="center", vertical="center")
 
-                ws_classement.row_dimensions[row_clt].height = 20
-                row_clt += 1
+                    ws_classement.row_dimensions[row_clt].height = 20
+                    row_clt += 1
 
         output.seek(0)
         st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
