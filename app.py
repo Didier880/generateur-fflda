@@ -5,14 +5,10 @@ import io
 import urllib.request
 import streamlit.components.v1 as components
 import openpyxl
+import re
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
-
-# --- PERSONNALISATION VISUELLE FFLDA (CSS) ---
-st.markdown("""
-
-""", unsafe_allow_html=True)
 
 # --- MENU LATÉRAL (PARAMÈTRES INTERACTIFS) ---
 with st.sidebar:
@@ -51,6 +47,11 @@ st.title("Générateur de Planning FFLDA 🚀")
 st.markdown("**Outil officiel d'optimisation (Compatible imports Exalto)**")
 st.markdown("---")
 
+def nettoyer_nom_onglet(nom):
+    # Nettoie les caractères interdits par Excel dans les noms d'onglets et limite à 31 caractères
+    nom_propre = re.sub(r'[\\/*?[\]:]', '', nom)
+    return nom_propre[:31].strip()
+
 def generer_rondes_fflda(participants_in):
     participants = list(participants_in)
     n = len(participants)
@@ -86,9 +87,7 @@ def generer_rondes_fflda(participants_in):
         return rondes
 
 def bouton_imprimer(label="🖨️ Imprimer cette vue"):
-    print_code = f"""
-    {label}
-    """
+    print_code = f"""{label}"""
     components.html(print_code, height=50)
 
 fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
@@ -449,7 +448,7 @@ else:
             suivi_classement_global = []
 
             for nom_poule, liste_p in participants_par_poule.items():
-                nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
+                nom_onglet_court = nettoyer_nom_onglet(nom_poule)
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
                 
                 ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
@@ -648,6 +647,7 @@ else:
                 ws_classement.row_dimensions[row_clt].height = 20
                 row_clt += 1
 
-            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        output.seek(0)
+        st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         st.error(f"Une erreur est survenue : {e}")
