@@ -385,29 +385,13 @@ else:
             rouge = PatternFill("solid", fgColor="EF4135")
             bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
             
-            # --- CRÉATION DE L'ONGLET CLASSEMENT INDIVIDUEL ---
-            ws_classement = writer.book.create_sheet("Classement", index=2)
-            ws_classement.page_setup.orientation = ws_classement.ORIENTATION_LANDSCAPE
-            ws_classement.page_setup.paperSize = ws_classement.PAPERSIZE_A4
-            ws_classement.sheet_properties.pageSetUpPr.fitToPage = True
-            ws_classement.page_setup.fitToWidth = 1
-            ws_classement.page_setup.fitToHeight = 0
-
-            ws_classement.column_dimensions['A'].width = 8
-            ws_classement.column_dimensions['B'].width = 32
-            ws_classement.column_dimensions['C'].width = 25
-            ws_classement.column_dimensions['D'].width = 25
-
-            ws_classement.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POIDS 🏆").font = Font(name="Arial", size=16, bold=True, color="0055A4")
-
             for ws_name in writer.book.sheetnames:
-                if ws_name != "Classement":
-                    ws_sheet = writer.book[ws_name]
-                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
-                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
-                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
-                    ws_sheet.page_setup.fitToWidth = 1
-                    ws_sheet.page_setup.fitToHeight = 0
+                ws_sheet = writer.book[ws_name]
+                ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
+                ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
+                ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
+                ws_sheet.page_setup.fitToWidth = 1
+                ws_sheet.page_setup.fitToHeight = 0
             
             ws_res = writer.sheets["Résumé"]
             for cell in ws_res[1]: 
@@ -462,15 +446,8 @@ else:
             entete_noir = PatternFill("solid", fgColor="000000")
             gris_clair = PatternFill("solid", fgColor="F2F2F2")
             
-            poule_meta = {}
-            row_class_cursor = 3
-
             for nom_poule, liste_p in participants_par_poule.items():
-                clean_name = nom_poule
-                for char in ['/', '\\', '?', '*', '[', ']', ':']:
-                    clean_name = clean_name.replace(char, '')
-                nom_onglet_court = clean_name.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
-                
+                nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
                 
                 ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
@@ -511,10 +488,11 @@ else:
                 for i, p in enumerate(liste_p, 1):
                     lignes_lutteurs[p['Nom']] = row_cursor
                     
+                    # Formule de classement dynamique (RANK) basée sur le total des points de la poule
                     col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
                     plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                     
-                    cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor},{plage_totaux})")
+                    cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor}, {plage_totaux})")
                     cell_clt.border = b_style
                     cell_clt.alignment = Alignment(horizontal="center", vertical="center")
                     cell_clt.font = Font(bold=True, color="0055A4")
@@ -546,17 +524,6 @@ else:
                     cell_poids.alignment = Alignment(horizontal="center", vertical="center")
                     
                     row_cursor += 1
-                
-                ligne_fin_poule = row_cursor - 1
-                
-                escaped_onglet_court = nom_onglet_court.replace("'", "''")
-                poule_meta[nom_poule] = {
-                    'onglet_court': escaped_onglet_court,
-                    'ligne_debut': ligne_debut_poule,
-                    'ligne_fin': ligne_fin_poule,
-                    'col_pts': col_pts_lettre,
-                    'participants': liste_p
-                }
                 
                 row_cursor += 2
                 
@@ -644,50 +611,6 @@ else:
                         row_cursor += 2 
                     
                     row_cursor += 1 
-
-            for nom_poule, meta in poule_meta.items():
-                onglet_court = meta['onglet_court']
-                ligne_debut = meta['ligne_debut']
-                ligne_fin = meta['ligne_fin']
-                col_pts = meta['col_pts']
-                liste_p = meta['participants']
-                
-                ws_classement.cell(row=row_class_cursor, column=1, value=f"Catégorie / Poule : {nom_poule}").font = Font(bold=True, size=11, color="EF4135")
-                row_class_cursor += 1
-                
-                headers_class = ["Clt", "Nom et prenom", "Club", "Nombre de point total"]
-                for col_idx, h in enumerate(headers_class, 1):
-                    c = ws_classement.cell(row=row_class_cursor, column=col_idx, value=h)
-                    c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                    c.fill = entete_noir
-                row_class_cursor += 1
-                
-                nb_lutteurs = ligne_fin - ligne_debut + 1
-                for idx_lutteur in range(nb_lutteurs):
-                    row_poule_actuelle = ligne_debut + idx_lutteur
-                    p_data = liste_p[idx_lutteur]
-                    
-                    # Colonne CLT (formule de rang pointant vers la feuille de poule)
-                    c_clt = ws_classement.cell(row=row_class_cursor, column=1, value=f"='{onglet_court}'!\(A\){row_poule_actuelle}")
-                    c_clt.border, c_clt.alignment = b_style, Alignment(horizontal="center", vertical="center")
-                    c_clt.font = Font(bold=True, color="0055A4")
-                    
-                    # Colonne Nom et prénom (valeur directe en texte brut pour éviter toute erreur XML)
-                    c_nom = ws_classement.cell(row=row_class_cursor, column=2, value=p_data['Nom'])
-                    c_nom.border, c_nom.alignment = b_style, Alignment(horizontal="left", vertical="center")
-                    
-                    # Colonne Club (valeur directe en texte brut)
-                    c_club = ws_classement.cell(row=row_class_cursor, column=3, value=p_data.get('Club', ''))
-                    c_club.border, c_club.alignment = b_style, Alignment(horizontal="left", vertical="center")
-                    
-                    # Colonne Total Pts (liaison directe vers la cellule de points de la poule)
-                    c_total = ws_classement.cell(row=row_class_cursor, column=4, value=f"='{onglet_court}'!\({col_pts}\){row_poule_actuelle}")
-                    c_total.border, c_total.alignment = b_style, Alignment(horizontal="center", vertical="center")
-                    c_total.font = Font(bold=True)
-                    
-                    row_class_cursor += 1
-                
-                row_class_cursor += 2
 
         st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
