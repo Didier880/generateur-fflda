@@ -454,47 +454,15 @@ else:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (PAR CATÉGORIE / POULE) ---
-            entete_noir = PatternFill("solid", fgColor="000000")
-            ws_cg = writer.book.create_sheet("Classement Général")
-            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
-            
-            row_cg = 3
-            for nom_poule, liste_p in participants_par_poule.items():
-                ws_cg.cell(row=row_cg, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=13, color="0055A4")
-                row_cg += 1
-                
-                # En-têtes incluant "Points" en dernière colonne
-                headers_cg = ["RANG", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
-                for col_idx, h in enumerate(headers_cg, 1):
-                    c = ws_cg.cell(row=row_cg, column=col_idx, value=h)
-                    c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                    c.fill = entete_noir
-                row_cg += 1
-                
-                for i, p in enumerate(liste_p, 1):
-                    ws_cg.cell(row=row_cg, column=1, value=i).border = b_style
-                    ws_cg.cell(row=row_cg, column=2, value=p.get('Nom', '')).border = b_style
-                    ws_cg.cell(row=row_cg, column=3, value=p.get('Club', '')).border = b_style
-                    ws_cg.cell(row=row_cg, column=4, value=p.get('Poids', '')).border = b_style
-                    ws_cg.cell(row=row_cg, column=5, value="").border = b_style  # Colonne Points vide
-                    
-                    for c_idx in range(1, 6):
-                        ws_cg.cell(row=row_cg, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
-                    row_cg += 1
-                
-                row_cg += 2  
-            
-            ws_cg.column_dimensions['A'].width = 10
-            ws_cg.column_dimensions['B'].width = 30
-            ws_cg.column_dimensions['C'].width = 25
-            ws_cg.column_dimensions['D'].width = 15
-            ws_cg.column_dimensions['E'].width = 12
-            
+            # Dictionnaires pour stocker les coordonnées des lignes des lutteurs dans les feuilles de poules
+            cellules_points_poules = {}
+
+            # Création d'abord des feuilles de poules pour pouvoir y référencer les cellules de points
             rouge_lutte = PatternFill("solid", fgColor="E53935") 
             bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
             gris_clair = PatternFill("solid", fgColor="F2F2F2")
-            
+            entete_noir = PatternFill("solid", fgColor="000000")
+
             for nom_poule, liste_p in participants_par_poule.items():
                 nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
@@ -558,10 +526,14 @@ else:
                     
                     col_lettre_debut = openpyxl.utils.get_column_letter(col_offset)
                     col_lettre_fin = openpyxl.utils.get_column_letter(col_offset + nb_tours - 1)
+                    
                     cell_total_pts = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours, value=f"=SUM({col_lettre_debut}{row_cursor}:{col_lettre_fin}{row_cursor})")
                     cell_total_pts.border = b_style
                     cell_total_pts.alignment = Alignment(horizontal="center", vertical="center")
                     cell_total_pts.font = Font(bold=True)
+                    
+                    # On stocke la coordonnée exacte de la cellule de points de ce lutteur
+                    cellules_points_poules[(nom_poule, p['Nom'])] = f"'{nom_onglet_court}'!{cell_total_pts.coordinate}"
                     
                     cell_total_vict = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1, value="")
                     cell_total_vict.border = b_style 
@@ -659,6 +631,46 @@ else:
                         row_cursor += 2 
                     
                     row_cursor += 1 
+
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (AVEC FORMULES DE LIAISON DE POINTS) ---
+            ws_cg = writer.book.create_sheet("Classement Général", index=2) # Inséré après Grille de Passage
+            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
+            
+            row_cg = 3
+            for nom_poule, liste_p in participants_par_poule.items():
+                ws_cg.cell(row=row_cg, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=13, color="0055A4")
+                row_cg += 1
+                
+                headers_cg = ["RANG", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
+                for col_idx, h in enumerate(headers_cg, 1):
+                    c = ws_cg.cell(row=row_cg, column=col_idx, value=h)
+                    c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
+                    c.fill = entete_noir
+                row_cg += 1
+                
+                for i, p in enumerate(liste_p, 1):
+                    ws_cg.cell(row=row_cg, column=1, value=i).border = b_style
+                    ws_cg.cell(row=row_cg, column=2, value=p.get('Nom', '')).border = b_style
+                    ws_cg.cell(row=row_cg, column=3, value=p.get('Club', '')).border = b_style
+                    ws_cg.cell(row=row_cg, column=4, value=p.get('Poids', '')).border = b_style
+                    
+                    # Formule liant dynamiquement le total de points depuis la feuille de poule respective
+                    coord_poule = cellules_points_poules.get((nom_poule, p['Nom']), "0")
+                    cell_pts = ws_cg.cell(row=row_cg, column=5, value=f"={coord_poule}")
+                    cell_pts.border = b_style
+                    cell_pts.font = Font(bold=True, color="0055A4")
+                    
+                    for c_idx in range(1, 6):
+                        ws_cg.cell(row=row_cg, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
+                    row_cg += 1
+                
+                row_cg += 2  
+            
+            ws_cg.column_dimensions['A'].width = 10
+            ws_cg.column_dimensions['B'].width = 30
+            ws_cg.column_dimensions['C'].width = 25
+            ws_cg.column_dimensions['D'].width = 15
+            ws_cg.column_dimensions['E'].width = 12
 
         st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
