@@ -514,7 +514,6 @@ else:
                     col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
                     plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                     
-                    # Fonction anglaise RANK + point-virgule (;) pour la compatibilité Excel FR
                     cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor}; {plage_totaux})")
                     cell_clt.border = b_style
                     cell_clt.alignment = Alignment(horizontal="center", vertical="center")
@@ -662,19 +661,20 @@ else:
                 row_class_cursor += 1
                 
                 nb_lutteurs = ligne_fin - ligne_debut + 1
-                for r in range(1, nb_lutteurs + 1):
-                    c_clt = ws_classement.cell(row=row_class_cursor, column=1, value=r)
+                for idx_lutteur in range(nb_lutteurs):
+                    row_poule_actuelle = ligne_debut + idx_lutteur
+                    
+                    c_clt = ws_classement.cell(row=row_class_cursor, column=1, value=f"='{onglet_court}'!\(A\){row_poule_actuelle}")
                     c_clt.border, c_clt.alignment = b_style, Alignment(horizontal="center", vertical="center")
                     c_clt.font = Font(bold=True, color="0055A4")
                     
-                    # Fonctions anglaises INDEX / MATCH + point-virgule (;)
-                    c_nom = ws_classement.cell(row=row_class_cursor, column=2, value=f"=INDEX('{onglet_court}'!\(C\){ligne_debut}:\(C\){ligne_fin}; MATCH({r}; '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}; 0))")
+                    c_nom = ws_classement.cell(row=row_class_cursor, column=2, value=f"='{onglet_court}'!\(C\){row_poule_actuelle}")
                     c_nom.border, c_nom.alignment = b_style, Alignment(horizontal="left", vertical="center")
                     
-                    c_club = ws_classement.cell(row=row_class_cursor, column=3, value=f"=INDEX('{onglet_court}'!\(D\){ligne_debut}:\(D\){ligne_fin}; MATCH({r}; '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}; 0))")
+                    c_club = ws_classement.cell(row=row_class_cursor, column=3, value=f"='{onglet_court}'!\(D\){row_poule_actuelle}")
                     c_club.border, c_club.alignment = b_style, Alignment(horizontal="left", vertical="center")
                     
-                    c_total = ws_classement.cell(row=row_class_cursor, column=4, value=f"=INDEX('{onglet_court}'!\({col_pts}\){ligne_debut}:\({col_pts}\){ligne_fin}; MATCH({r}; '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}; 0))")
+                    c_total = ws_classement.cell(row=row_class_cursor, column=4, value=f"='{onglet_court}'!\({col_pts}\){row_poule_actuelle}")
                     c_total.border, c_total.alignment = b_style, Alignment(horizontal="center", vertical="center")
                     c_total.font = Font(bold=True)
                     
