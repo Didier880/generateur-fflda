@@ -112,20 +112,28 @@ else:
             fichier_upload.seek(0)
             df_raw = pd.read_excel(fichier_upload, header=header_row)
 
-        # Nettoyage et réinitialisation des index pour éviter les doublons d'étiquettes
-        df_raw = df_raw.reset_index(drop=True)
+        # Nettoyage strict des noms de colonnes dupliquées pour éviter les erreurs d'axe
+        df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].reset_index(drop=True)
 
         # Mappage flexible des colonnes
+        renNom = {}
         for col in df_raw.columns:
             col_lower = str(col).lower()
-            if 'âge' in col_lower or 'age' in col_lower: df_raw = df_raw.rename(columns={col: "Age"})
-            elif 'club' in col_lower: df_raw = df_raw.rename(columns={col: "Club"})
-            elif 'poids' in col_lower: df_raw = df_raw.rename(columns={col: "Poids"})
-            elif 'nom' in col_lower: df_raw = df_raw.rename(columns={col: "Nom"})
-            elif 'prénom' in col_lower or 'prenom' in col_lower: df_raw = df_raw.rename(columns={col: "Prénom"})
+            if 'âge' in col_lower or 'age' in col_lower: renNom[col] = "Age"
+            elif 'club' in col_lower: renNom[col] = "Club"
+            elif 'poids' in col_lower: renNom[col] = "Poids"
+            elif 'nom' in col_lower: renNom[col] = "Nom"
+            elif 'prénom' in col_lower or 'prenom' in col_lower: renNom[col] = "Prénom"
+        
+        df_raw = df_raw.rename(columns=renNom)
+        df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].reset_index(drop=True)
 
-        if "Prénom" in df_raw.columns and "Nom" in df_raw.columns and not df_raw['Nom'].str.contains(df_raw['Prénom'].iloc[0], na=False).any():
-            df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
+        if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
+            # S'assurer que les colonnes sont des séries uniques
+            s_nom = df_raw["Nom"].astype(str)
+            s_prenom = df_raw["Prénom"].astype(str)
+            if not s_nom.str.contains(s_prenom.iloc[0], na=False).any():
+                df_raw["Nom"] = s_nom + " " + s_prenom
 
         df_inscr_total = df_raw.copy().reset_index(drop=True)
         if "Age" in df_inscr_total.columns:
@@ -163,7 +171,9 @@ else:
             max_size = 4 if age == 'U9' else 5
             index_poule = 1
             
-            for (sexe, niveau), groupe in df_age.groupby(['Sexe', 'Niveau']):
+            # Utilisation de as_index=False pour éviter tout problème de duplication d'index de groupe
+            for (sexe, niveau), groupe in df_age.groupby(['Sexe', 'Niveau'], as_index=False):
+                groupe = groupe.reset_index(drop=True)
                 participants = groupe.to_dict('records')
                 poule_courante = []
                 suffixe_niveau = f" | {niveau}" if niveau != "" else ""
@@ -360,7 +370,6 @@ else:
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             bleu = PatternFill("solid", fgColor="0055A4")
             rouge = PatternFill("solid", fgColor="EF4135")
-            bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
             
             for ws_name in writer.book.sheetnames:
                 ws_sheet = writer.book[ws_name]
