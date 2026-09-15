@@ -342,8 +342,10 @@ else:
             for nom_poule, liste_p in participants_par_poule.items():
                 st.markdown(f"### 🤼 {nom_poule}")
                 df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
-                df_poule_classement["Points"] = ""
-                df_poule_classement.index = range(1, len(df_poule_classement) + 1)
+                df_poule_classement["Points"] = 0
+                df_poule_classement["Rang"] = range(1, len(df_poule_classement) + 1)
+                # Réorganiser les colonnes pour afficher Rang en premier
+                df_poule_classement = df_poule_classement[['Rang', 'Nom', 'Club', 'Poids', 'Points']]
                 st.dataframe(df_poule_classement, use_container_width=True)
             bouton_imprimer("🖨️ Imprimer le Classement Général")
 
@@ -454,10 +456,8 @@ else:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
 
-            # Dictionnaires pour stocker les coordonnées des lignes des lutteurs dans les feuilles de poules
             cellules_points_poules = {}
 
-            # Création d'abord des feuilles de poules pour pouvoir y référencer les cellules de points
             rouge_lutte = PatternFill("solid", fgColor="E53935") 
             bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
             gris_clair = PatternFill("solid", fgColor="F2F2F2")
@@ -532,7 +532,6 @@ else:
                     cell_total_pts.alignment = Alignment(horizontal="center", vertical="center")
                     cell_total_pts.font = Font(bold=True)
                     
-                    # On stocke la coordonnée exacte de la cellule de points de ce lutteur
                     cellules_points_poules[(nom_poule, p['Nom'])] = f"'{nom_onglet_court}'!{cell_total_pts.coordinate}"
                     
                     cell_total_vict = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1, value="")
@@ -632,8 +631,8 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (AVEC FORMULES DE LIAISON DE POINTS) ---
-            ws_cg = writer.book.create_sheet("Classement Général", index=2) # Inséré après Grille de Passage
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (AVEC FORMULE RANK DYNAMIQUE) ---
+            ws_cg = writer.book.create_sheet("Classement Général", index=2) 
             ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
             
             row_cg = 3
@@ -648,21 +647,37 @@ else:
                     c.fill = entete_noir
                 row_cg += 1
                 
+                ligne_debut_poule_cg = row_cg
+                nb_p = len(liste_p)
+                
                 for i, p in enumerate(liste_p, 1):
-                    ws_cg.cell(row=row_cg, column=1, value=i).border = b_style
-                    ws_cg.cell(row=row_cg, column=2, value=p.get('Nom', '')).border = b_style
-                    ws_cg.cell(row=row_cg, column=3, value=p.get('Club', '')).border = b_style
-                    ws_cg.cell(row=row_cg, column=4, value=p.get('Poids', '')).border = b_style
+                    current_row = row_cg
+                    ws_cg.cell(row=current_row, column=2, value=p.get('Nom', '')).border = b_style
+                    ws_cg.cell(row=current_row, column=3, value=p.get('Club', '')).border = b_style
+                    ws_cg.cell(row=current_row, column=4, value=p.get('Poids', '')).border = b_style
                     
-                    # Formule liant dynamiquement le total de points depuis la feuille de poule respective
+                    # Formule points
                     coord_poule = cellules_points_poules.get((nom_poule, p['Nom']), "0")
-                    cell_pts = ws_cg.cell(row=row_cg, column=5, value=f"={coord_poule}")
+                    cell_pts = ws_cg.cell(row=current_row, column=5, value=f"={coord_poule}")
                     cell_pts.border = b_style
                     cell_pts.font = Font(bold=True, color="0055A4")
                     
-                    for c_idx in range(1, 6):
-                        ws_cg.cell(row=row_cg, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
                     row_cg += 1
+                
+                # Plage des points pour la formule RANK de cette poule spécifique
+                plage_points_cg = f"E{ligne_debut_poule_cg}:E{ligne_debut_poule_cg + nb_p - 1}"
+                
+                # Injection de la formule RANK (=RANK(E_courant, plage_points)) pour chaque lutteur de la poule
+                for idx_lutteur in range(nb_p):
+                    r_target = ligne_debut_poule_cg + idx_lutteur
+                    cell_rang = ws_cg.cell(row=r_target, column=1, value=f"=RANK(E{r_target}, {plage_points_cg})")
+                    cell_rang.border = b_style
+                    cell_rang.font = Font(bold=True, color="0055A4")
+                
+                # Alignement global des cellules du bloc
+                for r_idx in range(ligne_debut_poule_cg, ligne_debut_poule_cg + nb_p):
+                    for c_idx in range(1, 6):
+                        ws_cg.cell(row=r_idx, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
                 
                 row_cg += 2  
             
