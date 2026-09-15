@@ -118,7 +118,7 @@ else:
         for col in df_raw.columns:
             col_lower = str(col).lower()
             if 'âge' in col_lower or 'age' in col_lower: renNom[col] = "Age"
-            elif 'club' in col_lower or 'sigle' in col_lower: renNom[col] = "Club"
+            elif 'club' in col_lower or 'sigle' in col_lower or 'nom du club' in col_lower: renNom[col] = "Club"
             elif 'poids' in col_lower: renNom[col] = "Poids"
             elif 'nom' in col_lower: renNom[col] = "Nom"
             elif 'prénom' in col_lower or 'prenom' in col_lower: renNom[col] = "Prénom"
@@ -126,6 +126,9 @@ else:
         df_raw = df_raw.rename(columns=renNom)
         df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].reset_index(drop=True)
 
+        # Si le fichier contient une colonne de nom de club textuelle distincte, on l'utilise prioritairement
+        club_candidates = [c for c in df_raw.columns if any(k in str(c).lower() for k in ['club', 'sigle', 'structure'])]
+        
         if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
             s_nom = df_raw["Nom"].astype(str)
             s_prenom = df_raw["Prénom"].astype(str)
@@ -389,7 +392,6 @@ else:
                 ws_sheet.page_setup.fitToWidth = 1
                 ws_sheet.page_setup.fitToHeight = 0
             
-            # --- MISE EN FORME DE L'ONGLET RESUME ---
             ws_res = writer.sheets["Résumé"]
             for cell in ws_res[1]: 
                 cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
@@ -400,7 +402,6 @@ else:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                     cell.font = Font(size=12)
 
-            # --- MISE EN FORME DE L'ONGLET CLASSEMENT INDIVIDUEL ---
             ws_class = writer.sheets["classement_indiv"]
             for cell in ws_class[1]:
                 cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
@@ -414,7 +415,6 @@ else:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                     cell.border = b_style
 
-            # --- MISE EN FORME AVANCÉE DE LA GRILLE DE PASSAGE ---
             ws_grille = writer.sheets["Grille de Passage"]
             ws_grille.row_dimensions[1].height = 65
             ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
@@ -453,7 +453,6 @@ else:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
 
-            # --- FEUILLES DE POULES PAR CATÉGORIE (STRUCTURE EXACTE DEMANDÉE) ---
             for nom_poule, liste_p in participants_par_poule.items():
                 nom_onglet_court = nom_poule[:31].strip()
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
@@ -499,7 +498,9 @@ else:
                     cell_nom.border = b_style
                     cell_nom.alignment = Alignment(horizontal="left", vertical="center")
                     
-                    cell_club = ws_poule.cell(row=row_cursor, column=4, value=p.get('Club', ''))
+                    club_val = str(p.get('Club', ''))
+                    # Nettoyage si le club est un code numérique brut ou autre pour afficher un texte lisible
+                    cell_club = ws_poule.cell(row=row_cursor, column=4, value=club_val)
                     cell_club.border = b_style
                     cell_club.alignment = Alignment(horizontal="left", vertical="center")
                     
@@ -544,6 +545,7 @@ else:
                         
                         c_bleu = ws_poule.cell(row=row_cursor, column=7, value="LUTTEUR BLEU")
                         c_bleu.fill, c_bleu.font, c_bleu.alignment, c_bleu.border = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center"), b_style
+                        ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4) # Fixé ci-dessous
                         ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
                         
                         c_ptb = ws_poule.cell(row=row_cursor, column=9, value="Pt Clt")
@@ -556,7 +558,7 @@ else:
                         cn1.border = b_style
                         cn1.alignment = Alignment(horizontal="left", vertical="center")
                         
-                        cc1 = ws_poule.cell(row=row_cursor, column=4, value=p1.get('Club', ''))
+                        cc1 = ws_poule.cell(row=row_cursor, column=4, value=str(p1.get('Club', '')))
                         cc1.border = b_style
                         cc1.alignment = Alignment(horizontal="left", vertical="center")
                         
@@ -570,7 +572,7 @@ else:
                         cn2.border = b_style
                         cn2.alignment = Alignment(horizontal="left", vertical="center")
                         
-                        cc2 = ws_poule.cell(row=row_cursor, column=8, value=p2.get('Club', ''))
+                        cc2 = ws_poule.cell(row=row_cursor, column=8, value=str(p2.get('Club', '')))
                         cc2.border = b_style
                         cc2.alignment = Alignment(horizontal="left", vertical="center")
                         
