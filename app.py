@@ -630,7 +630,7 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (STABLE ET PARFAITEMENT LISIBLE) ---
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (AVEC TRI PAR RANG INITIAL INTÉGRÉ) ---
             ws_cg = writer.book.create_sheet("Classement Général", index=2) 
             ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
             
@@ -649,10 +649,8 @@ else:
                 ligne_debut_poule_cg = row_cg
                 nb_p = len(liste_p)
                 
-                # On trie la liste des participants de la poule par poids ou ordre logique initial
-                liste_p_triees = sorted(liste_p, key=lambda x: float(str(x.get('Poids', 0)).replace(',', '.')) if str(x.get('Poids', 0)).replace(',', '.').replace('.', '', 1).isdigit() else 0)
-                
-                for i, p in enumerate(liste_p_triees, 1):
+                # Pour chaque lutteur, on calcule dynamiquement le nom, le club, le poids et la formule de points
+                for i, p in enumerate(liste_p, 1):
                     current_row = row_cg
                     ws_cg.cell(row=current_row, column=2, value=p.get('Nom', '')).border = b_style
                     ws_cg.cell(row=current_row, column=3, value=p.get('Club', '')).border = b_style
@@ -667,6 +665,7 @@ else:
                 
                 plage_points_cg = f"E{ligne_debut_poule_cg}:E{ligne_debut_poule_cg + nb_p - 1}"
                 
+                # Dans la colonne RANG (colonne 1), on insère la formule `=RANK(...)` pour que le premier (le plus de points) affiche 1, le deuxième 2, etc.
                 for idx_lutteur in range(nb_p):
                     r_target = ligne_debut_poule_cg + idx_lutteur
                     cell_rang = ws_cg.cell(row=r_target, column=1, value=f"=RANK(E{r_target}, {plage_points_cg})")
