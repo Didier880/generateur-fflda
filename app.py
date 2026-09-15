@@ -466,7 +466,6 @@ else:
             row_class_cursor = 3
 
             for nom_poule, liste_p in participants_par_poule.items():
-                # Nettoyage sécurisé des caractères interdits par Excel pour les noms d'onglets
                 clean_name = nom_poule
                 for char in ['/', '\\', '?', '*', '[', ']', ':']:
                     clean_name = clean_name.replace(char, '')
@@ -515,7 +514,8 @@ else:
                     col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
                     plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                     
-                    cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor}, {plage_totaux})")
+                    # Utilisation de RANG et points-virgules (;) pour compatibilité Excel FR
+                    cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANG({col_pts_lettre}{row_cursor}; {plage_totaux})")
                     cell_clt.border = b_style
                     cell_clt.alignment = Alignment(horizontal="center", vertical="center")
                     cell_clt.font = Font(bold=True, color="0055A4")
@@ -533,7 +533,7 @@ else:
                     
                     col_lettre_debut = openpyxl.utils.get_column_letter(col_offset)
                     col_lettre_fin = openpyxl.utils.get_column_letter(col_offset + nb_tours - 1)
-                    cell_total_pts = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours, value=f"=SUM({col_lettre_debut}{row_cursor}:{col_lettre_fin}{row_cursor})")
+                    cell_total_pts = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours, value=f"=SOMME({col_lettre_debut}{row_cursor}:{col_lettre_fin}{row_cursor})")
                     cell_total_pts.border = b_style
                     cell_total_pts.alignment = Alignment(horizontal="center", vertical="center")
                     cell_total_pts.font = Font(bold=True)
@@ -667,13 +667,14 @@ else:
                     c_clt.border, c_clt.alignment = b_style, Alignment(horizontal="center", vertical="center")
                     c_clt.font = Font(bold=True, color="0055A4")
                     
-                    c_nom = ws_classement.cell(row=row_class_cursor, column=2, value=f"=INDEX('{onglet_court}'!\(C\){ligne_debut}:\(C\){ligne_fin}, MATCH({r}, '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}, 0))")
+                    # Utilisation de INDEX / EQUIV avec des points-virgules (;)
+                    c_nom = ws_classement.cell(row=row_class_cursor, column=2, value=f"=INDEX('{onglet_court}'!\(C\){ligne_debut}:\(C\){ligne_fin}; EQUIV({r}; '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}; 0))")
                     c_nom.border, c_nom.alignment = b_style, Alignment(horizontal="left", vertical="center")
                     
-                    c_club = ws_classement.cell(row=row_class_cursor, column=3, value=f"=INDEX('{onglet_court}'!\(D\){ligne_debut}:\(D\){ligne_fin}, MATCH({r}, '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}, 0))")
+                    c_club = ws_classement.cell(row=row_class_cursor, column=3, value=f"=INDEX('{onglet_court}'!\(D\){ligne_debut}:\(D\){ligne_fin}; EQUIV({r}; '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}; 0))")
                     c_club.border, c_club.alignment = b_style, Alignment(horizontal="left", vertical="center")
                     
-                    c_total = ws_classement.cell(row=row_class_cursor, column=4, value=f"=INDEX('{onglet_court}'!\({col_pts}\){ligne_debut}:\({col_pts}\){ligne_fin}, MATCH({r}, '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}, 0))")
+                    c_total = ws_classement.cell(row=row_class_cursor, column=4, value=f"=INDEX('{onglet_court}'!\({col_pts}\){ligne_debut}:\({col_pts}\){ligne_fin}; EQUIV({r}; '{onglet_court}'!\(A\){ligne_debut}:\(A\){ligne_fin}; 0))")
                     c_total.border, c_total.alignment = b_style, Alignment(horizontal="center", vertical="center")
                     c_total.font = Font(bold=True)
                     
