@@ -514,7 +514,6 @@ else:
                     col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
                     plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                     
-                    # Fonction standard OpenXML en anglais avec virgule (,)
                     cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor},{plage_totaux})")
                     cell_clt.border = b_style
                     cell_clt.alignment = Alignment(horizontal="center", vertical="center")
@@ -555,7 +554,8 @@ else:
                     'onglet_court': escaped_onglet_court,
                     'ligne_debut': ligne_debut_poule,
                     'ligne_fin': ligne_fin_poule,
-                    'col_pts': col_pts_lettre
+                    'col_pts': col_pts_lettre,
+                    'participants': liste_p
                 }
                 
                 row_cursor += 2
@@ -650,6 +650,7 @@ else:
                 ligne_debut = meta['ligne_debut']
                 ligne_fin = meta['ligne_fin']
                 col_pts = meta['col_pts']
+                liste_p = meta['participants']
                 
                 ws_classement.cell(row=row_class_cursor, column=1, value=f"Catégorie / Poule : {nom_poule}").font = Font(bold=True, size=11, color="EF4135")
                 row_class_cursor += 1
@@ -664,17 +665,22 @@ else:
                 nb_lutteurs = ligne_fin - ligne_debut + 1
                 for idx_lutteur in range(nb_lutteurs):
                     row_poule_actuelle = ligne_debut + idx_lutteur
+                    p_data = liste_p[idx_lutteur]
                     
+                    # Colonne CLT (formule de rang pointant vers la feuille de poule)
                     c_clt = ws_classement.cell(row=row_class_cursor, column=1, value=f"='{onglet_court}'!\(A\){row_poule_actuelle}")
                     c_clt.border, c_clt.alignment = b_style, Alignment(horizontal="center", vertical="center")
                     c_clt.font = Font(bold=True, color="0055A4")
                     
-                    c_nom = ws_classement.cell(row=row_class_cursor, column=2, value=f"='{onglet_court}'!\(C\){row_poule_actuelle}")
+                    # Colonne Nom et prénom (valeur directe en texte brut pour éviter toute erreur XML)
+                    c_nom = ws_classement.cell(row=row_class_cursor, column=2, value=p_data['Nom'])
                     c_nom.border, c_nom.alignment = b_style, Alignment(horizontal="left", vertical="center")
                     
-                    c_club = ws_classement.cell(row=row_class_cursor, column=3, value=f"='{onglet_court}'!\(D\){row_poule_actuelle}")
+                    # Colonne Club (valeur directe en texte brut)
+                    c_club = ws_classement.cell(row=row_class_cursor, column=3, value=p_data.get('Club', ''))
                     c_club.border, c_club.alignment = b_style, Alignment(horizontal="left", vertical="center")
                     
+                    # Colonne Total Pts (liaison directe vers la cellule de points de la poule)
                     c_total = ws_classement.cell(row=row_class_cursor, column=4, value=f"='{onglet_court}'!\({col_pts}\){row_poule_actuelle}")
                     c_total.border, c_total.alignment = b_style, Alignment(horizontal="center", vertical="center")
                     c_total.font = Font(bold=True)
