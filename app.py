@@ -182,14 +182,14 @@ else:
                         if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
                             poule_courante.append(p)
                         else:
-                            nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                            nom_groupe = f"{age} {sexe}{suffixe_niveau} Gr. {index_poule} {poule_courante[0]['Poids_Num']}kg-{poule_courante[-1]['Poids_Num']}kg"
                             poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                             if age == 'U9': poules_u9.append(poule_obj)
                             else: poules_u11.append(poule_obj)
                             index_poule += 1
                             poule_courante = [p]
                 if poule_courante:
-                    nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                    nom_groupe = f"{age} {sexe}{suffixe_niveau} Gr. {index_poule} {poule_courante[0]['Poids_Num']}kg-{poule_courante[-1]['Poids_Num']}kg"
                     poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                     if age == 'U9': poules_u9.append(poule_obj)
                     else: poules_u11.append(poule_obj)
@@ -453,9 +453,9 @@ else:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
 
-            # --- FEUILLES DE POULES ---
+            # --- FEUILLES DE POULES PAR CATÉGORIE ---
             for nom_poule, liste_p in participants_par_poule.items():
-                nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
+                nom_onglet_court = nom_poule[:31].strip()
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
                 
                 ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
