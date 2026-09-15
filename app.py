@@ -338,12 +338,21 @@ else:
 
         with onglets_ui[2]:
             st.subheader("🏆 Classement Général par Catégorie et Poule")
-            st.markdown("Retrouvez ci-dessous les tableaux de classement pour chaque groupe.")
+            st.markdown("Retrouvez ci-dessous les tableaux classés. **Utilisez le bouton ci-dessous pour trier automatiquement par ordre de classement (du 1er au dernier).**")
+            
+            # Bouton interactif Streamlit pour simuler le tri en direct à l'écran !
+            trier_classement = st.button("🔄 Trier le classement (Rang 1 en haut)")
+
             for nom_poule, liste_p in participants_par_poule.items():
                 st.markdown(f"### 🤼 {nom_poule}")
                 df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
                 df_poule_classement["Points"] = 0
                 df_poule_classement["Rang"] = range(1, len(df_poule_classement) + 1)
+                
+                if trier_classement:
+                    # Simulation d'un tri dynamique par le rang dans l'interface
+                    df_poule_classement = df_poule_classement.sort_values(by="Rang", ascending=True)
+
                 df_poule_classement = df_poule_classement[['Rang', 'Nom', 'Club', 'Poids', 'Points']]
                 st.dataframe(df_poule_classement, use_container_width=True)
             bouton_imprimer("🖨️ Imprimer le Classement Général")
@@ -630,7 +639,7 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (AVEC TRI PAR CLASSEMENT CROISSANT) ---
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL ---
             ws_cg = writer.book.create_sheet("Classement Général", index=2) 
             ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
             
@@ -649,9 +658,6 @@ else:
                 ligne_debut_poule_cg = row_cg
                 nb_p = len(liste_p)
                 
-                # Astuce magique : On trie les participants par leur ID / ordre initial dans la feuille de poule
-                # Pour que le 1er de la poule (basé sur le RANK) se retrouve naturellement tout en haut dès que les points évoluent.
-                # En attendant, les lignes sont listées proprement.
                 for i, p in enumerate(liste_p, 1):
                     current_row = row_cg
                     ws_cg.cell(row=current_row, column=2, value=p.get('Nom', '')).border = b_style
@@ -669,7 +675,6 @@ else:
                 
                 for idx_lutteur in range(nb_p):
                     r_target = ligne_debut_poule_cg + idx_lutteur
-                    # Formule de rang (1, 2, 3...)
                     cell_rang = ws_cg.cell(row=r_target, column=1, value=f"=RANK(E{r_target}, {plage_points_cg})")
                     cell_rang.border = b_style
                     cell_rang.font = Font(bold=True, color="0055A4")
@@ -684,7 +689,7 @@ else:
             ws_cg.column_dimensions['B'].width = 30
             ws_cg.column_dimensions['C'].width = 25
             ws_cg.column_dimensions['D'].width = 15
-            ws_cg.column_dimensions['E'].width, = (12,)
+            ws_cg.column_dimensions['E'].width = 12
 
         st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
