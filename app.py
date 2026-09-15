@@ -348,7 +348,6 @@ else:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             pd.DataFrame(lignes_accueil).to_excel(writer, sheet_name="Résumé", index=False)
             
-            # Création de l'onglet Classement Individuel global
             classement_global_data = []
             for nom_poule, participants in participants_par_poule.items():
                 for p in participants:
@@ -370,7 +369,7 @@ else:
                     col = f"Tapis {t + 1}"
                     if row_idx < len(planning_tapis[t]):
                         m = planning_tapis[t][row_idx]
-                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE"
+                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
                         elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
                         else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                     else: ligne[col] = ""
@@ -380,6 +379,7 @@ else:
             b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             bleu = PatternFill("solid", fgColor="0055A4")
             rouge = PatternFill("solid", fgColor="EF4135")
+            bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
             
             for ws_name in writer.book.sheetnames:
                 ws_sheet = writer.book[ws_name]
@@ -389,13 +389,18 @@ else:
                 ws_sheet.page_setup.fitToWidth = 1
                 ws_sheet.page_setup.fitToHeight = 0
             
+            # --- MISE EN FORME DE L'ONGLET RESUME ---
             ws_res = writer.sheets["Résumé"]
             for cell in ws_res[1]: 
                 cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
             ws_res.column_dimensions['A'].width = 50
             ws_res.column_dimensions['B'].width = 25
-            
-            # Mise en forme de l'onglet classement_indiv
+            for row in ws_res.iter_rows(min_row=2, max_row=ws_res.max_row):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.font = Font(size=12)
+
+            # --- MISE EN FORME DE L'ONGLET CLASSEMENT INDIVIDUEL ---
             ws_class = writer.sheets["classement_indiv"]
             for cell in ws_class[1]:
                 cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
@@ -404,7 +409,51 @@ else:
             ws_class.column_dimensions['C'].width = 20
             ws_class.column_dimensions['D'].width = 15
             ws_class.column_dimensions['E'].width = 15
+            for row in ws_class.iter_rows(min_row=2, max_row=ws_class.max_row):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.border = b_style
 
+            # --- MISE EN FORME AVANCÉE DE LA GRILLE DE PASSAGE ---
+            ws_grille = writer.sheets["Grille de Passage"]
+            ws_grille.row_dimensions[1].height = 65
+            ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
+            titre_cell = ws_grille.cell(row=1, column=1, value="🏆 PLANNING OFFICIEL DES COMBATS - FFLDA 🏆")
+            titre_cell.font = Font(name="Arial", size=22, bold=True, color="FFFFFF")
+            titre_cell.fill = bleu
+            titre_cell.alignment = Alignment(horizontal="center", vertical="center")
+            
+            try:
+                from openpyxl.drawing.image import Image as OpenpyxlImage
+                url_logo = "https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png"
+                req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
+                img = OpenpyxlImage(img_data)
+                img.height, img.width = 70, 70
+                ws_grille.add_image(img, 'A1')
+            except Exception: pass 
+
+            ws_grille.freeze_panes = 'A3'
+            
+            for col in range(1, nb_tapis + 1):
+                c = ws_grille.cell(row=2, column=col)
+                c.fill, c.font, c.border = rouge, Font(bold=True, size=14, color="FFFFFF"), b_style
+                c.alignment = Alignment(horizontal="center", vertical="center")
+                ws_grille.column_dimensions[c.column_letter].width = 45
+                
+            for row in ws_grille.iter_rows(min_row=3, max_row=ws_grille.max_row):
+                ws_grille.row_dimensions[row[0].row].height = 90
+                is_even = (row[0].row % 2 == 0)
+                for cell in row:
+                    cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
+                    if cell.value:
+                        if "PAUSE" in str(cell.value): cell.fill, cell.font = rouge, Font(bold=True, color="FFFFFF", size=12)
+                        elif "Attente" in str(cell.value): cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
+                        else:
+                            cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
+                            cell.font = Font(size=12)
+
+            # --- FEUILLES DE POULES ---
             for nom_poule, liste_p in participants_par_poule.items():
                 nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
