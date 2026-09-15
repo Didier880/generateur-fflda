@@ -337,19 +337,13 @@ else:
             bouton_imprimer("🖨️ Imprimer la Grille de Passage")
 
         with onglets_ui[2]:
-            st.subheader("🏆 Classement Général de la Compétition")
-            st.markdown("Vue d'ensemble consolidée de tous les participants engagés par poule.")
-            liste_globale_lutteurs = []
+            st.subheader("🏆 Classement Général par Catégorie et Poule")
+            st.markdown("Retrouvez ci-dessous les tableaux séparés pour chaque groupe / poule de la compétition.")
             for nom_poule, liste_p in participants_par_poule.items():
-                for p in liste_p:
-                    liste_globale_lutteurs.append({
-                        "Nom Prénom": p.get('Nom', ''),
-                        "Club": p.get('Club', ''),
-                        "Catégorie / Poule": nom_poule,
-                        "Poids (kg)": p.get('Poids', '')
-                    })
-            df_classement_general = pd.DataFrame(liste_globale_lutteurs)
-            st.dataframe(df_classement_general, use_container_width=True)
+                st.markdown(f"### 🤼 {nom_poule}")
+                df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                df_poule_classement.index = range(1, len(df_poule_classement) + 1)
+                st.dataframe(df_poule_classement, use_container_width=True)
             bouton_imprimer("🖨️ Imprimer le Classement Général")
 
         for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
@@ -459,35 +453,42 @@ else:
                             cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                             cell.font = Font(size=12)
 
-            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL ---
+            # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (PAR CATÉGORIE / POULE) ---
             entete_noir = PatternFill("solid", fgColor="000000")
             ws_cg = writer.book.create_sheet("Classement Général")
-            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL DE LA COMPÉTITION").font = Font(bold=True, size=16, color="0055A4")
+            ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL PAR CATÉGORIE ET POULE").font = Font(bold=True, size=16, color="0055A4")
             
-            headers_cg = ["RANG", "NOM Prénom", "CLUB", "CATÉGORIE / POULE", "POIDS (kg)"]
-            for col_idx, h in enumerate(headers_cg, 1):
-                c = ws_cg.cell(row=3, column=col_idx, value=h)
-                c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                c.fill = entete_noir
-            
-            row_cg = 4
+            row_cg = 3
             for nom_poule, liste_p in participants_par_poule.items():
-                for p in liste_p:
-                    ws_cg.cell(row=row_cg, column=1, value="").border = b_style
+                # Titre de la poule/catégorie
+                ws_cg.cell(row=row_cg, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=13, color="0055A4")
+                row_cg += 1
+                
+                # En-têtes du tableau de la poule
+                headers_cg = ["RANG", "NOM Prénom", "CLUB", "POIDS (kg)"]
+                for col_idx, h in enumerate(headers_cg, 1):
+                    c = ws_cg.cell(row=row_cg, column=col_idx, value=h)
+                    c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
+                    c.fill = entete_noir
+                row_cg += 1
+                
+                # Remplissage des lutteurs de la poule
+                for i, p in enumerate(liste_p, 1):
+                    ws_cg.cell(row=row_cg, column=1, value=i).border = b_style
                     ws_cg.cell(row=row_cg, column=2, value=p.get('Nom', '')).border = b_style
                     ws_cg.cell(row=row_cg, column=3, value=p.get('Club', '')).border = b_style
-                    ws_cg.cell(row=row_cg, column=4, value=nom_poule).border = b_style
-                    ws_cg.cell(row=row_cg, column=5, value=p.get('Poids', '')).border = b_style
+                    ws_cg.cell(row=row_cg, column=4, value=p.get('Poids', '')).border = b_style
                     
-                    for c_idx in range(1, 6):
+                    for c_idx in range(1, 5):
                         ws_cg.cell(row=row_cg, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
                     row_cg += 1
+                
+                row_cg += 2  # Espace vide entre chaque tableau de poule
             
             ws_cg.column_dimensions['A'].width = 10
             ws_cg.column_dimensions['B'].width = 30
-            ws_cg.column_dimensions['C'].width = 20
-            ws_cg.column_dimensions['D'].width = 40
-            ws_cg.column_dimensions['E'].width = 15
+            ws_cg.column_dimensions['C'].width = 25
+            ws_cg.column_dimensions['D'].width = 15
             
             rouge_lutte = PatternFill("solid", fgColor="E53935") 
             bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
