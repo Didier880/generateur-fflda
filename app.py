@@ -47,10 +47,6 @@ st.title("Générateur de Planning FFLDA 🚀")
 st.markdown("**Outil officiel d'optimisation (Compatible imports Exalto)**")
 st.markdown("---")
 
-def nettoyer_nom_onglet(nom):
-    nom_propre = re.sub(r'[\\/*?[\]:]', '', nom)
-    return nom_propre[:31].strip()
-
 def generer_rondes_fflda(participants_in):
     participants = list(participants_in)
     n = len(participants)
@@ -445,9 +441,18 @@ else:
             gris_clair = PatternFill("solid", fgColor="F2F2F2")
             
             suivi_classement_global = []
+            noms_onglets_utilises = set()
 
             for nom_poule, liste_p in participants_par_poule.items():
-                nom_onglet_court = nettoyer_nom_onglet(nom_poule)
+                # Nettoyage et garantie d'unicité stricte du nom d'onglet (max 31 caractères sans doublons)
+                base_nom = re.sub(r'[\\/*?[\]:]', '', nom_poule)[:27].strip()
+                nom_onglet_court = base_nom
+                cpt = 1
+                while nom_onglet_court in noms_onglets_utilises:
+                    nom_onglet_court = f"{base_nom[:25]}_{cpt}"
+                    cpt += 1
+                noms_onglets_utilises.add(nom_onglet_court)
+
                 ws_poule = writer.book.create_sheet(nom_onglet_court)
                 
                 ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
@@ -610,7 +615,7 @@ else:
                     
                     row_cursor += 1 
 
-            # --- CRÉATION DE L'ONGLET CLASSEMENT INDIVIDUEL AVEC RANG DYNAMIQUE ---
+            # --- CRÉATION DE L'ONGLET CLASSEMENT INDIVIDUEL ---
             ws_classement = writer.book.create_sheet(title="Classement Individuel", index=2)
             ws_classement.cell(row=1, column=1, value="🏆 CLASSEMENT GÉNÉRAL INDIVIDUEL 🏆").font = Font(name="Arial", size=16, bold=True, color="0055A4")
             
@@ -637,7 +642,6 @@ else:
                     cat_end_row = row_clt + len(groupe) - 1
                     
                     for item in groupe.to_dict('records'):
-                        # Utilisation de la formule Excel RANG / RANK.EQ dynamique sur la plage de points de la catégorie
                         cell_clt_formula = f"=RANK.EQ(E{row_clt}, \(E\){cat_start_row}:\(E\){cat_end_row})"
                         cell_clt = ws_classement.cell(row=row_clt, column=1, value=cell_clt_formula)
                         cell_clt.border = b_style
