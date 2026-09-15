@@ -118,7 +118,7 @@ else:
         for col in df_raw.columns:
             col_lower = str(col).lower()
             if 'âge' in col_lower or 'age' in col_lower: renNom[col] = "Age"
-            elif 'club' in col_lower: renNom[col] = "Club"
+            elif 'club' in col_lower or 'sigle' in col_lower: renNom[col] = "Club"
             elif 'poids' in col_lower: renNom[col] = "Poids"
             elif 'nom' in col_lower: renNom[col] = "Nom"
             elif 'prénom' in col_lower or 'prenom' in col_lower: renNom[col] = "Prénom"
@@ -405,8 +405,8 @@ else:
             for cell in ws_class[1]:
                 cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
             ws_class.column_dimensions['A'].width = 35
-            ws_class.column_dimensions['B'].width = 25
-            ws_class.column_dimensions['C'].width = 20
+            ws_class.column_dimensions['B'].width = 28
+            ws_class.column_dimensions['C'].width = 25
             ws_class.column_dimensions['D'].width = 15
             ws_class.column_dimensions['E'].width = 15
             for row in ws_class.iter_rows(min_row=2, max_row=ws_class.max_row):
@@ -472,6 +472,22 @@ else:
                     c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
                     c.fill = PatternFill("solid", fgColor="000000")
                 
+                # Calcul de la largeur optimale pour le nom et le club
+                max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
+                max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
+                largeur_nom_col = max(max_len_nom + 8, 32)   # Élargi significativement
+                largeur_club_col = max(max_len_club + 6, 25) # Élargi pour les noms de clubs complets
+
+                ws_poule.column_dimensions['A'].width = 6
+                ws_poule.column_dimensions['B'].width = 6
+                ws_poule.column_dimensions['C'].width = largeur_nom_col  
+                ws_poule.column_dimensions['D'].width = largeur_club_col 
+                ws_poule.column_dimensions['E'].width = 10               
+                ws_poule.column_dimensions['F'].width = 6                
+                ws_poule.column_dimensions['G'].width = largeur_nom_col  
+                ws_poule.column_dimensions['H'].width = largeur_club_col 
+                ws_poule.column_dimensions['I'].width = 10 
+
                 lignes_lutteurs = {}
                 row_cursor += 1
                 for i, p in enumerate(liste_p, 1):
@@ -479,13 +495,20 @@ else:
                     ws_poule.cell(row=row_cursor, column=1).border = b_style 
                     ws_poule.cell(row=row_cursor, column=2, value=i).border = b_style 
                     ws_poule.cell(row=row_cursor, column=2).alignment = Alignment(horizontal="center")
-                    ws_poule.cell(row=row_cursor, column=3, value=p['Nom']).border = b_style
-                    ws_poule.cell(row=row_cursor, column=4, value=p.get('Club', '')).border = b_style
+                    
+                    cell_nom = ws_poule.cell(row=row_cursor, column=3, value=p['Nom'])
+                    cell_nom.border = b_style
+                    cell_nom.alignment = Alignment(horizontal="left", vertical="center")
+                    
+                    cell_club = ws_poule.cell(row=row_cursor, column=4, value=p.get('Club', ''))
+                    cell_club.border = b_style
+                    cell_club.alignment = Alignment(horizontal="left", vertical="center")
                     
                     col_offset = 5
                     for t in range(nb_tours):
-                        ws_poule.cell(row=row_cursor, column=col_offset+t).border = b_style 
-                        ws_poule.cell(row=row_cursor, column=col_offset+t).alignment = Alignment(horizontal="center", vertical="center")
+                        cell_t = ws_poule.cell(row=row_cursor, column=col_offset+t)
+                        cell_t.border = b_style 
+                        cell_t.alignment = Alignment(horizontal="center", vertical="center")
                     
                     col_lettre_debut = openpyxl.utils.get_column_letter(col_offset)
                     col_lettre_fin = openpyxl.utils.get_column_letter(col_offset + nb_tours - 1)
@@ -495,6 +518,7 @@ else:
                     
                     cell_total_vict = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1, value="")
                     cell_total_vict.border = b_style 
+                    cell_total_vict.alignment = Alignment(horizontal="center", vertical="center")
                     
                     cell_poids = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+2, value=p.get('Poids', ''))
                     cell_poids.border = b_style 
@@ -528,16 +552,32 @@ else:
                         
                         row_cursor += 1
                         ws_poule.cell(row=row_cursor, column=2, value=idx1).alignment = Alignment(horizontal="center")
-                        ws_poule.cell(row=row_cursor, column=3, value=p1['Nom']).border = b_style
-                        ws_poule.cell(row=row_cursor, column=4, value=p1.get('Club', '')).border = b_style
+                        
+                        cn1 = ws_poule.cell(row=row_cursor, column=3, value=p1['Nom'])
+                        cn1.border = b_style
+                        cn1.alignment = Alignment(horizontal="left", vertical="center")
+                        
+                        cc1 = ws_poule.cell(row=row_cursor, column=4, value=p1.get('Club', ''))
+                        cc1.border = b_style
+                        cc1.alignment = Alignment(horizontal="left", vertical="center")
+                        
                         box_ptr = ws_poule.cell(row=row_cursor, column=5)
                         box_ptr.border, box_ptr.fill = b_style, PatternFill("solid", fgColor="F2F2F2")
+                        box_ptr.alignment = Alignment(horizontal="center", vertical="center")
                         
                         ws_poule.cell(row=row_cursor, column=6, value=idx2).alignment = Alignment(horizontal="center")
-                        ws_poule.cell(row=row_cursor, column=7, value=p2['Nom']).border = b_style
-                        ws_poule.cell(row=row_cursor, column=8, value=p2.get('Club', '')).border = b_style
+                        
+                        cn2 = ws_poule.cell(row=row_cursor, column=7, value=p2['Nom'])
+                        cn2.border = b_style
+                        cn2.alignment = Alignment(horizontal="left", vertical="center")
+                        
+                        cc2 = ws_poule.cell(row=row_cursor, column=8, value=p2.get('Club', ''))
+                        cc2.border = b_style
+                        cc2.alignment = Alignment(horizontal="left", vertical="center")
+                        
                         box_ptb = ws_poule.cell(row=row_cursor, column=9)
                         box_ptb.border, box_ptb.fill = b_style, PatternFill("solid", fgColor="F2F2F2")
+                        box_ptb.alignment = Alignment(horizontal="center", vertical="center")
                         
                         if p1['Nom'] in lignes_lutteurs:
                             ws_poule.cell(row=lignes_lutteurs[p1['Nom']], column=5 + (tour_idx - 1)).value = f"={box_ptr.coordinate}"
