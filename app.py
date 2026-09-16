@@ -206,16 +206,6 @@ if mode_app.startswith("2"):
                 b_fin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), 
                                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
                 
-                # Configuration de l'impression sur toutes les feuilles du classeur
-                for ws_name in writer.book.sheetnames:
-                    ws_sheet = writer.book[ws_name]
-                    ws_sheet.views.sheetView[0].showGridLines = True
-                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
-                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
-                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
-                    ws_sheet.page_setup.fitToWidth = 1
-                    ws_sheet.page_setup.fitToHeight = 0
-                
                 # Mise en forme Clubs
                 ws_clubs = writer.sheets["Classement Clubs"]
                 ws_clubs.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
@@ -300,16 +290,24 @@ if mode_app.startswith("2"):
                 ws_indiv.column_dimensions['D'].width = 15
                 ws_indiv.column_dimensions['E'].width = 12
 
-            st.markdown("---")
-            st.download_button(
-                label="📥 Télécharger le Bilan Officiel FFLDA (Excel)",
-                data=output_bilan.getvalue(),
-                file_name="Bilan_Officiel_FFLDA.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                # --- CONFIGURATION PRO POUR L'IMPRESSION SANS COUPURE (SUR TOUTES LES FEUILLES) ---
+                for ws_name in writer.book.sheetnames:
+                    ws_sheet = writer.book[ws_name]
+                    ws_sheet.views.sheetView[0].showGridLines = True
+                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
+                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
+                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
+                    ws_sheet.page_setup.fitToWidth = 1
+                    ws_sheet.page_setup.fitToHeight = 0 # Laisse libre en hauteur pour les grands tableaux
+                    
+                    # Définition dynamique de la zone d'impression exacte pour éviter les colonnes vides coupées
+                    if ws_sheet.max_column > 0 and ws_sheet.max_row > 0:
+                        last_col_letter = openpyxl.utils.get_column_letter(ws_sheet.max_column)
+                        ws_sheet.print_area = f"A1:{last_col_letter}{ws_sheet.max_row}"
 
+            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
-            st.error(f"Erreur lors de l'analyse du fichier : {e}")
+            st.error(f"Une erreur est survenue : {e}")
 
 else:
     # --- MODE 1 : GÉNÉRATION DE TOURNOI ---
@@ -864,7 +862,7 @@ else:
                 ws_cg.column_dimensions['D'].width = 15
                 ws_cg.column_dimensions['E'].width = 12
 
-                # Application finale des règles d'impression sur l'ensemble des feuilles créées
+                # --- CONFIGURATION PRO POUR L'IMPRESSION SANS COUPURE (SUR TOUTES LES FEUILLES) ---
                 for ws_name in writer.book.sheetnames:
                     ws_sheet = writer.book[ws_name]
                     ws_sheet.views.sheetView[0].showGridLines = True
@@ -873,6 +871,10 @@ else:
                     ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
                     ws_sheet.page_setup.fitToWidth = 1
                     ws_sheet.page_setup.fitToHeight = 0
+                    
+                    if ws_sheet.max_column > 0 and ws_sheet.max_row > 0:
+                        last_col_letter = openpyxl.utils.get_column_letter(ws_sheet.max_column)
+                        ws_sheet.print_area = f"A1:{last_col_letter}{ws_sheet.max_row}"
 
             st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
