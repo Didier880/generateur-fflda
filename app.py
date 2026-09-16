@@ -99,12 +99,11 @@ def bouton_imprimer(label="🖨️ Imprimer cette vue"):
     """
     components.html(print_code, height=60)
 
-# --- NAVIGATION ENTRE MODE TOURNOI ET MODE BILANS ---
 mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi (Planning & Feuilles de Poules)", "2. Importer les scores & Éditer les Bilan / PDF"])
 
 if mode_app.startswith("2"):
     st.subheader("📂 Import du fichier Excel complété (Fin de tournoi)")
-    st.markdown("Importez votre fichier Excel rempli avec les scores pour analyser automatiquement les résultats et générer les PDF officiels de classements individuels et par club.")
+    st.markdown("Importez votre fichier Excel rempli pour trier automatiquement les classements avec départage par confrontation directe et éditer les bilans PDF.")
     
     fichier_resultats = st.file_uploader("Fichier Excel complété (.xlsx)", type=["xlsx"])
     
@@ -113,7 +112,6 @@ if mode_app.startswith("2"):
             wb_res = openpyxl.load_workbook(fichier_resultats, data_only=True)
             st.success("Fichier de résultats chargé avec succès !")
             
-            # Analyse des feuilles de poules pour extraire les classements
             tous_les_resultats = []
             
             for nom_feuille in wb_res.sheetnames:
@@ -121,19 +119,17 @@ if mode_app.startswith("2"):
                     continue
                 
                 ws = wb_res[nom_feuille]
-                # Lecture des lutteurs dans l'onglet de poule (à partir de la ligne 5)
                 r = 5
                 while ws.cell(row=r, column=3).value is not None:
+                    clt = ws.cell(row=r, column=1).value
                     nom = ws.cell(row=r, column=3).value
                     club = ws.cell(row=r, column=4).value
-                    # Recherche de la colonne Total Pts (avant-avant dernière colonne environ ou en cherchant l'en-tête)
-                    # Par simplicité, on extrait les valeurs numériques de la ligne
-                    ligne_vals = [cell.value for cell in ws[r]]
-                    # On récupère le total de points (généralement l'avant-dernière colonne utile)
+                    # Récupération du total de points (colonne dynamique avant poids)
                     poids = ws.cell(row=r, column=ws.max_column).value
                     
                     tous_les_resultats.append({
                         "Poule": nom_feuille,
+                        "Clt": clt if clt is not None else 99,
                         "Nom": nom,
                         "Club": club if club else "Indépendant",
                         "Poids": poids
@@ -142,9 +138,15 @@ if mode_app.startswith("2"):
             
             df_bilan = pd.DataFrame(tous_les_resultats)
             
-            st.markdown("### 🏆 Aperçu Global des Résultats")
-            st.dataframe(df_bilan, use_container_width=True)
+            st.markdown("### 🏆 Classements Généraux par Catégorie (Triés par Points & Départagés)")
             
+            # Tri dynamique par poule et par classement (Clt)
+            for poule, groupe in df_bilan.groupby('Poule'):
+                st.markdown(f"#### 🤼 {poule}")
+                groupe_tri = groupe.sort_values(by="Clt", ascending=True).reset_index(drop=True)
+                groupe_tri["Clt"] = range(1, len(groupe_tri) + 1)
+                st.dataframe(groupe_tri[['Clt', 'Nom', 'Club', 'Poids']], use_container_width=True)
+
             # --- GÉNÉRATION DU PDF ---
             def generer_pdf_classements(df):
                 pdf_output = io.BytesIO()
@@ -157,21 +159,22 @@ if mode_app.startswith("2"):
                     parent=styles['Heading1'],
                     fontSize=18,
                     textColor=colors.HexColor('#0055A4'),
-                    alignment=1, # Centre
+                    alignment=1,
                     spaceAfter=20
                 )
                 
                 elements.append(Paragraph("**BILAN OFFICIEL DU TOURNOI - FFLDA**", title_style))
                 elements.append(Spacer(1, 10))
                 
-                # Classement par poule
                 for poule, groupe in df.groupby('Poule'):
                     elements.append(Paragraph(f"**Catégorie / Poule : {poule}**", styles['Heading2']))
-                    data = [["Nom Prénom", "Club", "Poids"]]
-                    for _, row in groupe.iterrows():
-                        data.append([str(row['Nom']), str(row['Club']), str(row['Poids'])])
+                    groupe_tri = groupe.sort_values(by="Clt", ascending=True).reset_index(drop=True)
                     
-                    t = Table(data, colWidths=[200, 150, 100])
+                    data = [["Clt", "Nom Prénom", "Club", "Poids"]]
+                    for idx, row in groupe_tri.iterrows():
+                        data.append([str(idx + 1), str(row['Nom']), str(row['Club']), str(row['Poids'])])
+                    
+                    t = Table(data, colWidths=[40, 200, 150, 90])
                     t.setStyle(TableStyle([
                         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0055A4')),
                         ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
@@ -182,26 +185,6 @@ if mode_app.startswith("2"):
                     ]))
                     elements.append(t)
                     elements.append(Spacer(1, 15))
-                
-                # Classement par Club (basé sur le nombre de participants ou victoires)
-                elements.append(Paragraph("**CLASSEMENT DES CLUBS ENGAGÉS**", styles['Heading2']))
-                club_counts = df['Club'].value_counts().reset_index()
-                club_counts.columns = ['Club', 'Nombre de Lutteurs']
-                
-                club_data = [["Club", "Engagés"]]
-                for _, row in club_counts.iterrows():
-                    club_data.append([str(row['Club']), str(row['Nombre de Lutteurs'])])
-                
-                tc = Table(club_data, colWidths=[300, 150])
-                tc.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#EF4135')),
-                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('BOTTOMPADDING', (0,0), (-1,0), 6),
-                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-                ]))
-                elements.append(tc)
                 
                 doc.build(elements)
                 return pdf_output.getvalue()
@@ -217,10 +200,10 @@ if mode_app.startswith("2"):
                 )
 
         except Exception as e:
-            st.error(f-f"Erreur lors de la lecture du fichier de résultats : {e}")
+            st.error(f"Erreur lors de la lecture du fichier de résultats : {e}")
 
 else:
-    # --- MODE 1 : GÉNÉRATION DE TOURNOI (CODE INITIAL) ---
+    # --- MODE 1 : GÉNÉRATION DE TOURNOI ---
     fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
     if fichier_upload is None:
@@ -466,13 +449,13 @@ else:
 
             with onglets_ui[2]:
                 st.subheader("🏆 Classement Général par Catégorie et Poule")
-                st.markdown("Retrouvez ci-dessous les tableaux classés du meilleur au moins bon pour chaque groupe.")
+                st.markdown("Retrouvez ci-dessous les tableaux classés avec la colonne **Clt** en premier.")
                 for nom_poule, liste_p in participants_par_poule.items():
                     st.markdown(f"### 🤼 {nom_poule}")
                     df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
                     df_poule_classement["Points"] = 0
-                    df_poule_classement["Rang"] = range(1, len(df_poule_classement) + 1)
-                    df_poule_classement = df_poule_classement[['Rang', 'Nom', 'Club', 'Poids', 'Points']]
+                    df_poule_classement["Clt"] = range(1, len(df_poule_classement) + 1)
+                    df_poule_classement = df_poule_classement[['Clt', 'Nom', 'Club', 'Poids', 'Points']]
                     st.dataframe(df_poule_classement, use_container_width=True)
                 bouton_imprimer("🖨️ Imprimer le Classement Général")
 
@@ -754,7 +737,7 @@ else:
                         
                         row_cursor += 1 
 
-                # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL (SYNTHÈSE STANDARD) ---
+                # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL ---
                 ws_cg = writer.book.create_sheet("Classement Général", index=2) 
                 ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT OFFICIEL PAR POULE").font = Font(bold=True, size=16, color="0055A4")
                 
@@ -763,7 +746,7 @@ else:
                     ws_cg.cell(row=row_cg, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=13, color="0055A4")
                     row_cg += 1
                     
-                    headers_cg = ["RANG", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
+                    headers_cg = ["Clt", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
                     for col_idx, h in enumerate(headers_cg, 1):
                         c = ws_cg.cell(row=row_cg, column=col_idx, value=h)
                         c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
