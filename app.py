@@ -19,6 +19,10 @@ st.markdown("""
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/1200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png", use_container_width=True)
     st.header("⚙️ Paramètres du Tournoi")
+    
+    # --- NOM DE LA COMPÉTITION ---
+    nom_competition = st.text_input("Nom de la compétition", value="Tournoi Officiel FFLDA - U9/U11")
+    
     st.caption("Tournoi officiel U9 / U11")
     
     st.subheader("1. Logistique & Pesées")
@@ -48,7 +52,7 @@ with st.sidebar:
     duree_u11 = st.number_input("Temps total U11 (min)", value=4)
 
 # --- CORPS PRINCIPAL ---
-st.title("Générateur de Planning FFLDA 🚀")
+st.title(f"🏆 {nom_competition}")
 st.markdown("**Outil officiel d'optimisation et d'édition de bilans (Normes fédérales)**")
 st.markdown("---")
 
@@ -98,7 +102,7 @@ mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi 
 
 if mode_app.startswith("2"):
     st.subheader("📂 Import du fichier Excel complété (Fin de tournoi)")
-    st.markdown("Importez votre fichier Excel rempli. L'application va extraire les classements (U9 d'abord puis U11), gérer le statut **NR** (Non Renseigné) si aucun match n'est joué, calculer le classement officiel des clubs (Barème fédéral : 4pt, 3pt, 2pt, 1pt) et générer un rapport Excel aux normes fédérales.")
+    st.markdown(f"Importez votre fichier Excel rempli pour la compétition : **{nom_competition}**. L'application extrait les classements (U9 d'abord puis U11), gère le statut **NR**, calcule le classement des clubs (4pt, 3pt, 2pt, 1pt) et génère un rapport Excel aux normes fédérales.")
     
     fichier_resultats = st.file_uploader("Fichier Excel complété (.xlsx)", type=["xlsx"])
     
@@ -110,7 +114,6 @@ if mode_app.startswith("2"):
             tous_les_resultats = []
             
             onglets_poules = [f for f in wb_res.sheetnames if not any(x in f for x in ["Résumé", "Grille", "Classement Général"])]
-            # Tri pour placer U9 en premier, puis U11
             onglets_poules.sort(key=lambda x: (0 if "U9" in x.upper() else 1, x))
             
             for nom_feuille in onglets_poules:
@@ -140,7 +143,6 @@ if mode_app.startswith("2"):
                 
                 df_poule = pd.DataFrame(lutteurs_poule)
                 if not df_poule.empty:
-                    # Si aucun point n'a encore été saisi (somme = 0), on affiche "NR"
                     if df_poule["Points"].sum() == 0:
                         df_poule["Clt"] = "NR"
                     else:
@@ -159,8 +161,7 @@ if mode_app.startswith("2"):
 
             df_bilan = pd.DataFrame(tous_les_resultats)
             
-            # --- CALCUL DU CLASSEMENT DES CLUBS (Barème Fédéral) ---
-            # 1er = 4pt, 2ème = 3pt, 3ème = 2pt, 4ème = 1pt (Ignoré si Clt == "NR")
+            # --- CALCUL DU CLASSEMENT DES CLUBS ---
             bareme_points = {1: 4, 2: 3, 3: 2, 4: 1}
             
             points_clubs = {}
@@ -188,7 +189,7 @@ if mode_app.startswith("2"):
             tab_bilan_1, tab_bilan_2 = st.tabs(["🏆 Classements Individuels (U9 puis U11)", "🛡️ Classement des Clubs"])
             
             with tab_bilan_1:
-                st.subheader("Classements Individuels par Catégorie (Officiel FFLDA)")
+                st.subheader(f"Classements Individuels - {nom_competition}")
                 for poule in df_bilan['Poule'].unique():
                     st.markdown(f"#### 🤼 {poule}")
                     sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
@@ -202,7 +203,7 @@ if mode_app.startswith("2"):
             # --- EXPORT EXCEL HAUT DE GAMME (CHARTE FÉDÉRALE) ---
             output_bilan = io.BytesIO()
             with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
-                df_clubs.to_excel(writer, sheet_name="Classement Clubs", index=False, startrow=3)
+                df_clubs.to_excel(writer, sheet_name="Classement Clubs", index=False, startrow=4)
                 ws_indiv = writer.book.create_sheet("Classements Individuels")
                 
                 bleu_fflda = PatternFill("solid", fgColor="0055A4")
@@ -219,9 +220,12 @@ if mode_app.startswith("2"):
                 b_fin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), 
                                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
                 
+                # Mise en forme Clubs
                 ws_clubs = writer.sheets["Classement Clubs"]
-                ws_clubs.cell(row=1, column=1, value="🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA").font = font_titre
-                ws_clubs.row_dimensions[1].height = 30
+                ws_clubs.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
+                ws_clubs.cell(row=2, column=1, value="🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA").font = Font(name="Arial", size=13, bold=True, color="666666")
+                ws_clubs.row_dimensions[1].height = 25
+                ws_clubs.row_dimensions[2].height = 20
                 
                 for col_idx in range(1, len(df_clubs.columns) + 1):
                     cell = ws_clubs.cell(row=4, column=col_idx)
@@ -245,10 +249,13 @@ if mode_app.startswith("2"):
                 ws_clubs.column_dimensions['F'].width = 12
                 ws_clubs.column_dimensions['G'].width = 12
 
-                ws_indiv.cell(row=1, column=1, value="🏆 CLASSEMENTS INDIVIDUELS OFFICIELS - FFLDA").font = font_titre
-                ws_indiv.row_dimensions[1].height = 30
+                # Mise en forme Individuels
+                ws_indiv.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
+                ws_indiv.cell(row=2, column=1, value="🏆 CLASSEMENTS INDIVIDUELS OFFICIELS - FFLDA").font = Font(name="Arial", size=13, bold=True, color="666666")
+                ws_indiv.row_dimensions[1].height = 25
+                ws_indiv.row_dimensions[2].height = 20
                 
-                row_cursor = 3
+                row_cursor = 4
                 headers_indiv = ["Clt", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
                 
                 for poule in df_bilan['Poule'].unique():
@@ -631,7 +638,7 @@ else:
                 ws_grille = writer.sheets["Grille de Passage"]
                 ws_grille.row_dimensions[1].height = 65
                 ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
-                titre_cell = ws_grille.cell(row=1, column=1, value="🏆 PLANNING OFFICIEL DES COMBATS - FFLDA 🏆")
+                titre_cell = ws_grille.cell(row=1, column=1, value=f"🏆 {nom_competition.upper()} - PLANNING OFFICIEL 🏆")
                 titre_cell.font = Font(name="Arial", size=22, bold=True, color="FFFFFF")
                 titre_cell.fill = bleu
                 titre_cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -850,7 +857,7 @@ else:
                     for col_idx, h in enumerate(headers_cg, 1):
                         c = ws_cg.cell(row=row_cg, column=col_idx, value=h)
                         c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                        c.fill = entete_noir
+                        c.fill = PatternFill("solid", fgColor="000000")
                     row_cg += 1
                     
                     for i, p in enumerate(liste_p, 1):
@@ -876,3 +883,4 @@ else:
             st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
             st.error(f"Une erreur est survenue : {e}")
+            
