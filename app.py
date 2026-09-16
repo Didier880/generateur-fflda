@@ -17,7 +17,7 @@ st.markdown("""
 
 # --- MENU LATÉRAL (PARAMÈTRES INTERACTIFS) ---
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/1200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png", use_container_width=True)
+    st.image("https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/1200px-Logo_F%C3%A9d%C3%A9ration_Française_de_Lutte.svg.png", use_container_width=True)
     st.header("⚙️ Paramètres du Tournoi")
     
     # --- NOM DE LA COMPÉTITION ---
@@ -102,7 +102,7 @@ mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi 
 
 if mode_app.startswith("2"):
     st.subheader("📂 Import du fichier Excel complété (Fin de tournoi)")
-    st.markdown(f"Importez votre fichier Excel rempli pour la compétition : **{nom_competition}**. L'application extrait les classements (U9 d'abord puis U11), gère le statut **NR**, calcule le classement des clubs (4pt, 3pt, 2pt, 1pt) et génère un rapport Excel aux normes fédérales.")
+    st.markdown(f"Importez votre fichier Excel rempli pour la compétition : **{nom_competition}**. L'application extrait les classements (U9 d'abord puis U11), gère le statut **NR**, calcule le classement des clubs (4pt, 3pt, 2pt, 1pt) et génère un rapport Excel haut de gamme aux normes fédérales.")
     
     fichier_resultats = st.file_uploader("Fichier Excel complété (.xlsx)", type=["xlsx"])
     
@@ -200,40 +200,52 @@ if mode_app.startswith("2"):
                 st.markdown("*Barème fédéral appliqué : 1er = 4 pts | 2ème = 3 pts | 3ème = 2 pts | 4ème = 1 pt*")
                 st.dataframe(df_clubs, use_container_width=True)
 
-            # --- EXPORT EXCEL HAUT DE GAMME (CHARTE FÉDÉRALE) ---
+            # --- EXPORT EXCEL HAUT DE GAMME (CHARTE FÉDÉRALE OFFICIELLE) ---
             output_bilan = io.BytesIO()
             with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
-                df_clubs.to_excel(writer, sheet_name="Classement Clubs", index=False, startrow=4)
+                df_clubs.to_excel(writer, sheet_name="Classement Clubs", index=False, startrow=5)
                 ws_indiv = writer.book.create_sheet("Classements Individuels")
                 
+                # Couleurs et styles FFLDA
                 bleu_fflda = PatternFill("solid", fgColor="0055A4")
                 rouge_fflda = PatternFill("solid", fgColor="EF4135")
                 gris_zebrage = PatternFill("solid", fgColor="F2F5F8")
                 fond_blanc = PatternFill("solid", fgColor="FFFFFF")
                 
-                font_titre = Font(name="Arial", size=16, bold=True, color="0055A4")
-                font_sous_titre = Font(name="Arial", size=13, bold=True, color="0055A4")
-                font_entete = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+                # Couleurs de podium (Or, Argent, Bronze)
+                or_fill = PatternFill("solid", fgColor="FFF2CC")
+                argent_fill = PatternFill("solid", fgColor="EFEFEF")
+                bronze_fill = PatternFill("solid", fgColor="F8CBAD")
+                
+                font_titre = Font(name="Arial", size=15, bold=True, color="0055A4")
+                font_sous_titre = Font(name="Arial", size=12, bold=True, color="0055A4")
+                font_section = Font(name="Arial", size=12, bold=True, color="FFFFFF")
+                font_entete = Font(name="Arial", size=10, bold=True, color="FFFFFF")
                 font_data = Font(name="Arial", size=11, color="000000")
                 font_data_bold = Font(name="Arial", size=11, bold=True, color="0055A4")
                 
                 b_fin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), 
                                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
                 
-                # Mise en forme Clubs
+                # --- MISE EN FORME : FEUILLE CLASSEMENT CLUBS ---
                 ws_clubs = writer.sheets["Classement Clubs"]
+                ws_clubs.views.sheetView[0].showGridLines = True
+                
                 ws_clubs.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
-                ws_clubs.cell(row=2, column=1, value="🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA").font = Font(name="Arial", size=13, bold=True, color="666666")
+                ws_clubs.cell(row=2, column=1, value="🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
+                ws_clubs.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
+                
                 ws_clubs.row_dimensions[1].height = 25
                 ws_clubs.row_dimensions[2].height = 20
+                ws_clubs.row_dimensions[3].height = 15
                 
                 for col_idx in range(1, len(df_clubs.columns) + 1):
-                    cell = ws_clubs.cell(row=4, column=col_idx)
+                    cell = ws_clubs.cell(row=5, column=col_idx)
                     cell.fill, cell.font, cell.alignment = bleu_fflda, font_entete, Alignment(horizontal="center", vertical="center")
-                    ws_clubs.row_dimensions[4].height = 25
+                    ws_clubs.row_dimensions[5].height = 25
                 
-                for row_idx in range(5, ws_clubs.max_row + 1):
-                    ws_clubs.row_dimensions[row_idx].height = 20
+                for row_idx in range(6, ws_clubs.max_row + 1):
+                    ws_clubs.row_dimensions[row_idx].height = 22
                     is_even = (row_idx % 2 == 0)
                     for col_idx in range(1, len(df_clubs.columns) + 1):
                         cell = ws_clubs.cell(row=row_idx, column=col_idx)
@@ -249,23 +261,33 @@ if mode_app.startswith("2"):
                 ws_clubs.column_dimensions['F'].width = 12
                 ws_clubs.column_dimensions['G'].width = 12
 
-                # Mise en forme Individuels
+                # --- MISE EN FORME : FEUILLE CLASSEMENTS INDIVIDUELS ---
+                ws_indiv.views.sheetView[0].showGridLines = True
+                
                 ws_indiv.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
-                ws_indiv.cell(row=2, column=1, value="🏆 CLASSEMENTS INDIVIDUELS OFFICIELS - FFLDA").font = Font(name="Arial", size=13, bold=True, color="666666")
+                ws_indiv.cell(row=2, column=1, value="🏆 CLASSEMENTS INDIVIDUELS OFFICIELS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
+                ws_indiv.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
+                
                 ws_indiv.row_dimensions[1].height = 25
                 ws_indiv.row_dimensions[2].height = 20
+                ws_indiv.row_dimensions[3].height = 15
                 
-                row_cursor = 4
+                row_cursor = 5
                 headers_indiv = ["Clt", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
                 
                 for poule in df_bilan['Poule'].unique():
-                    ws_indiv.cell(row=row_cursor, column=1, value=f"CATÉGORIE / POULE : {poule}").font = font_sous_titre
+                    # Bandeau de catégorie
+                    ws_indiv.merge_cells(start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=5)
+                    cell_cat = ws_indiv.cell(row=row_cursor, column=1, value=f"  CATÉGORIE / POULE : {poule}")
+                    cell_cat.fill, cell_cat.font, cell_cat.alignment = bleu_fflda, font_section, Alignment(horizontal="left", vertical="center")
+                    ws_indiv.row_dimensions[row_cursor].height = 28
                     row_cursor += 1
                     
+                    # En-têtes du tableau
                     for col_idx, h in enumerate(headers_indiv, 1):
                         cell = ws_indiv.cell(row=row_cursor, column=col_idx, value=h)
                         cell.fill, cell.font, cell.alignment = rouge_fflda, font_entete, Alignment(horizontal="center", vertical="center")
-                        ws_indiv.row_dimensions[row_cursor].height = 25
+                        ws_indiv.row_dimensions[row_cursor].height = 22
                     row_cursor += 1
                     
                     groupe = df_bilan[df_bilan['Poule'] == poule]
@@ -290,8 +312,16 @@ if mode_app.startswith("2"):
                             c.alignment = Alignment(horizontal="center", vertical="center")
                         c2.alignment = Alignment(horizontal="left", vertical="center")
                         
+                        # Coloration visuelle subtile du podium (1er, 2ème, 3ème)
+                        if row['Clt'] == 1:
+                            c1.fill = or_fill
+                        elif row['Clt'] == 2:
+                            c1.fill = argent_fill
+                        elif row['Clt'] == 3:
+                            c1.fill = bronze_fill
+                        
                         row_cursor += 1
-                    row_cursor += 2
+                    row_cursor += 2  # Espace aéré entre les poules
                 
                 ws_indiv.column_dimensions['A'].width = 10
                 ws_indiv.column_dimensions['B'].width = 30
@@ -883,4 +913,3 @@ else:
             st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
             st.error(f"Une erreur est survenue : {e}")
-            
