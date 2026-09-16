@@ -103,7 +103,7 @@ mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi 
 
 if mode_app.startswith("2"):
     st.subheader("📂 Import du fichier Excel complété (Fin de tournoi)")
-    st.markdown("Importez votre fichier Excel rempli. L'application extrait les scores, gère le départage par confrontation directe en cas d'égalité, et édite le PDF officiel.")
+    st.markdown("Importez votre fichier Excel rempli. L'application extrait les scores, gère le départage par confrontation directe (victoire 2 points ou égalité ex æquo) et édite le PDF officiel.")
     
     fichier_resultats = st.file_uploader("Fichier Excel complété (.xlsx)", type=["xlsx"])
     
@@ -124,9 +124,6 @@ if mode_app.startswith("2"):
                 while ws.cell(row=r, column=3).value is not None:
                     nom = ws.cell(row=r, column=3).value
                     club = ws.cell(row=r, column=4).value
-                    
-                    # Récupération dynamique du total de points (colonne Total Pts)
-                    # On cherche la colonne avant Total Vict et Poids
                     max_col = ws.max_column
                     total_pts = ws.cell(row=r, column=max_col - 2).value 
                     poids = ws.cell(row=r, column=max_col).value
@@ -145,34 +142,75 @@ if mode_app.startswith("2"):
                     })
                     r += 1
                 
-                # --- ALGORITHME DE TRI ET DÉPARTAGE PAR CONFRONTATION DIRECTE ---
-                # En cas d'égalité de points, on simule/vérifie la priorité. 
-                # (Tri décroissant sur les Points)
                 df_poule = pd.DataFrame(lutteurs_poule)
                 if not df_poule.empty:
-                    # Tri initial par points décroissants
-                    df_poule = df_poule.sort_values(by="Points", ascending=False)
+                    # Recherche des matchs pour analyse des confrontations directes en bas de feuille Excel
+                    # On parcourt les blocs de matchs de la feuille pour retrouver les points de match le cas échéant
+                    matchs_directs = {}
+                    current_row = r + 3
+                    while current_row <= ws.max_row:
+                        val_r3 = ws.cell(row=current_row, column=3).value
+                        if val_r3 and isinstance(val_r3, str) and "TOUR" in val_r3:
+                            current_row += 1
+                            continue
+                        # Vérification des lignes de combat (Rouge / Bleu)
+                        nom_rouge = ws.cell(row=current_row, column=3).value
+                        pt_rouge = ws.cell(row=current_row, column=5).value
+                        nom_bleu = ws.cell(row=current_row, column=7).value
+                        pt_bleu = ws.cell(row=current_row, column=9).value
+                        
+                        if nom_rouge and nom_bleu:
+                            try:
+                                pr = float(pt_rouge) if pt_rouge is not None else 0
+                                pb = float(pt_bleu) if pt_bleu is not None else 0
+                                matchs_directs[(str(nom_rouge).strip(), str(nom_bleu).strip())] = (pr, pb)
+                                matchs_directs[(str(nom_bleu).strip(), str(nom_rouge).strip())] = (pb, pr)
+                            except:
+                                pass
+                        current_row += 1
+
+                    # --- LOGIQUE DE TRI ET DÉPARTAGE PAR CONFRONTATION DIRECTE ---
+                    df_poule = df_poule.sort_values(by="Points", ascending=False).reset_index(drop=True)
                     
-                    # Gestion des ex æquo à 2 lutteurs : vérification de confrontation directe si les points sont identiques
-                    lignes_triees = []
-                    groupes_egaux = []
+                    # Gestion des ex æquo à 2 lutteurs
+                    i = 0
+                    while i < len(df_poule) - 1:
+                        p1 = df_poule.iloc[i]
+                        p2 = df_poule.iloc[i+1]
+                        if p1["Points"] == p2["Points"]:
+                            # Vérification de la confrontation directe
+                            duel = matchs_directs.get((str(p1["Nom"]).strip(), str(p2["Nom"]).strip()))
+                            if duel:
+                                score_p1, score_p2 = duel
+                                if score_p2 == 2 and score_p1 < 2:
+                                    # P2 a gagné le match direct contre P1, on les inverse
+                                    df_poule.iloc[i], df_poule.iloc[i+1] = df_poule.iloc[i+1].copy(), df_poule.iloc[i].copy()
+                                elif score_p1 == 1 and score_p2 == 1:
+                                    # Match nul 1-1 : ils restent ex æquo (premiers ex aequo)
+                                    pass
+                        i += 1
                     
-                    # Regroupement par score de points identique
-                    for pts, groupe in df_poule.groupby("Points", sort=False):
-                        if len(groupe) == 2:
-                            # Égalité à 2 : on vérifie si l'on peut inverser selon un ordre propre ou si un départage manuel/prioritaire s'applique
-                            # Ici, on applique un tri stable basé sur le nom ou un ordre de poule initial si les points sont stricts
-                            lignes_triees.extend(groupe.to_dict('records'))
+                    # Attribution des rangs (gestion des ex æquo stricts si même score et même match nul)
+                    rangs = []
+                    current_rang = 1
+                    for idx, row in df_poule.iterrows():
+                        if idx > 0 and row["Points"] == df_poule.iloc[idx-1]["Points"]:
+                            # Vérification si c'est un match nul parfait entre eux
+                            duel = matchs_directs.get((str(row["Nom"]).strip(), str(df_poule.iloc[idx-1]["Nom"]).strip()))
+                            if duel and duel[0] == 1 and duel[1] == 1:
+                                rangs.append(rangs[-1]) # Même rang (ex: 1 ex æquo)
+                            else:
+                                rangs.append(current_rang)
                         else:
-                            lignes_triees.extend(groupe.to_dict('records'))
+                            rangs.append(current_rang)
+                        current_rang += 1
                     
-                    df_poule_fin = pd.DataFrame(lignes_triees)
-                    df_poule_fin["Clt"] = range(1, len(df_poule_fin) + 1)
-                    tous_les_resultats.extend(df_poule_fin.to_dict('records'))
+                    df_poule["Clt"] = rangs
+                    tous_les_resultats.extend(df_poule.to_dict('records'))
 
             df_bilan = pd.DataFrame(tous_les_resultats)
             
-            st.markdown("### 🏆 Classements Généraux par Catégorie (Triés et Départagés)")
+            st.markdown("### 🏆 Classements Généraux par Catégorie (Départagés par Confrontation Directe)")
             
             for poule, groupe in df_bilan.groupby('Poule'):
                 st.markdown(f"#### 🤼 {poule}")
@@ -528,7 +566,7 @@ else:
                         if row_idx < len(planning_tapis[t]):
                             m = planning_tapis[t][row_idx]
                             if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
-                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
+                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
                             else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                         else: ligne[col] = ""
                     grille.append(ligne)
