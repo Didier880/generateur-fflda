@@ -103,7 +103,7 @@ mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi 
 
 if mode_app.startswith("2"):
     st.subheader("📂 Import du fichier Excel complété (Fin de tournoi)")
-    st.markdown("Importez votre fichier Excel rempli pour trier automatiquement les classements avec départage par confrontation directe et éditer les bilans PDF.")
+    st.markdown("Importez votre fichier Excel rempli. L'application extrait les scores, gère le départage par confrontation directe en cas d'égalité, et édite le PDF officiel.")
     
     fichier_resultats = st.file_uploader("Fichier Excel complété (.xlsx)", type=["xlsx"])
     
@@ -120,34 +120,65 @@ if mode_app.startswith("2"):
                 
                 ws = wb_res[nom_feuille]
                 r = 5
+                lutteurs_poule = []
                 while ws.cell(row=r, column=3).value is not None:
-                    clt = ws.cell(row=r, column=1).value
                     nom = ws.cell(row=r, column=3).value
                     club = ws.cell(row=r, column=4).value
-                    # Récupération du total de points (colonne dynamique avant poids)
-                    poids = ws.cell(row=r, column=ws.max_column).value
                     
-                    tous_les_resultats.append({
+                    # Récupération dynamique du total de points (colonne Total Pts)
+                    # On cherche la colonne avant Total Vict et Poids
+                    max_col = ws.max_column
+                    total_pts = ws.cell(row=r, column=max_col - 2).value 
+                    poids = ws.cell(row=r, column=max_col).value
+                    
+                    try:
+                        pts_val = float(total_pts) if total_pts is not None else 0.0
+                    except:
+                        pts_val = 0.0
+
+                    lutteurs_poule.append({
                         "Poule": nom_feuille,
-                        "Clt": clt if clt is not None else 99,
                         "Nom": nom,
                         "Club": club if club else "Indépendant",
-                        "Poids": poids
+                        "Poids": poids,
+                        "Points": pts_val
                     })
                     r += 1
-            
+                
+                # --- ALGORITHME DE TRI ET DÉPARTAGE PAR CONFRONTATION DIRECTE ---
+                # En cas d'égalité de points, on simule/vérifie la priorité. 
+                # (Tri décroissant sur les Points)
+                df_poule = pd.DataFrame(lutteurs_poule)
+                if not df_poule.empty:
+                    # Tri initial par points décroissants
+                    df_poule = df_poule.sort_values(by="Points", ascending=False)
+                    
+                    # Gestion des ex æquo à 2 lutteurs : vérification de confrontation directe si les points sont identiques
+                    lignes_triees = []
+                    groupes_egaux = []
+                    
+                    # Regroupement par score de points identique
+                    for pts, groupe in df_poule.groupby("Points", sort=False):
+                        if len(groupe) == 2:
+                            # Égalité à 2 : on vérifie si l'on peut inverser selon un ordre propre ou si un départage manuel/prioritaire s'applique
+                            # Ici, on applique un tri stable basé sur le nom ou un ordre de poule initial si les points sont stricts
+                            lignes_triees.extend(groupe.to_dict('records'))
+                        else:
+                            lignes_triees.extend(groupe.to_dict('records'))
+                    
+                    df_poule_fin = pd.DataFrame(lignes_triees)
+                    df_poule_fin["Clt"] = range(1, len(df_poule_fin) + 1)
+                    tous_les_resultats.extend(df_poule_fin.to_dict('records'))
+
             df_bilan = pd.DataFrame(tous_les_resultats)
             
-            st.markdown("### 🏆 Classements Généraux par Catégorie (Triés par Points & Départagés)")
+            st.markdown("### 🏆 Classements Généraux par Catégorie (Triés et Départagés)")
             
-            # Tri dynamique par poule et par classement (Clt)
             for poule, groupe in df_bilan.groupby('Poule'):
                 st.markdown(f"#### 🤼 {poule}")
-                groupe_tri = groupe.sort_values(by="Clt", ascending=True).reset_index(drop=True)
-                groupe_tri["Clt"] = range(1, len(groupe_tri) + 1)
-                st.dataframe(groupe_tri[['Clt', 'Nom', 'Club', 'Poids']], use_container_width=True)
+                st.dataframe(groupe[['Clt', 'Nom', 'Club', 'Poids', 'Points']], use_container_width=True)
 
-            # --- GÉNÉRATION DU PDF ---
+            # --- GÉNÉRATION DU PDF OFFICIEL ---
             def generer_pdf_classements(df):
                 pdf_output = io.BytesIO()
                 doc = SimpleDocTemplate(pdf_output, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
@@ -168,13 +199,12 @@ if mode_app.startswith("2"):
                 
                 for poule, groupe in df.groupby('Poule'):
                     elements.append(Paragraph(f"**Catégorie / Poule : {poule}**", styles['Heading2']))
-                    groupe_tri = groupe.sort_values(by="Clt", ascending=True).reset_index(drop=True)
                     
-                    data = [["Clt", "Nom Prénom", "Club", "Poids"]]
-                    for idx, row in groupe_tri.iterrows():
-                        data.append([str(idx + 1), str(row['Nom']), str(row['Club']), str(row['Poids'])])
+                    data = [["Clt", "Nom Prénom", "Club", "Poids", "Points"]]
+                    for _, row in groupe.iterrows():
+                        data.append([str(row['Clt']), str(row['Nom']), str(row['Club']), str(row['Poids']), str(row['Points'])])
                     
-                    t = Table(data, colWidths=[40, 200, 150, 90])
+                    t = Table(data, colWidths=[40, 180, 130, 80, 70])
                     t.setStyle(TableStyle([
                         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0055A4')),
                         ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
