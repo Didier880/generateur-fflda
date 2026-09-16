@@ -16,7 +16,6 @@ with st.sidebar:
     st.markdown("### Paramètres FFLDA")
     st.markdown("---")
     
-    # --- NOM DE LA COMPÉTITION ---
     nom_competition = st.text_input("🏆 Nom de la compétition", value="Tournoi Officiel FFLDA - U9/U11")
     
     with st.expander("⚙️ 1. Logistique & Pesées", expanded=True):
@@ -207,8 +206,18 @@ if mode_app.startswith("2"):
                 b_fin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), 
                                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
                 
+                # Application des règles d'impression faciles (Paysage, A4, ajustement de largeur)
+                for ws_name in writer.book.sheetnames:
+                    ws_sheet = writer.book[ws_name]
+                    ws_sheet.views.sheetView[0].showGridLines = True
+                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
+                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
+                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
+                    ws_sheet.page_setup.fitToWidth = 1
+                    ws_sheet.page_setup.fitToHeight = 0
+                
+                # Mise en forme Clubs
                 ws_clubs = writer.sheets["Classement Clubs"]
-                ws_clubs.views.sheetView[0].showGridLines = True
                 ws_clubs.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
                 ws_clubs.cell(row=2, column=1, value="🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
                 ws_clubs.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
@@ -235,7 +244,7 @@ if mode_app.startswith("2"):
                 ws_clubs.column_dimensions['F'].width = 12
                 ws_clubs.column_dimensions['G'].width = 12
 
-                ws_indiv.views.sheetView[0].showGridLines = True
+                # Mise en forme Individuels
                 ws_indiv.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
                 ws_indiv.cell(row=2, column=1, value="🏆 CLASSEMENTS INDIVIDUELS OFFICIELS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
                 ws_indiv.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
