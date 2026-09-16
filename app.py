@@ -98,7 +98,7 @@ mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi 
 
 if mode_app.startswith("2"):
     st.subheader("📂 Import du fichier Excel complété (Fin de tournoi)")
-    st.markdown("Importez votre fichier Excel rempli. L'application va extraire les classements (U9 d'abord puis U11), calculer le classement officiel des clubs (Barème fédéral : 4pt, 3pt, 2pt, 1pt) et générer un rapport Excel aux normes fédérales.")
+    st.markdown("Importez votre fichier Excel rempli. L'application va extraire les classements (U9 d'abord puis U11), gérer le statut **NR** (Non Renseigné) si aucun match n'est joué, calculer le classement officiel des clubs (Barème fédéral : 4pt, 3pt, 2pt, 1pt) et générer un rapport Excel aux normes fédérales.")
     
     fichier_resultats = st.file_uploader("Fichier Excel complété (.xlsx)", type=["xlsx"])
     
@@ -140,40 +140,45 @@ if mode_app.startswith("2"):
                 
                 df_poule = pd.DataFrame(lutteurs_poule)
                 if not df_poule.empty:
-                    df_poule = df_poule.sort_values(by="Points", ascending=False).reset_index(drop=True)
-                    
-                    rangs = []
-                    current_rang = 1
-                    for idx, row in df_poule.iterrows():
-                        if idx > 0 and row["Points"] == df_poule.iloc[idx-1]["Points"]:
-                            rangs.append(rangs[-1])
-                        else:
-                            rangs.append(current_rang)
-                        current_rang += 1
-                    
-                    df_poule["Clt"] = rangs
+                    # Si aucun point n'a encore été saisi (somme = 0), on affiche "NR"
+                    if df_poule["Points"].sum() == 0:
+                        df_poule["Clt"] = "NR"
+                    else:
+                        df_poule = df_poule.sort_values(by="Points", ascending=False).reset_index(drop=True)
+                        rangs = []
+                        current_rang = 1
+                        for idx, row in df_poule.iterrows():
+                            if idx > 0 and row["Points"] == df_poule.iloc[idx-1]["Points"]:
+                                rangs.append(rangs[-1])
+                            else:
+                                rangs.append(current_rang)
+                            current_rang += 1
+                        df_poule["Clt"] = rangs
+                        
                     tous_les_resultats.extend(df_poule.to_dict('records'))
 
             df_bilan = pd.DataFrame(tous_les_resultats)
             
             # --- CALCUL DU CLASSEMENT DES CLUBS (Barème Fédéral) ---
-            # 1er = 4pt, 2ème = 3pt, 3ème = 2pt, 4ème = 1pt
+            # 1er = 4pt, 2ème = 3pt, 3ème = 2pt, 4ème = 1pt (Ignoré si Clt == "NR")
             bareme_points = {1: 4, 2: 3, 3: 2, 4: 1}
             
             points_clubs = {}
             for _, row in df_bilan.iterrows():
                 club = row["Club"]
                 clt = row["Clt"]
-                pts_attribués = bareme_points.get(clt, 0)
+                if clt == "NR":
+                    continue
+                pts_attribués = bareme_points.get(int(clt), 0)
                 
                 if club not in points_clubs:
                     points_clubs[club] = {"Club": club, "Points Club": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
                 
                 points_clubs[club]["Points Club"] += pts_attribués
-                if clt == 1: points_clubs[club]["1ers"] += 1
-                elif clt == 2: points_clubs[club]["2èmes"] += 1
-                elif clt == 3: points_clubs[club]["3èmes"] += 1
-                elif clt == 4: points_clubs[club]["4èmes"] += 1
+                if int(clt) == 1: points_clubs[club]["1ers"] += 1
+                elif int(clt) == 2: points_clubs[club]["2èmes"] += 1
+                elif int(clt) == 3: points_clubs[club]["3èmes"] += 1
+                elif int(clt) == 4: points_clubs[club]["4èmes"] += 1
 
             df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(by="Points Club", ascending=False).reset_index(drop=True)
             df_clubs.index = range(1, len(df_clubs) + 1)
@@ -197,13 +202,9 @@ if mode_app.startswith("2"):
             # --- EXPORT EXCEL HAUT DE GAMME (CHARTE FÉDÉRALE) ---
             output_bilan = io.BytesIO()
             with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
-                # 1. Feuille Classement Clubs
                 df_clubs.to_excel(writer, sheet_name="Classement Clubs", index=False, startrow=3)
-                
-                # 2. Feuille Classements Individuels (Par tableau de catégorie)
                 ws_indiv = writer.book.create_sheet("Classements Individuels")
                 
-                # Styles fédéraux openpyxl
                 bleu_fflda = PatternFill("solid", fgColor="0055A4")
                 rouge_fflda = PatternFill("solid", fgColor="EF4135")
                 gris_zebrage = PatternFill("solid", fgColor="F2F5F8")
@@ -218,7 +219,6 @@ if mode_app.startswith("2"):
                 b_fin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), 
                                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
                 
-                # Mise en forme de la feuille Classement Clubs
                 ws_clubs = writer.sheets["Classement Clubs"]
                 ws_clubs.cell(row=1, column=1, value="🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA").font = font_titre
                 ws_clubs.row_dimensions[1].height = 30
@@ -245,7 +245,6 @@ if mode_app.startswith("2"):
                 ws_clubs.column_dimensions['F'].width = 12
                 ws_clubs.column_dimensions['G'].width = 12
 
-                # Mise en forme de la feuille Classements Individuels (Tableaux séparés par poule)
                 ws_indiv.cell(row=1, column=1, value="🏆 CLASSEMENTS INDIVIDUELS OFFICIELS - FFLDA").font = font_titre
                 ws_indiv.row_dimensions[1].height = 30
                 
@@ -282,10 +281,10 @@ if mode_app.startswith("2"):
                         for c in [c1, c2, c3, c4, c5]:
                             c.border = b_fin
                             c.alignment = Alignment(horizontal="center", vertical="center")
-                        c2.alignment = Alignment(horizontal="left", vertical="center") # Nom aligné à gauche
+                        c2.alignment = Alignment(horizontal="left", vertical="center")
                         
                         row_cursor += 1
-                    row_cursor += 2  # Espacement entre les tableaux de poules
+                    row_cursor += 2
                 
                 ws_indiv.column_dimensions['A'].width = 10
                 ws_indiv.column_dimensions['B'].width = 30
@@ -305,7 +304,7 @@ if mode_app.startswith("2"):
             st.error(f"Erreur lors de l'analyse du fichier : {e}")
 
 else:
-    # --- MODE 1 : GÉNÉRATION DE TOURNOI (CODE INITIAL) ---
+    # --- MODE 1 : GÉNÉRATION DE TOURNOI ---
     fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
     if fichier_upload is None:
@@ -551,12 +550,12 @@ else:
 
             with onglets_ui[2]:
                 st.subheader("🏆 Classement Général par Catégorie et Poule")
-                st.markdown("Retrouvez ci-dessous les tableaux classés avec la colonne **Clt** en premier.")
+                st.markdown("Retrouvez ci-dessous les tableaux classés avec la colonne **Clt** en premier (affichant NR par défaut).")
                 for nom_poule, liste_p in participants_par_poule.items():
                     st.markdown(f"### 🤼 {nom_poule}")
                     df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
                     df_poule_classement["Points"] = 0
-                    df_poule_classement["Clt"] = range(1, len(df_poule_classement) + 1)
+                    df_poule_classement["Clt"] = "NR"
                     df_poule_classement = df_poule_classement[['Clt', 'Nom', 'Club', 'Poids', 'Points']]
                     st.dataframe(df_poule_classement, use_container_width=True)
                 bouton_imprimer("🖨️ Imprimer le Classement Général")
@@ -856,7 +855,7 @@ else:
                     
                     for i, p in enumerate(liste_p, 1):
                         current_row = row_cg
-                        ws_cg.cell(row=current_row, column=1, value=i).border = b_style
+                        ws_cg.cell(row=current_row, column=1, value="NR").border = b_style
                         ws_cg.cell(row=current_row, column=2, value=p.get('Nom', '')).border = b_style
                         ws_cg.cell(row=current_row, column=3, value=p.get('Club', '')).border = b_style
                         ws_cg.cell(row=current_row, column=4, value=p.get('Poids', '')).border = b_style
