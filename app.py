@@ -6,12 +6,6 @@ import urllib.request
 import streamlit.components.v1 as components
 import openpyxl
 
-# --- IMPORT POUR PDF ---
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
 
@@ -99,11 +93,11 @@ def bouton_imprimer(label="🖨️ Imprimer cette vue"):
     """
     components.html(print_code, height=60)
 
-mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi (Planning & Feuilles de Poules)", "2. Importer les scores & Éditer les Bilan / PDF"])
+mode_app = st.selectbox("📌 Mode de l'application", ["1. Générer un Tournoi (Planning & Feuilles de Poules)", "2. Importer les scores & Éditer les Bilans (Excel)"])
 
 if mode_app.startswith("2"):
     st.subheader("📂 Import du fichier Excel complété (Fin de tournoi)")
-    st.markdown("Importez votre fichier Excel rempli. L'application extrait les scores, gère le départage par confrontation directe (victoire 2 points ou égalité ex æquo) et édite le PDF officiel.")
+    st.markdown("Importez votre fichier Excel rempli. L'application extrait les classements (U9 d'abord puis U11), calcule les points des clubs (4pt, 3pt, 2pt, 1pt) et génère un rapport Excel modifiable.")
     
     fichier_resultats = st.file_uploader("Fichier Excel complété (.xlsx)", type=["xlsx"])
     
@@ -114,10 +108,12 @@ if mode_app.startswith("2"):
             
             tous_les_resultats = []
             
-            for nom_feuille in wb_res.sheetnames:
-                if "Résumé" in nom_feuille or "Grille" in nom_feuille or "Classement Général" in nom_feuille:
-                    continue
-                
+            # Récupération des noms de feuilles et tri pour placer U9 avant U11
+            onglets_poules = [f for f in wb_res.sheetnames if not any(x in f for x in ["Résumé", "Grille", "Classement Général"])]
+            # Tri personnalisé pour mettre U9 en premier, puis U11
+            onglets_poules.sort(key=lambda x: (0 if "U9" in x.upper() else 1, x))
+            
+            for nom_feuille in onglets_poules:
                 ws = wb_res[nom_feuille]
                 r = 5
                 lutteurs_poule = []
@@ -144,63 +140,14 @@ if mode_app.startswith("2"):
                 
                 df_poule = pd.DataFrame(lutteurs_poule)
                 if not df_poule.empty:
-                    # Recherche des matchs pour analyse des confrontations directes en bas de feuille Excel
-                    # On parcourt les blocs de matchs de la feuille pour retrouver les points de match le cas échéant
-                    matchs_directs = {}
-                    current_row = r + 3
-                    while current_row <= ws.max_row:
-                        val_r3 = ws.cell(row=current_row, column=3).value
-                        if val_r3 and isinstance(val_r3, str) and "TOUR" in val_r3:
-                            current_row += 1
-                            continue
-                        # Vérification des lignes de combat (Rouge / Bleu)
-                        nom_rouge = ws.cell(row=current_row, column=3).value
-                        pt_rouge = ws.cell(row=current_row, column=5).value
-                        nom_bleu = ws.cell(row=current_row, column=7).value
-                        pt_bleu = ws.cell(row=current_row, column=9).value
-                        
-                        if nom_rouge and nom_bleu:
-                            try:
-                                pr = float(pt_rouge) if pt_rouge is not None else 0
-                                pb = float(pt_bleu) if pt_bleu is not None else 0
-                                matchs_directs[(str(nom_rouge).strip(), str(nom_bleu).strip())] = (pr, pb)
-                                matchs_directs[(str(nom_bleu).strip(), str(nom_rouge).strip())] = (pb, pr)
-                            except:
-                                pass
-                        current_row += 1
-
-                    # --- LOGIQUE DE TRI ET DÉPARTAGE PAR CONFRONTATION DIRECTE ---
                     df_poule = df_poule.sort_values(by="Points", ascending=False).reset_index(drop=True)
                     
-                    # Gestion des ex æquo à 2 lutteurs
-                    i = 0
-                    while i < len(df_poule) - 1:
-                        p1 = df_poule.iloc[i]
-                        p2 = df_poule.iloc[i+1]
-                        if p1["Points"] == p2["Points"]:
-                            # Vérification de la confrontation directe
-                            duel = matchs_directs.get((str(p1["Nom"]).strip(), str(p2["Nom"]).strip()))
-                            if duel:
-                                score_p1, score_p2 = duel
-                                if score_p2 == 2 and score_p1 < 2:
-                                    # P2 a gagné le match direct contre P1, on les inverse
-                                    df_poule.iloc[i], df_poule.iloc[i+1] = df_poule.iloc[i+1].copy(), df_poule.iloc[i].copy()
-                                elif score_p1 == 1 and score_p2 == 1:
-                                    # Match nul 1-1 : ils restent ex æquo (premiers ex aequo)
-                                    pass
-                        i += 1
-                    
-                    # Attribution des rangs (gestion des ex æquo stricts si même score et même match nul)
+                    # Attribution des rangs et gestion des ex æquo
                     rangs = []
                     current_rang = 1
                     for idx, row in df_poule.iterrows():
                         if idx > 0 and row["Points"] == df_poule.iloc[idx-1]["Points"]:
-                            # Vérification si c'est un match nul parfait entre eux
-                            duel = matchs_directs.get((str(row["Nom"]).strip(), str(df_poule.iloc[idx-1]["Nom"]).strip()))
-                            if duel and duel[0] == 1 and duel[1] == 1:
-                                rangs.append(rangs[-1]) # Même rang (ex: 1 ex æquo)
-                            else:
-                                rangs.append(current_rang)
+                            rangs.append(rangs[-1])
                         else:
                             rangs.append(current_rang)
                         current_rang += 1
@@ -210,68 +157,79 @@ if mode_app.startswith("2"):
 
             df_bilan = pd.DataFrame(tous_les_resultats)
             
-            st.markdown("### 🏆 Classements Généraux par Catégorie (Départagés par Confrontation Directe)")
+            # --- CALCUL DU CLASSEMENT DES CLUBS ---
+            # Barème : 1er = 4pt, 2ème = 3pt, 3ème = 2pt, 4ème = 1pt
+            bareme_points = {1: 4, 2: 3, 3: 2, 4: 1}
             
-            for poule, groupe in df_bilan.groupby('Poule'):
-                st.markdown(f"#### 🤼 {poule}")
-                st.dataframe(groupe[['Clt', 'Nom', 'Club', 'Poids', 'Points']], use_container_width=True)
+            points_clubs = {}
+            for _, row in df_bilan.iterrows():
+                club = row["Club"]
+                clt = row["Clt"]
+                pts_attribués = bareme_points.get(clt, 0) # 0 point au-delà de la 4ème place
+                
+                if club not in points_clubs:
+                    points_clubs[club] = {"Club": club, "Points Club": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
+                
+                points_clubs[club]["Points Club"] += pts_attribués
+                if clt == 1: points_clubs[club]["1ers"] += 1
+                elif clt == 2: points_clubs[club]["2èmes"] += 1
+                elif clt == 3: points_clubs[club]["3èmes"] += 1
+                elif clt == 4: points_clubs[club]["4èmes"] += 1
 
-            # --- GÉNÉRATION DU PDF OFFICIEL ---
-            def generer_pdf_classements(df):
-                pdf_output = io.BytesIO()
-                doc = SimpleDocTemplate(pdf_output, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
-                elements = []
-                styles = getSampleStyleSheet()
+            df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(by="Points Club", ascending=False).reset_index(drop=True)
+            df_clubs.index = range(1, len(df_clubs) + 1)
+            df_clubs.insert(0, "Clt Club", df_clubs.index)
+
+            # --- AFFICHAGE INTERACTIF DANS STREAMLIT ---
+            tab_bilan_1, tab_bilan_2 = st.tabs(["🏆 Classements Individuels (U9 puis U11)", "🛡️ Classement des Clubs"])
+            
+            with tab_bilan_1:
+                st.subheader("Classements Individuels par Catégorie")
+                for poule in df_bilan['Poule'].unique():
+                    st.markdown(f"#### 🤼 {poule}")
+                    sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
+                    st.dataframe(sous_df, use_container_width=True)
+
+            with tab_bilan_2:
+                st.subheader("🛡️ Classement Général des Clubs")
+                st.markdown("*Barème appliqué : 1er = 4 pts | 2ème = 3 pts | 3ème = 2 pts | 4ème = 1 pt*")
+                st.dataframe(df_clubs, use_container_width=True)
+
+            # --- EXPORT EXCEL MODIFIABLE ---
+            output_bilan = io.BytesIO()
+            with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
+                # Feuille Classement Clubs
+                df_clubs.to_excel(writer, sheet_name="Classement Clubs", index=False)
                 
-                title_style = ParagraphStyle(
-                    'TitleStyle',
-                    parent=styles['Heading1'],
-                    fontSize=18,
-                    textColor=colors.HexColor('#0055A4'),
-                    alignment=1,
-                    spaceAfter=20
-                )
+                # Feuille Classements Individuels
+                df_bilan[['Poule', 'Clt', 'Nom', 'Club', 'Poids', 'Points']].to_excel(writer, sheet_name="Classements Individuels", index=False)
                 
-                elements.append(Paragraph("**BILAN OFFICIEL DU TOURNOI - FFLDA**", title_style))
-                elements.append(Spacer(1, 10))
+                from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
+                b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+                bleu = PatternFill("solid", fgColor="0055A4")
                 
-                for poule, groupe in df.groupby('Poule'):
-                    elements.append(Paragraph(f"**Catégorie / Poule : {poule}**", styles['Heading2']))
-                    
-                    data = [["Clt", "Nom Prénom", "Club", "Poids", "Points"]]
-                    for _, row in groupe.iterrows():
-                        data.append([str(row['Clt']), str(row['Nom']), str(row['Club']), str(row['Poids']), str(row['Points'])])
-                    
-                    t = Table(data, colWidths=[40, 180, 130, 80, 70])
-                    t.setStyle(TableStyle([
-                        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0055A4')),
-                        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                        ('BOTTOMPADDING', (0,0), (-1,0), 6),
-                        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-                    ]))
-                    elements.append(t)
-                    elements.append(Spacer(1, 15))
-                
-                doc.build(elements)
-                return pdf_output.getvalue()
+                for ws_name in writer.book.sheetnames:
+                    ws = writer.book[ws_name]
+                    for cell in ws[1]:
+                        cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center")
+                    for row in ws.iter_rows(min_row=2):
+                        for cell in row:
+                            cell.border = b_style
+                            cell.alignment = Alignment(horizontal="center", vertical="center")
 
             st.markdown("---")
-            if st.button("📥 Générer et Télécharger le Rapport Officiel (PDF)"):
-                pdf_bytes = generer_pdf_classements(df_bilan)
-                st.download_button(
-                    label="💾 Télécharger le PDF Bilan du Tournoi",
-                    data=pdf_bytes,
-                    file_name="Bilan_Officiel_Tournoi.pdf",
-                    mime="application/pdf"
-                )
+            st.download_button(
+                label="📥 Télécharger le Bilan Officiel Modifiable (Excel)",
+                data=output_bilan.getvalue(),
+                file_name="Bilan_Officiel_Tournoi.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
         except Exception as e:
-            st.error(f"Erreur lors de la lecture du fichier de résultats : {e}")
+            st.error(f"Erreur lors de l'analyse du fichier : {e}")
 
 else:
-    # --- MODE 1 : GÉNÉRATION DE TOURNOI ---
+    # --- MODE 1 : GÉNÉRATION DE TOURNOI (CODE INITIAL) ---
     fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
 
     if fichier_upload is None:
