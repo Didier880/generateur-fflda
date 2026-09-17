@@ -33,6 +33,7 @@ with st.sidebar:
     
     with st.expander("🤼 3. Règles Sportives & Temps"):
         mixte_active = st.checkbox("Catégories Mixtes (U9/U11 ensemble)", value=True)
+        poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
         tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=10, max_value=15, value=10, step=1)
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
@@ -690,10 +691,14 @@ else:
             if "Maîtrise" not in df_inscr_total.columns: df_inscr_total["Maîtrise"] = ""
             def attribuer_niveau(val):
                 val_str = str(val).strip().lower()
-                if val_str == 'd': return 'Débutant'
-                elif val_str == 'c': return 'Confirmé'
+                if val_str in ['d', 'débutant', 'debutant']: return 'Débutant'
+                elif val_str in ['c', 'confirmé', 'confirme']: return 'Confirmé'
                 return ''
-            df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
+            
+            if poules_par_niveau:
+                df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
+            else:
+                df_inscr_total['Niveau'] = ''
 
             df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
             df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
