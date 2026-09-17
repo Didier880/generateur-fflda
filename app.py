@@ -750,6 +750,17 @@ else:
                 df_raw = df_raw.rename(columns={comite_col_found: "Comité"})
             if "Comité" not in df_raw.columns: df_raw["Comité"] = "Comité Non Renseigné"
 
+            style_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip().lower()
+                if any(k in col_str for k in ["style", "discipline"]):
+                    style_col_found = col_name
+                    break
+            if style_col_found:
+                df_raw = df_raw.rename(columns={style_col_found: "Style"})
+            if "Style" not in df_raw.columns:
+                df_raw["Style"] = ""
+
             if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
                 df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
@@ -771,19 +782,70 @@ else:
             else:
                 df_inscr_total['Niveau'] = ''
 
+            # Nettoyage et conversion du poids
             df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
-            df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
-            
-            df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
+            df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce').fillna(0)
+
+            # --- DÉTECTION ET VALIDATION DU STYLE "JEUNE" ---
+            erreurs_jeune = []
+            for _, row_test in df_inscr_total.iterrows():
+                val_style_raw = str(row_test.get('Style', '')).strip().lower()
+                poids_val = row_test['Poids_Num']
+                nom_lutteur = row_test.get('Nom', 'Lutteur Inconnu')
+                club_lutteur = row_test.get('Club', '')
+                
+                if val_style_raw == 'jeune':
+                    if poids_val > 0:
+                        erreurs_jeune.append(f"• **{nom_lutteur}** ({club_lutteur}) : Poids renseigné (**{poids_val} kg**) avec le style '**jeune**'. Le style doit être corrigé en LL, LF ou LG.")
+
+            if erreurs_jeune:
+                st.error("❌ **Erreur d'importation dans le fichier :**\n\n" + "\n".join(erreurs_jeune))
+                st.info("💡 *Remarque : Le style 'jeune' ne peut pas être associé à un poids validé. Veuillez corriger les styles dans votre fichier Excel (LL, LF ou LG) avant de réimporter.*")
+                st.stop()
+
+            # Normalisation des styles (LL, LF, LG) et exclusion des "jeune" sans poids
+            def normaliser_style(row_p):
+                st_str = str(row_p.get('Style', '')).strip().upper()
+                sexe_str = str(row_p.get('Sexe', '')).strip().upper()
+                if 'LG' in st_str or 'GRECO' in st_str or 'GRÉCO' in st_str:
+                    return 'LG'
+                elif 'LF' in st_str or 'FEM' in st_str or 'FÉM' in st_str or sexe_str == 'F':
+                    return 'LF'
+                elif 'LL' in st_str or 'LIBRE' in st_str or sexe_str in ['M', 'H', 'G']:
+                    return 'LL'
+                else:
+                    return 'LL'
+
+            df_inscr_total['Style_Norm'] = df_inscr_total.apply(normaliser_style, axis=1)
+
+            # Exclure les "jeune" sans poids (ou poids=0) et ne conserver que les pesés avec style valide
+            df_inscr = df_inscr_total[
+                (df_inscr_total['Poids_Num'] > 0) & 
+                (df_inscr_total['Style'].astype(str).str.strip().str.lower() != 'jeune')
+            ].copy()
+
             total_participants_peses = len(df_inscr)
             total_non_peses = total_inscrits_global - total_participants_peses
 
             if df_inscr.empty:
-                st.error("❌ Aucun lutteur U9 ou U11 avec un poids valide n'a été trouvé dans le fichier.")
+                st.error("❌ Aucun lutteur U9 ou U11 avec un poids valide et un style de compétition n'a été trouvé dans le fichier.")
                 st.stop()
             
-            if mixte_active:
-                df_inscr['Sexe'] = 'Mixte'
+            # Définition des groupes de styles selon le réglage de mixité
+            def attribuer_style_groupe(style_norm):
+                if mixte_active:
+                    # En mode mixte : LL et LF sont regroupés ensemble, mais LG reste strict séparé !
+                    if style_norm == 'LG':
+                        return 'LG (Gréco)'
+                    else:
+                        return 'Mixte (LL/LF)'
+                else:
+                    # Sans mixité : LL, LF et LG sont tous séparés
+                    if style_norm == 'LG': return 'LG (Gréco)'
+                    elif style_norm == 'LF': return 'LF (Féminine)'
+                    else: return 'LL (Libre)'
+
+            df_inscr['Style_Groupe'] = df_inscr['Style_Norm'].apply(attribuer_style_groupe)
             
             poules_u9, poules_u11 = [], []
             multiplicateur_poids = 1 + (tolerance_poids / 100.0)
@@ -793,7 +855,7 @@ else:
                 max_size = 4 if age == 'U9' else 5
                 index_poule = 1
                 
-                for (sexe, niveau), groupe in df_age.groupby(['Sexe', 'Niveau']):
+                for (style_grp, niveau), groupe in df_age.groupby(['Style_Groupe', 'Niveau']):
                     participants = groupe.to_dict('records')
                     poule_courante = []
                     suffixe_niveau = f" | {niveau}" if niveau != "" else ""
@@ -807,13 +869,13 @@ else:
                             if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
                                 poule_courante.append(p)
                             else:
-                                nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                                nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                                 poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                                 poules_groupe.append(poule_obj)
                                 index_poule += 1
                                 poule_courante = [p]
                     if poule_courante:
-                        nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                        nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                         poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                         poules_groupe.append(poule_obj)
                         index_poule += 1
