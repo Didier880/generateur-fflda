@@ -949,14 +949,6 @@ else:
                 
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
 
-            st.download_button(
-                label="🖨️ Télécharger l'Ensemble des Feuilles du Tournoi (HTML Paysage A4 Imprimable)",
-                data=html_tournoi_complet,
-                file_name="Tournoi_Complet_Impression_Paysage.html",
-                mime="text/html",
-                key="btn_tournoi_full"
-            )
-
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
             noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🏆 Classement Général"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
             onglets_ui = st.tabs(noms_onglets)
@@ -993,7 +985,6 @@ else:
                     st.subheader(f"Feuille de Poule : {nom_poule}")
                     df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
                     st.table(df_poule_vue)
-                    bouton_imprimer(html_tournoi_complet, filename=f"Feuille_Poule_{idx}_Impression.html", label="🖨️ Imprimer / Télécharger cette Poule (HTML Paysage A4)", key=f"btn_poule_{idx}")
 
             st.markdown("---")
             
