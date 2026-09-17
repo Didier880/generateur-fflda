@@ -882,7 +882,7 @@ else:
                         planning_u9[t].append({
                             "Type": "ATTENTE", 
                             "Heure": tapis_heure_u9[t].strftime("%H:%M"), 
-                            "Texte": f"Attente lancement U11"
+                            "Texte": f"Pesée + échauffement U11"
                         })
 
             # PHASE 2 : Tous les U11
@@ -1088,7 +1088,7 @@ else:
                         cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
                         if cell.value:
                             if "PAUSE" in str(cell.value): cell.fill, cell.font = rouge, Font(bold=True, color="FFFFFF", size=12)
-                            elif "Attente" in str(cell.value): cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
+                            elif any(k in str(cell.value) for k in ["Attente", "Pesée", "échauffement", "Repos"]): cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
                             else:
                                 cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                                 cell.font = Font(size=12)
