@@ -34,6 +34,7 @@ with st.sidebar:
     with st.expander("🤼 3. Règles Sportives & Temps"):
         mixte_active = st.checkbox("Catégories Mixtes (U9/U11 ensemble)", value=True)
         poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
+        separer_clubs = st.checkbox("Éviter les lutteurs d'un même club dans la même poule (dans la mesure du possible)", value=True)
         tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=10, max_value=15, value=10, step=1)
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
@@ -112,6 +113,84 @@ def fusionner_poules_isolees(poules):
             poules_filtrees.append(poule)
         i += 1
     return poules_filtrees
+
+def compter_collisions_club(participants_poule):
+    clubs = [str(p.get('Club', '')).strip().lower() for p in participants_poule if str(p.get('Club', '')).strip() not in ['', '-', 'indépendant', 'independant', 'none', 'nan']]
+    if not clubs:
+        return 0
+    from collections import Counter
+    counts = Counter(clubs)
+    return sum(c - 1 for c in counts.values() if c > 1)
+
+def poule_poids_valide(participants_poule, multiplicateur_poids):
+    if not participants_poule:
+        return True
+    poids_list = [p['Poids_Num'] for p in participants_poule if p.get('Poids_Num', 0) > 0]
+    if not poids_list:
+        return True
+    p_min = min(poids_list)
+    p_max = max(poids_list)
+    return p_max <= (p_min * multiplicateur_poids)
+
+def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
+    """
+    Permute les lutteurs entre poules d'un même groupe (âge/sexe/niveau) pour réduire 
+    au maximum les affrontements entre lutteurs d'un même club, tout en respectant 
+    strictement la tolérance d'écart de poids.
+    """
+    if len(poules_groupe) <= 1:
+        return poules_groupe
+    
+    ameliore = True
+    iterations = 0
+    max_iterations = 50
+    
+    while ameliore and iterations < max_iterations:
+        ameliore = False
+        iterations += 1
+        
+        for i in range(len(poules_groupe)):
+            for j in range(i + 1, len(poules_groupe)):
+                p1 = poules_groupe[i]['participants']
+                p2 = poules_groupe[j]['participants']
+                
+                cost_before = compter_collisions_club(p1) + compter_collisions_club(p2)
+                if cost_before == 0:
+                    continue
+                
+                best_swap = None
+                best_cost = cost_before
+                
+                for idx1, w1 in enumerate(p1):
+                    for idx2, w2 in enumerate(p2):
+                        p1_test = p1[:idx1] + [w2] + p1[idx1+1:]
+                        p2_test = p2[:idx2] + [w1] + p2[idx2+1:]
+                        
+                        if poule_poids_valide(p1_test, multiplicateur_poids) and poule_poids_valide(p2_test, multiplicateur_poids):
+                            cost_after = compter_collisions_club(p1_test) + compter_collisions_club(p2_test)
+                            if cost_after < best_cost:
+                                best_cost = cost_after
+                                best_swap = (idx1, idx2, p1_test, p2_test)
+                
+                if best_swap:
+                    idx1, idx2, p1_test, p2_test = best_swap
+                    poules_groupe[i]['participants'] = sorted(p1_test, key=lambda x: x['Poids_Num'])
+                    poules_groupe[j]['participants'] = sorted(p2_test, key=lambda x: x['Poids_Num'])
+                    
+                    for idx_p in [i, j]:
+                        parts = poules_groupe[idx_p]['participants']
+                        prefix = poules_groupe[idx_p]['nom'].split(' (')[0]
+                        p_min = parts[0]['Poids_Num']
+                        p_max = parts[-1]['Poids_Num']
+                        poules_groupe[idx_p]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
+                        poules_groupe[idx_p]['rondes'] = generer_rondes_fflda(parts)
+                    
+                    ameliore = True
+                    break
+            if ameliore:
+                break
+                
+    return poules_groupe
 
 # --- GÉNÉRATEUR DE DOCUMENTS HTML AUTONOMES POUR IMPRESSION PAYSAGE A4 ---
 def generer_document_html_imprimable(titre, nom_comp, sections):
@@ -739,8 +818,14 @@ else:
                         poules_groupe.append(poule_obj)
                         index_poule += 1
                     
+                    if separer_clubs:
+                        poules_groupe = optimiser_poules_clubs(poules_groupe, multiplicateur_poids)
+
                     # Eviter les poules de 1 en les fusionnant
                     poules_groupe = fusionner_poules_isolees(poules_groupe)
+                    
+                    if separer_clubs:
+                        poules_groupe = optimiser_poules_clubs(poules_groupe, multiplicateur_poids)
                     
                     if age == 'U9': poules_u9.extend(poules_groupe)
                     else: poules_u11.extend(poules_groupe)
