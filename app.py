@@ -112,9 +112,35 @@ def fusionner_poules_isolees(poules):
         i += 1
     return poules_filtrees
 
+# --- STYLES D'IMPRESSION (CSS @media print) ---
+st.markdown("""
+    <style>
+    @media print {
+        /* Empêche les tableaux et blocs de se couper en deux sur deux pages */
+        table, .stDataFrame, div[data-testid="stTable"], .element-container, div[data-testid="stVerticalBlock"] > div {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+        /* Masque la barre latérale, les boutons et le header Streamlit à l'impression */
+        section[data-testid="stSidebar"], 
+        header, 
+        footer, 
+        button,
+        .stButton {
+            display: none !important;
+        }
+        /* Ajuste la zone d'impression */
+        .main .block-container {
+            max-width: 100% !important;
+            padding: 10px !important;
+        }
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 def bouton_imprimer(label="🖨️ Imprimer cette vue"):
     print_code = f"""
-        <button onclick="window.print()" style="
+        <button onclick="window.parent.print()" style="
             background-color: #0055A4; 
             color: white; 
             border: none; 
