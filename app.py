@@ -857,6 +857,12 @@ else:
             else:
                 dt_debut_u11_theorique = fin_u9_globale
 
+            # Égalisation du nombre de lignes en U9 pour aligner horizontalement la PAUSE
+            max_u9_lignes = max(len(planning_u9[t]) for t in range(nb_tapis)) if planning_u9 else 0
+            for t in range(nb_tapis):
+                while len(planning_u9[t]) < max_u9_lignes:
+                    planning_u9[t].append({"Type": "VIDE"})
+
             if activer_pause and duree_pause > 0:
                 for t in range(nb_tapis):
                     planning_u9[t].append({"Type": "PAUSE", "Heure": fin_u9_globale.strftime("%H:%M")})
@@ -928,6 +934,7 @@ else:
                         m = planning_tapis[t][row_idx]
                         if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}] ⏸️ PAUSE"
                         elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
+                        elif m["Type"] == "VIDE": ligne[col] = ""
                         else: ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}"
                     else: ligne[col] = ""
                 grille_ui.append(ligne)
@@ -1019,6 +1026,7 @@ else:
                             m = planning_tapis[t][row_idx]
                             if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
                             elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
+                            elif m["Type"] == "VIDE": ligne[col] = ""
                             else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                         else: ligne[col] = ""
                     grille.append(ligne)
