@@ -961,8 +961,6 @@ else:
                 col_m1.metric("Participants (pesés)", total_participants_peses)
                 col_m2.metric("Absents / Non pesés", total_non_peses)
                 col_m3.metric("Matchs générés", total_matchs_calcules)
-                
-                bouton_imprimer(html_tournoi_complet, filename="Resume_Tournoi_Impression.html", label="🖨️ Imprimer / Télécharger le Résumé (HTML Paysage A4)", key="btn_t0")
 
             with onglets_ui[1]:
                 st.subheader("📅 Grille de Passage - Tapis")
