@@ -457,16 +457,6 @@ if mode_app.startswith("2"):
                 df_comites.insert(0, "Clt Comité", df_comites.index)
 
             # --- GÉNÉRATION DU DOCUMENT HTML PAYSAGE POUR IMPRESSION DES BILANS ---
-            sections_bilan = [
-                ("🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA", df_clubs),
-                ("🏛️ CLASSEMENT OFFICIEL DES COMITÉS RÉGIONAUX - FFLDA", df_comites)
-            ]
-            for poule in df_bilan['Poule'].unique():
-                sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
-                sections_bilan.append((f"🤼 CLASSEMENT INDIVIDUEL : {poule}", sous_df))
-            
-            html_bilan = generer_document_html_imprimable("Bilan Officiel des Classements FFLDA", nom_competition, sections_bilan)
-
             tab_bilan_1, tab_bilan_2, tab_bilan_3 = st.tabs([
                 "🏆 Classements Individuels (U9 / U11)", 
                 "🛡️ Classement Général des Clubs",
@@ -479,19 +469,16 @@ if mode_app.startswith("2"):
                     st.markdown(f"#### 🤼 {poule}")
                     sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
                     st.table(sous_df)
-                bouton_imprimer(html_bilan, filename="Bilan_Individuels_Impression.html", label="🖨️ Télécharger la Fiche d'Impression des Classements (HTML Paysage A4)", key="btn_html_indiv")
 
             with tab_bilan_2:
                 st.subheader("🛡️ Podium des Clubs Engagés")
                 st.markdown("*Barème officiel : 1er = 4 pts | 2ème = 3 pts | 3ème = 2 pts | 4ème = 1 pt*")
                 st.table(df_clubs)
-                bouton_imprimer(html_bilan, filename="Bilan_Clubs_Impression.html", label="🖨️ Télécharger la Fiche d'Impression des Clubs (HTML Paysage A4)", key="btn_html_clubs")
 
             with tab_bilan_3:
                 st.subheader("🏛️ Classement Officiel des Comités Régionaux")
                 st.markdown("*Barème officiel : 1er = 4 pts | 2ème = 3 pts | 3ème = 2 pts | 4ème = 1 pt*")
                 st.table(df_comites)
-                bouton_imprimer(html_bilan, filename="Bilan_Comites_Impression.html", label="🖨️ Télécharger la Fiche d'Impression des Comités (HTML Paysage A4)", key="btn_html_comites")
 
             output_bilan = io.BytesIO()
             with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
