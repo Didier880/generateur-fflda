@@ -77,9 +77,9 @@ def generer_rondes_fflda(participants_in):
 
 def bouton_imprimer(label="🖨️ Imprimer cette vue"):
     print_code = f"""
-    
+    <button onclick="window.print()" style="padding: 10px 20px; background-color: #0055A4; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: sans-serif;">
         {label}
-    
+    </button>
     """
     components.html(print_code, height=60)
 
@@ -111,8 +111,12 @@ if mode_app.startswith("2"):
                     nom = ws.cell(row=r, column=3).value
                     club = ws.cell(row=r, column=4).value
                     max_col = ws.max_column
+                    
+                    # Sécurité : extraction robuste des points et du poids selon la structure de la feuille
                     total_pts = ws.cell(row=r, column=max_col - 2).value 
                     poids = ws.cell(row=r, column=max_col).value
+                    if poids is None or str(poids).strip() == "":
+                        poids = "0"
                     
                     try:
                         pts_val = float(total_pts) if total_pts is not None else 0.0
@@ -601,7 +605,7 @@ else:
                         if row_idx < len(planning_tapis[t]):
                             m = planning_tapis[t][row_idx]
                             if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
-                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
+                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
                             else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                         else: ligne[col] = ""
                     grille.append(ligne)
