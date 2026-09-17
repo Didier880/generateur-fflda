@@ -510,8 +510,7 @@ if mode_app.startswith("2"):
                 headers_indiv = ["Clt", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
                 
                 for poule in df_bilan['Poule'].unique():
-                    if row_cursor > 5:
-                        ws_indiv.row_breaks.append(Break(id=row_cursor - 1))
+                    groupe = df_bilan[df_bilan['Poule'] == poule]
                     ws_indiv.merge_cells(start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=5)
                     cell_cat = ws_indiv.cell(row=row_cursor, column=1, value=f"  CATÉGORIE / POULE : {poule}")
                     cell_cat.fill, cell_cat.font, cell_cat.alignment = bleu_fflda, font_section, Alignment(horizontal="left", vertical="center")
@@ -524,7 +523,6 @@ if mode_app.startswith("2"):
                         ws_indiv.row_dimensions[row_cursor].height = 22
                     row_cursor += 1
                     
-                    groupe = df_bilan[df_bilan['Poule'] == poule]
                     for _, row in groupe.iterrows():
                         current_row = row_cursor
                         ws_indiv.row_dimensions[current_row].height = 20
@@ -1136,8 +1134,6 @@ else:
                 
                 row_cg = 3
                 for nom_poule, liste_p in participants_par_poule.items():
-                    if row_cg > 3:
-                        ws_cg.row_breaks.append(Break(id=row_cg - 1))
                     ws_cg.cell(row=row_cg, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=13, color="0055A4")
                     row_cg += 1
                     
