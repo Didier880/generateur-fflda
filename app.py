@@ -847,6 +847,23 @@ else:
 
             st.success("✨ Fichier analysé avec succès ! Tournoi généré.")
             
+            # --- PRÉPARATION DES DONNÉES DU RÉSUMÉ ---
+            lignes_accueil = [
+                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+                {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
+            ]
+            if "2" in type_pesee and dt_pesee_u11:
+                lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+
+            lignes_accueil.extend([
+                {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
+                {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
+                {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
+                {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
+                {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
+            ])
+
             # --- GÉNÉRATION DES DOCUMENTS HTML PAYSAGE DU TOURNOI ---
             sections_tournoi_complet = [
                 ("📊 Résumé Prévisionnel de la Journée", pd.DataFrame(lignes_accueil))
@@ -888,21 +905,6 @@ else:
             
             with onglets_ui[0]:
                 st.subheader("📊 Résumé prévisionnel de la journée")
-                lignes_accueil = [
-                    {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
-                    {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
-                    {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
-                ]
-                if "2" in type_pesee and dt_pesee_u11:
-                    lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
-
-                lignes_accueil.extend([
-                    {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
-                    {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
-                    {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
-                    {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
-                    {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
-                ])
                 st.table(pd.DataFrame(lignes_accueil))
                 
                 col_m1, col_m2, col_m3 = st.columns(3)
