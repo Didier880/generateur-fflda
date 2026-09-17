@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta, time
 import io
 import urllib.request
+import re
 import streamlit.components.v1 as components
 import openpyxl
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
@@ -39,6 +40,47 @@ with st.sidebar:
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
         duree_u11 = st.number_input("Temps total U11 (min)", value=4)
+
+def formater_poids(val):
+    if val is None or str(val).strip() in ['', 'None', 'nan']:
+        return ''
+    val_str = str(val).lower().replace('kg', '').replace(',', '.').strip()
+    try:
+        val_float = round(float(val_str), 1)
+        if val_float == int(val_float):
+            num_str = str(int(val_float))
+        else:
+            num_str = str(val_float)
+        return f"{num_str} kg"
+    except (ValueError, TypeError):
+        s = str(val).strip()
+        return f"{s} kg" if (s and not s.lower().endswith('kg')) else s
+
+def formater_poids_court(val):
+    if val is None or str(val).strip() in ['', 'None', 'nan']:
+        return ''
+    val_str = str(val).lower().replace('kg', '').replace(',', '.').strip()
+    try:
+        val_float = round(float(val_str), 1)
+        if val_float == int(val_float):
+            num_str = str(int(val_float))
+        else:
+            num_str = str(val_float)
+        return f"{num_str}kg"
+    except (ValueError, TypeError):
+        s = str(val).strip()
+        return f"{s}kg" if (s and not s.lower().endswith('kg')) else s
+
+def abreger_nom_onglet(nom_poule):
+    txt = str(nom_poule)
+    txt = txt.replace("Mixte (LL/LF)", "Mxt").replace("LG (Gréco)", "LG").replace("LL (Libre)", "LL").replace("LF (Féminine)", "LF")
+    # Conserver les termes "Confirmé" et "Débutant" en entier
+    # Supprimer le terme Gr. / Groupe / Poule et le numéro qui suit s'ils sont présents
+    txt = re.sub(r'\b(Gr\.|Gr|Groupe|Poule)\s*\d+\b', '', txt, flags=re.IGNORECASE)
+    txt = txt.replace(" | ", " ").replace(" (", " ").replace(")", "").replace(" - ", "-")
+    txt = txt.replace("/", "-").replace("\\", "-").replace(":", "-").replace("?", "").replace("*", "")
+    txt = re.sub(r'\s+', ' ', txt)
+    return txt[:31].strip()
 
 # --- CORPS PRINCIPAL ---
 st.title(f"🏆 {nom_competition}")
@@ -83,36 +125,122 @@ def generer_rondes_fflda(participants_in):
             participants.insert(1, participants.pop())
         return rondes
 
-def fusionner_poules_isolees(poules):
-    """Évite d'avoir un lutteur seul dans une poule de 1."""
+def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
+    """
+    Évite d'avoir un lutteur seul dans une poule de 1 tout en respectant 
+    STRICTEMENT la tolérance d'écart de poids et la taille maximale de poule.
+    """
     if len(poules) <= 1:
         return poules
     
-    poules_filtrees = []
-    i = 0
-    while i < len(poules):
-        poule = poules[i]
-        if len(poule['participants']) == 1:
-            if poules_filtrees:
-                poules_filtrees[-1]['participants'].extend(poule['participants'])
-                poules_filtrees[-1]['rondes'] = generer_rondes_fflda(poules_filtrees[-1]['participants'])
-                p_min = poules_filtrees[-1]['participants'][0]['Poids_Num']
-                p_max = poules_filtrees[-1]['participants'][-1]['Poids_Num']
-                prefix = poules_filtrees[-1]['nom'].split(' (')[0]
-                poules_filtrees[-1]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
-            elif i + 1 < len(poules):
-                poules[i+1]['participants'] = poule['participants'] + poules[i+1]['participants']
-                poules[i+1]['rondes'] = generer_rondes_fflda(poules[i+1]['participants'])
-                p_min = poules[i+1]['participants'][0]['Poids_Num']
-                p_max = poules[i+1]['participants'][-1]['Poids_Num']
-                prefix = poules[i+1]['nom'].split(' (')[0]
-                poules[i+1]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
-            else:
-                poules_filtrees.append(poule)
-        else:
-            poules_filtrees.append(poule)
-        i += 1
-    return poules_filtrees
+    ameliore = True
+    iterations = 0
+    max_iterations = 20
+    
+    while ameliore and iterations < max_iterations:
+        ameliore = False
+        iterations += 1
+        
+        i = 0
+        while i < len(poules):
+            if len(poules[i]['participants']) == 1:
+                p_iso = poules[i]['participants'][0]
+                fusionne = False
+                
+                # Option 1: Essayer de fusionner directement avec la poule précédente (i-1)
+                if i > 0:
+                    cand = sorted(poules[i-1]['participants'] + [p_iso], key=lambda x: x['Poids_Num'])
+                    if len(cand) <= max_size and poule_poids_valide(cand, multiplicateur_poids):
+                        poules[i-1]['participants'] = cand
+                        poules[i-1]['rondes'] = generer_rondes_fflda(cand)
+                        p_min = cand[0]['Poids_Num']
+                        p_max = cand[-1]['Poids_Num']
+                        prefix = poules[i-1]['nom'].split(' (')[0]
+                        poules[i-1]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
+                        poules.pop(i)
+                        fusionne = True
+                        ameliore = True
+                        break
+                
+                # Option 2: Essayer de fusionner directement avec la poule suivante (i+1)
+                if not fusionne and i < len(poules) - 1:
+                    cand = sorted([p_iso] + poules[i+1]['participants'], key=lambda x: x['Poids_Num'])
+                    if len(cand) <= max_size and poule_poids_valide(cand, multiplicateur_poids):
+                        poules[i+1]['participants'] = cand
+                        poules[i+1]['rondes'] = generer_rondes_fflda(cand)
+                        p_min = cand[0]['Poids_Num']
+                        p_max = cand[-1]['Poids_Num']
+                        prefix = poules[i+1]['nom'].split(' (')[0]
+                        poules[i+1]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
+                        poules.pop(i)
+                        fusionne = True
+                        ameliore = True
+                        break
+                
+                # Option 3: Rééquilibrer avec la poule précédente (i-1)
+                if not fusionne and i > 0 and len(poules[i-1]['participants']) >= 3:
+                    prev_parts = poules[i-1]['participants']
+                    for k in range(1, len(prev_parts) - 1):
+                        new_prev = sorted(prev_parts[:-k], key=lambda x: x['Poids_Num'])
+                        new_iso = sorted(prev_parts[-k:] + [p_iso], key=lambda x: x['Poids_Num'])
+                        
+                        if (len(new_prev) >= 2 and len(new_iso) >= 2 and len(new_iso) <= max_size and
+                            poule_poids_valide(new_prev, multiplicateur_poids) and
+                            poule_poids_valide(new_iso, multiplicateur_poids)):
+                            
+                            poules[i-1]['participants'] = new_prev
+                            poules[i-1]['rondes'] = generer_rondes_fflda(new_prev)
+                            p_min1 = new_prev[0]['Poids_Num']
+                            p_max1 = new_prev[-1]['Poids_Num']
+                            prefix1 = poules[i-1]['nom'].split(' (')[0]
+                            poules[i-1]['nom'] = f"{prefix1} ({formater_poids_court(p_min1)} - {formater_poids_court(p_max1)})"
+                            
+                            poules[i]['participants'] = new_iso
+                            poules[i]['rondes'] = generer_rondes_fflda(new_iso)
+                            p_min2 = new_iso[0]['Poids_Num']
+                            p_max2 = new_iso[-1]['Poids_Num']
+                            prefix2 = poules[i]['nom'].split(' (')[0]
+                            poules[i]['nom'] = f"{prefix2} ({formater_poids_court(p_min2)} - {formater_poids_court(p_max2)})"
+                            
+                            fusionne = True
+                            ameliore = True
+                            break
+                    if fusionne:
+                        break
+                
+                # Option 4: Rééquilibrer avec la poule suivante (i+1)
+                if not fusionne and i < len(poules) - 1 and len(poules[i+1]['participants']) >= 3:
+                    next_parts = poules[i+1]['participants']
+                    for k in range(1, len(next_parts) - 1):
+                        new_iso = sorted([p_iso] + next_parts[:k], key=lambda x: x['Poids_Num'])
+                        new_next = sorted(next_parts[k:], key=lambda x: x['Poids_Num'])
+                        
+                        if (len(new_iso) >= 2 and len(new_next) >= 2 and len(new_iso) <= max_size and
+                            poule_poids_valide(new_iso, multiplicateur_poids) and
+                            poule_poids_valide(new_next, multiplicateur_poids)):
+                            
+                            poules[i]['participants'] = new_iso
+                            poules[i]['rondes'] = generer_rondes_fflda(new_iso)
+                            p_min1 = new_iso[0]['Poids_Num']
+                            p_max1 = new_iso[-1]['Poids_Num']
+                            prefix1 = poules[i]['nom'].split(' (')[0]
+                            poules[i]['nom'] = f"{prefix1} ({formater_poids_court(p_min1)} - {formater_poids_court(p_max1)})"
+                            
+                            poules[i+1]['participants'] = new_next
+                            poules[i+1]['rondes'] = generer_rondes_fflda(new_next)
+                            p_min2 = new_next[0]['Poids_Num']
+                            p_max2 = new_next[-1]['Poids_Num']
+                            prefix2 = poules[i+1]['nom'].split(' (')[0]
+                            poules[i+1]['nom'] = f"{prefix2} ({formater_poids_court(p_min2)} - {formater_poids_court(p_max2)})"
+                            
+                            fusionne = True
+                            ameliore = True
+                            break
+                    if fusionne:
+                        break
+            i += 1
+            
+    return poules
 
 def compter_collisions_club(participants_poule):
     clubs = [str(p.get('Club', '')).strip().lower() for p in participants_poule if str(p.get('Club', '')).strip() not in ['', '-', 'indépendant', 'independant', 'none', 'nan']]
@@ -130,7 +258,7 @@ def poule_poids_valide(participants_poule, multiplicateur_poids):
         return True
     p_min = min(poids_list)
     p_max = max(poids_list)
-    return p_max <= (p_min * multiplicateur_poids)
+    return p_max <= round(p_min * multiplicateur_poids, 4)
 
 def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
     """
@@ -182,7 +310,7 @@ def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
                         prefix = poules_groupe[idx_p]['nom'].split(' (')[0]
                         p_min = parts[0]['Poids_Num']
                         p_max = parts[-1]['Poids_Num']
-                        poules_groupe[idx_p]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
+                        poules_groupe[idx_p]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
                         poules_groupe[idx_p]['rondes'] = generer_rondes_fflda(parts)
                     
                     ameliore = True
@@ -452,19 +580,33 @@ if mode_app.startswith("2"):
                     comite = str(comite_val).strip() if (comite_val and str(comite_val).strip() not in ["", "None", "nan", "-"]) else "Comité Non Renseigné"
                     
                     total_pts = ws.cell(row=r, column=col_total_pts).value if col_total_pts else 0
-                    poids = ws.cell(row=r, column=col_poids).value if col_poids else 0
+                    poids_raw = ws.cell(row=r, column=col_poids).value if col_poids else 0
                     
                     try:
-                        pts_val = float(total_pts) if total_pts is not None else 0.0
+                        pts_val = int(round(float(total_pts))) if total_pts is not None else 0
                     except (ValueError, TypeError):
-                        pts_val = 0.0
+                        pts_val = 0
+
+                    def formater_poids(val):
+                        if val is None or str(val).strip() in ['', 'None', 'nan']:
+                            return ''
+                        try:
+                            val_float = float(str(val).replace(',', '.'))
+                            if val_float == int(val_float):
+                                return int(val_float)
+                            else:
+                                return round(val_float, 1)
+                        except (ValueError, TypeError):
+                            return val
+
+                    poids_val = formater_poids(poids_raw)
 
                     lutteurs_poule.append({
                         "Poule": nom_feuille,
                         "Nom": nom,
                         "Club": club if club else "Indépendant",
                         "Comité": comite,
-                        "Poids": poids,
+                        "Poids": poids_val,
                         "Points": pts_val
                     })
                     r += 1
@@ -546,7 +688,8 @@ if mode_app.startswith("2"):
                 st.subheader("Classements Individuels Officiels")
                 for poule in df_bilan['Poule'].unique():
                     st.markdown(f"#### 🤼 {poule}")
-                    sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
+                    sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']].copy()
+                    sous_df['Points'] = sous_df['Points'].astype(int)
                     st.table(sous_df)
 
             with tab_bilan_2:
@@ -750,6 +893,28 @@ else:
                 df_raw = df_raw.rename(columns={comite_col_found: "Comité"})
             if "Comité" not in df_raw.columns: df_raw["Comité"] = "Comité Non Renseigné"
 
+            style_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip().lower()
+                if any(k in col_str for k in ["style", "discipline"]):
+                    style_col_found = col_name
+                    break
+            if style_col_found:
+                df_raw = df_raw.rename(columns={style_col_found: "Style"})
+            if "Style" not in df_raw.columns:
+                df_raw["Style"] = ""
+
+            maitrise_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip().lower()
+                if "maîtrise" in col_str or "maitrise" in col_str:
+                    maitrise_col_found = col_name
+                    break
+            if maitrise_col_found:
+                df_raw = df_raw.rename(columns={maitrise_col_found: "Maîtrise"})
+            if "Maîtrise" not in df_raw.columns:
+                df_raw["Maîtrise"] = ""
+
             if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
                 df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
@@ -759,31 +924,85 @@ else:
             
             total_inscrits_global = len(df_inscr_total)
 
-            if "Maîtrise" not in df_inscr_total.columns: df_inscr_total["Maîtrise"] = ""
             def attribuer_niveau(val):
                 val_str = str(val).strip().lower()
-                if val_str in ['d', 'débutant', 'debutant']: return 'Débutant'
-                elif val_str in ['c', 'confirmé', 'confirme']: return 'Confirmé'
-                return ''
+                if val_str.startswith('c') or 'confirm' in val_str:
+                    return 'Confirmé'
+                elif val_str.startswith('d') or 'début' in val_str or 'debut' in val_str:
+                    return 'Débutant'
+                else:
+                    return 'Débutant'
             
             if poules_par_niveau:
                 df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
             else:
                 df_inscr_total['Niveau'] = ''
 
+            # Nettoyage et conversion du poids
             df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
-            df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce')
-            
-            df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
+            df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce').fillna(0)
+            df_inscr_total['Poids'] = df_inscr_total['Poids_Num'].apply(formater_poids)
+
+            # --- DÉTECTION ET VALIDATION DU STYLE "JEUNE" ---
+            erreurs_jeune = []
+            for _, row_test in df_inscr_total.iterrows():
+                val_style_raw = str(row_test.get('Style', '')).strip().lower()
+                poids_val = row_test['Poids_Num']
+                nom_lutteur = row_test.get('Nom', 'Lutteur Inconnu')
+                club_lutteur = row_test.get('Club', '')
+                
+                if val_style_raw == 'jeune':
+                    if poids_val > 0:
+                        erreurs_jeune.append(f"• **{nom_lutteur}** ({club_lutteur}) : Poids renseigné (**{poids_val} kg**) avec le style '**jeune**'. Le style doit être corrigé en LL, LF ou LG.")
+
+            if erreurs_jeune:
+                st.error("❌ **Erreur d'importation dans le fichier :**\n\n" + "\n".join(erreurs_jeune))
+                st.info("💡 *Remarque : Le style 'jeune' ne peut pas être associé à un poids validé. Veuillez corriger les styles dans votre fichier Excel (LL, LF ou LG) avant de réimporter.*")
+                st.stop()
+
+            # Normalisation des styles (LL, LF, LG) et exclusion des "jeune" sans poids
+            def normaliser_style(row_p):
+                st_str = str(row_p.get('Style', '')).strip().upper()
+                sexe_str = str(row_p.get('Sexe', '')).strip().upper()
+                if 'LG' in st_str or 'GRECO' in st_str or 'GRÉCO' in st_str:
+                    return 'LG'
+                elif 'LF' in st_str or 'FEM' in st_str or 'FÉM' in st_str or sexe_str == 'F':
+                    return 'LF'
+                elif 'LL' in st_str or 'LIBRE' in st_str or sexe_str in ['M', 'H', 'G']:
+                    return 'LL'
+                else:
+                    return 'LL'
+
+            df_inscr_total['Style_Norm'] = df_inscr_total.apply(normaliser_style, axis=1)
+
+            # Exclure les "jeune" sans poids (ou poids=0) et ne conserver que les pesés avec style valide
+            df_inscr = df_inscr_total[
+                (df_inscr_total['Poids_Num'] > 0) & 
+                (df_inscr_total['Style'].astype(str).str.strip().str.lower() != 'jeune')
+            ].copy()
+
             total_participants_peses = len(df_inscr)
             total_non_peses = total_inscrits_global - total_participants_peses
 
             if df_inscr.empty:
-                st.error("❌ Aucun lutteur U9 ou U11 avec un poids valide n'a été trouvé dans le fichier.")
+                st.error("❌ Aucun lutteur U9 ou U11 avec un poids valide et un style de compétition n'a été trouvé dans le fichier.")
                 st.stop()
             
-            if mixte_active:
-                df_inscr['Sexe'] = 'Mixte'
+            # Définition des groupes de styles selon le réglage de mixité
+            def attribuer_style_groupe(style_norm):
+                if mixte_active:
+                    # En mode mixte : LL et LF sont regroupés ensemble, mais LG reste strict séparé !
+                    if style_norm == 'LG':
+                        return 'LG (Gréco)'
+                    else:
+                        return 'Mixte (LL/LF)'
+                else:
+                    # Sans mixité : LL, LF et LG sont tous séparés
+                    if style_norm == 'LG': return 'LG (Gréco)'
+                    elif style_norm == 'LF': return 'LF (Féminine)'
+                    else: return 'LL (Libre)'
+
+            df_inscr['Style_Groupe'] = df_inscr['Style_Norm'].apply(attribuer_style_groupe)
             
             poules_u9, poules_u11 = [], []
             multiplicateur_poids = 1 + (tolerance_poids / 100.0)
@@ -793,7 +1012,7 @@ else:
                 max_size = 4 if age == 'U9' else 5
                 index_poule = 1
                 
-                for (sexe, niveau), groupe in df_age.groupby(['Sexe', 'Niveau']):
+                for (style_grp, niveau), groupe in df_age.groupby(['Style_Groupe', 'Niveau']):
                     participants = groupe.to_dict('records')
                     poule_courante = []
                     suffixe_niveau = f" | {niveau}" if niveau != "" else ""
@@ -807,13 +1026,13 @@ else:
                             if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
                                 poule_courante.append(p)
                             else:
-                                nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                                nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                                 poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                                 poules_groupe.append(poule_obj)
                                 index_poule += 1
                                 poule_courante = [p]
                     if poule_courante:
-                        nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                        nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                         poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                         poules_groupe.append(poule_obj)
                         index_poule += 1
@@ -821,11 +1040,19 @@ else:
                     if separer_clubs:
                         poules_groupe = optimiser_poules_clubs(poules_groupe, multiplicateur_poids)
 
-                    # Eviter les poules de 1 en les fusionnant
-                    poules_groupe = fusionner_poules_isolees(poules_groupe)
+                    # Eviter les poules de 1 en les fusionnant / rééquilibrant tout en respectant la tolérance de poids
+                    poules_groupe = fusionner_poules_isolees(poules_groupe, multiplicateur_poids, max_size)
                     
                     if separer_clubs:
                         poules_groupe = optimiser_poules_clubs(poules_groupe, multiplicateur_poids)
+                    
+                    # Formater et ré-indexer proprement les noms des poules finales
+                    for idx_p, p_obj in enumerate(poules_groupe, 1):
+                        parts = p_obj['participants']
+                        p_min = parts[0]['Poids_Num']
+                        p_max = parts[-1]['Poids_Num']
+                        p_obj['nom'] = f"{age} | {style_grp}{suffixe_niveau} | Gr. {idx_p} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
+                        p_obj['rondes'] = generer_rondes_fflda(parts)
                     
                     if age == 'U9': poules_u9.extend(poules_groupe)
                     else: poules_u11.extend(poules_groupe)
@@ -1153,7 +1380,7 @@ else:
                 entete_noir = PatternFill("solid", fgColor="000000")
 
                 for nom_poule, liste_p in participants_par_poule.items():
-                    nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
+                    nom_onglet_court = abreger_nom_onglet(nom_poule)
                     ws_poule = writer.book.create_sheet(nom_onglet_court)
                     
                     ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
