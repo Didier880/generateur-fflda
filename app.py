@@ -660,10 +660,15 @@ else:
 
             if "Catégorie d'âge" in df_raw.columns: df_raw = df_raw.rename(columns={"Catégorie d'âge": "Age"})
             if "Sigle du Club" in df_raw.columns: df_raw = df_raw.rename(columns={"Sigle du Club": "Club"})
-            if "Comité Régional" in df_raw.columns: df_raw = df_raw.rename(columns={"Comité Régional": "Comité"})
-            elif "Ligue" in df_raw.columns: df_raw = df_raw.rename(columns={"Ligue": "Comité"})
-            elif "Région" in df_raw.columns: df_raw = df_raw.rename(columns={"Région": "Comité"})
-            elif "CR" in df_raw.columns: df_raw = df_raw.rename(columns={"CR": "Comité"})
+            comite_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip()
+                col_lower = col_str.lower()
+                if any(k in col_lower for k in ["comité", "comite", "ligue", "région", "region", "c.r."]):
+                    comite_col_found = col_name
+                    break
+            if comite_col_found:
+                df_raw = df_raw.rename(columns={comite_col_found: "Comité"})
             if "Comité" not in df_raw.columns: df_raw["Comité"] = "Comité Non Renseigné"
 
             if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
@@ -1070,7 +1075,7 @@ else:
                     ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite").font = Font(italic=True, size=9)
                     
                     row_cursor = 4
-                    headers = ["CLT", "N°", "NOM Prénom", "CLUB"]
+                    headers = ["CLT", "N°", "NOM Prénom", "CLUB", "COMITÉ"]
                     nb_tours = len(rondes_par_categorie[nom_poule])
                     for t in range(1, nb_tours + 1):
                         headers.append(f"Tour {t}")
@@ -1083,15 +1088,17 @@ else:
                     
                     max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
                     max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
+                    max_len_comite = max([len(str(p.get('Comité', ''))) for p in liste_p] + [12])
                     
                     largeur_nom_col = max(max_len_nom + 4, 25)
                     largeur_club_col = max(max_len_club + 4, 18)
+                    largeur_comite_col = max(max_len_comite + 4, 20)
 
                     ws_poule.column_dimensions['A'].width = 6
                     ws_poule.column_dimensions['B'].width = 6
                     ws_poule.column_dimensions['C'].width = largeur_nom_col  
                     ws_poule.column_dimensions['D'].width = largeur_club_col 
-                    ws_poule.column_dimensions['E'].width = 10                
+                    ws_poule.column_dimensions['E'].width = largeur_comite_col
                     ws_poule.column_dimensions['F'].width = 6                 
                     ws_poule.column_dimensions['G'].width = largeur_nom_col  
                     ws_poule.column_dimensions['H'].width = largeur_club_col 
@@ -1104,7 +1111,7 @@ else:
                     for i, p in enumerate(liste_p, 1):
                         lignes_lutteurs[p['Nom']] = row_cursor
                         
-                        col_pts_lettre = openpyxl.utils.get_column_letter(5 + nb_tours)
+                        col_pts_lettre = openpyxl.utils.get_column_letter(6 + nb_tours)
                         plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                         
                         cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor}, {plage_totaux})")
@@ -1116,8 +1123,9 @@ else:
                         ws_poule.cell(row=row_cursor, column=2).alignment = Alignment(horizontal="center")
                         ws_poule.cell(row=row_cursor, column=3, value=p['Nom']).border = b_style
                         ws_poule.cell(row=row_cursor, column=4, value=p.get('Club', '')).border = b_style
+                        ws_poule.cell(row=row_cursor, column=5, value=p.get('Comité', '')).border = b_style
                         
-                        col_offset = 5
+                        col_offset = 6
                         for t in range(nb_tours):
                             cell_tour = ws_poule.cell(row=row_cursor, column=col_offset+t)
                             cell_tour.border = b_style 
@@ -1144,7 +1152,7 @@ else:
                     row_cursor += 2
                     
                     rondes = rondes_par_categorie[nom_poule]
-                    col_offset_tours = 5 
+                    col_offset_tours = 6 
                     
                     for tour_idx, ronde in enumerate(rondes, 1):
                         ws_poule.cell(row=row_cursor, column=2, value=f"TOUR {tour_idx}").font = Font(bold=True, size=14)
