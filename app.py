@@ -40,6 +40,21 @@ with st.sidebar:
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
         duree_u11 = st.number_input("Temps total U11 (min)", value=4)
 
+def formater_poids(val):
+    if val is None or str(val).strip() in ['', 'None', 'nan']:
+        return ''
+    val_str = str(val).lower().replace('kg', '').replace(',', '.').strip()
+    try:
+        val_float = float(val_str)
+        if val_float == int(val_float):
+            num_str = str(int(val_float))
+        else:
+            num_str = str(round(val_float, 1))
+        return f"{num_str} kg"
+    except (ValueError, TypeError):
+        s = str(val).strip()
+        return f"{s} kg" if (s and not s.lower().endswith('kg')) else s
+
 # --- CORPS PRINCIPAL ---
 st.title(f"🏆 {nom_competition}")
 st.markdown("**Plateforme officielle d'optimisation des tournois de jeunes et d'édition des bilans fédéraux.**")
@@ -800,6 +815,7 @@ else:
             # Nettoyage et conversion du poids
             df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
             df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce').fillna(0)
+            df_inscr_total['Poids'] = df_inscr_total['Poids_Num'].apply(formater_poids)
 
             # --- DÉTECTION ET VALIDATION DU STYLE "JEUNE" ---
             erreurs_jeune = []
