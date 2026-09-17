@@ -452,19 +452,33 @@ if mode_app.startswith("2"):
                     comite = str(comite_val).strip() if (comite_val and str(comite_val).strip() not in ["", "None", "nan", "-"]) else "Comité Non Renseigné"
                     
                     total_pts = ws.cell(row=r, column=col_total_pts).value if col_total_pts else 0
-                    poids = ws.cell(row=r, column=col_poids).value if col_poids else 0
+                    poids_raw = ws.cell(row=r, column=col_poids).value if col_poids else 0
                     
                     try:
-                        pts_val = float(total_pts) if total_pts is not None else 0.0
+                        pts_val = int(round(float(total_pts))) if total_pts is not None else 0
                     except (ValueError, TypeError):
-                        pts_val = 0.0
+                        pts_val = 0
+
+                    def formater_poids(val):
+                        if val is None or str(val).strip() in ['', 'None', 'nan']:
+                            return ''
+                        try:
+                            val_float = float(str(val).replace(',', '.'))
+                            if val_float == int(val_float):
+                                return int(val_float)
+                            else:
+                                return round(val_float, 1)
+                        except (ValueError, TypeError):
+                            return val
+
+                    poids_val = formater_poids(poids_raw)
 
                     lutteurs_poule.append({
                         "Poule": nom_feuille,
                         "Nom": nom,
                         "Club": club if club else "Indépendant",
                         "Comité": comite,
-                        "Poids": poids,
+                        "Poids": poids_val,
                         "Points": pts_val
                     })
                     r += 1
@@ -546,7 +560,8 @@ if mode_app.startswith("2"):
                 st.subheader("Classements Individuels Officiels")
                 for poule in df_bilan['Poule'].unique():
                     st.markdown(f"#### 🤼 {poule}")
-                    sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
+                    sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']].copy()
+                    sous_df['Points'] = sous_df['Points'].astype(int)
                     st.table(sous_df)
 
             with tab_bilan_2:
