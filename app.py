@@ -1262,7 +1262,7 @@ else:
                 entete_noir = PatternFill("solid", fgColor="000000")
 
                 for nom_poule, liste_p in participants_par_poule.items():
-                    nom_onglet_court = nom_poule.replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
+                    nom_onglet_court = nom_poule.replace("/", "-").replace("\\", "-").replace(":", "-").replace("?", "").replace("*", "").replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
                     ws_poule = writer.book.create_sheet(nom_onglet_court)
                     
                     ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
