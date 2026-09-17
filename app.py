@@ -116,23 +116,53 @@ def fusionner_poules_isolees(poules):
 st.markdown("""
     <style>
     @media print {
-        /* Empêche les tableaux et blocs de se couper en deux sur deux pages */
-        table, .stDataFrame, div[data-testid="stTable"], .element-container, div[data-testid="stVerticalBlock"] > div {
+        /* 1. Forcer la page en PAYSAGE (Landscape) avec marges de 8mm */
+        @page {
+            size: landscape;
+            margin: 8mm;
+        }
+
+        /* 2. Forcer tout le conteneur principal à s'étaler sur 100% de la largeur */
+        html, body, .stApp, .main, .block-container, div[data-testid="stMain"], div[data-testid="stBlock"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            color: black !important;
+        }
+
+        /* 3. S'assurer que chaque tableau s'étire sur toute la largeur de la page A4 paysage */
+        table, .stTable, div[data-testid="stTable"], .stDataFrame, div[data-testid="stDataFrame"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: auto !important;
+        }
+
+        /* 4. Si un tableau risque de se couper en deux, LE PLACER SUR LA PAGE SUIVANTE */
+        table, 
+        tr,
+        .stTable, 
+        .stDataFrame, 
+        div[data-testid="stTable"], 
+        div[data-testid="stDataFrame"], 
+        div[data-testid="stVerticalBlock"] > div,
+        div[data-baseweb="tab-panel"],
+        .element-container {
             page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
             break-inside: avoid !important;
         }
-        /* Masque la barre latérale, les boutons et le header Streamlit à l'impression */
+
+        /* 5. Masquer le menu latéral, les boutons et éléments inutiles sur le papier */
         section[data-testid="stSidebar"], 
         header, 
         footer, 
-        button,
-        .stButton {
+        button, 
+        .stButton,
+        iframe,
+        div[data-baseweb="tab-list"] {
             display: none !important;
-        }
-        /* Ajuste la zone d'impression */
-        .main .block-container {
-            max-width: 100% !important;
-            padding: 10px !important;
         }
     }
     </style>
@@ -265,12 +295,12 @@ if mode_app.startswith("2"):
                 for poule in df_bilan['Poule'].unique():
                     st.markdown(f"#### 🤼 {poule}")
                     sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
-                    st.dataframe(sous_df, use_container_width=True)
+                    st.table(sous_df)
 
             with tab_bilan_2:
                 st.subheader("🛡️ Podium des Clubs Engagés")
                 st.markdown("*Barème officiel : 1er = 4 pts | 2ème = 3 pts | 3ème = 2 pts | 4ème = 1 pt*")
-                st.dataframe(df_clubs, use_container_width=True)
+                st.table(df_clubs)
 
             output_bilan = io.BytesIO()
             with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
@@ -627,7 +657,7 @@ else:
                             else: ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}"
                         else: ligne[col] = ""
                     grille_ui.append(ligne)
-                st.dataframe(pd.DataFrame(grille_ui), use_container_width=True)
+                st.table(pd.DataFrame(grille_ui))
                 bouton_imprimer("🖨️ Imprimer la Grille de Passage")
 
             with onglets_ui[2]:
@@ -638,7 +668,7 @@ else:
                     df_poule_classement["Points"] = 0
                     df_poule_classement["Clt"] = "NR"
                     df_poule_classement = df_poule_classement[['Clt', 'Nom', 'Club', 'Poids', 'Points']]
-                    st.dataframe(df_poule_classement, use_container_width=True)
+                    st.table(df_poule_classement)
                 bouton_imprimer("🖨️ Imprimer le Classement Général")
 
             for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
