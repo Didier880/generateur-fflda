@@ -46,7 +46,11 @@ def generer_rondes_fflda(participants_in):
     participants = list(participants_in)
     n = len(participants)
     
-    if n == 3:
+    if n <= 1:
+        return []
+    elif n == 2:
+        return [[(participants[0], participants[1])]]
+    elif n == 3:
         return [[(participants[0], participants[1])],
                 [(participants[2], participants[0])],
                 [(participants[1], participants[2])]]
@@ -76,13 +80,55 @@ def generer_rondes_fflda(participants_in):
             participants.insert(1, participants.pop())
         return rondes
 
+def fusionner_poules_isolees(poules):
+    """Évite d'avoir un lutteur seul dans une poule de 1."""
+    if len(poules) <= 1:
+        return poules
+    
+    poules_filtrees = []
+    i = 0
+    while i < len(poules):
+        poule = poules[i]
+        if len(poule['participants']) == 1:
+            # Rattraper la poule seule
+            if poules_filtrees:
+                poules_filtrees[-1]['participants'].extend(poule['participants'])
+                poules_filtrees[-1]['rondes'] = generer_rondes_fflda(poules_filtrees[-1]['participants'])
+                p_min = poules_filtrees[-1]['participants'][0]['Poids_Num']
+                p_max = poules_filtrees[-1]['participants'][-1]['Poids_Num']
+                prefix = poules_filtrees[-1]['nom'].split(' (')[0]
+                poules_filtrees[-1]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
+            elif i + 1 < len(poules):
+                poules[i+1]['participants'] = poule['participants'] + poules[i+1]['participants']
+                poules[i+1]['rondes'] = generer_rondes_fflda(poules[i+1]['participants'])
+                p_min = poules[i+1]['participants'][0]['Poids_Num']
+                p_max = poules[i+1]['participants'][-1]['Poids_Num']
+                prefix = poules[i+1]['nom'].split(' (')[0]
+                poules[i+1]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
+            else:
+                poules_filtrees.append(poule)
+        else:
+            poules_filtrees.append(poule)
+        i += 1
+    return poules_filtrees
+
 def bouton_imprimer(label="🖨️ Imprimer cette vue"):
     print_code = f"""
-    
-        {label}
-    
+        <button onclick="window.print()" style="
+            background-color: #0055A4; 
+            color: white; 
+            border: none; 
+            padding: 10px 18px; 
+            font-size: 14px; 
+            font-weight: bold; 
+            border-radius: 6px; 
+            cursor: pointer;
+            box-shadow: 0px 2px 5px rgba(0,0,0,0.2);
+        ">
+            {label}
+        </button>
     """
-    components.html(print_code, height=60)
+    components.html(print_code, height=50)
 
 # Sélection du mode de travail
 col_mode1, col_mode2 = st.columns([2, 3])
@@ -106,18 +152,29 @@ if mode_app.startswith("2"):
             
             for nom_feuille in onglets_poules:
                 ws = wb_res[nom_feuille]
+                
+                # --- REPÉRAGE DYNAMIQUE DES COLONNES (Ligne 4 - En-têtes) ---
+                col_total_pts = None
+                col_poids = None
+                for c_idx in range(1, ws.max_column + 1):
+                    val_head = str(ws.cell(row=4, column=c_idx).value or "").strip()
+                    if val_head == "Total Pts":
+                        col_total_pts = c_idx
+                    elif val_head == "Poids":
+                        col_poids = c_idx
+                
                 r = 5
                 lutteurs_poule = []
                 while ws.cell(row=r, column=3).value is not None:
                     nom = ws.cell(row=r, column=3).value
                     club = ws.cell(row=r, column=4).value
-                    max_col = ws.max_column
-                    total_pts = ws.cell(row=r, column=max_col - 2).value 
-                    poids = ws.cell(row=r, column=max_col).value
+                    
+                    total_pts = ws.cell(row=r, column=col_total_pts).value if col_total_pts else 0
+                    poids = ws.cell(row=r, column=col_poids).value if col_poids else 0
                     
                     try:
                         pts_val = float(total_pts) if total_pts is not None else 0.0
-                    except:
+                    except (ValueError, TypeError):
                         pts_val = 0.0
 
                     lutteurs_poule.append({
@@ -149,7 +206,7 @@ if mode_app.startswith("2"):
 
             df_bilan = pd.DataFrame(tous_les_resultats)
             
-            # --- CALCUL DU CLASSEMENT DES CLUBS ---
+            # --- CALCUL DU CLASSEMENT DES CLUBS (avec départage fin) ---
             bareme_points = {1: 4, 2: 3, 3: 2, 4: 1}
             points_clubs = {}
             for _, row in df_bilan.iterrows():
@@ -168,7 +225,10 @@ if mode_app.startswith("2"):
                 elif int(clt) == 3: points_clubs[club]["3èmes"] += 1
                 elif int(clt) == 4: points_clubs[club]["4èmes"] += 1
 
-            df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(by="Points Club", ascending=False).reset_index(drop=True)
+            df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(
+                by=["Points Club", "1ers", "2èmes", "3èmes", "4èmes"], 
+                ascending=[False, False, False, False]
+            ).reset_index(drop=True)
             df_clubs.index = range(1, len(df_clubs) + 1)
             df_clubs.insert(0, "Clt Club", df_clubs.index)
 
@@ -370,6 +430,7 @@ else:
                     participants = groupe.to_dict('records')
                     poule_courante = []
                     suffixe_niveau = f" | {niveau}" if niveau != "" else ""
+                    poules_groupe = []
                     
                     for p in participants:
                         if not poule_courante:
@@ -381,16 +442,20 @@ else:
                             else:
                                 nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                                 poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
-                                if age == 'U9': poules_u9.append(poule_obj)
-                                else: poules_u11.append(poule_obj)
+                                poules_groupe.append(poule_obj)
                                 index_poule += 1
                                 poule_courante = [p]
                     if poule_courante:
                         nom_groupe = f"{age} | {sexe}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
                         poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
-                        if age == 'U9': poules_u9.append(poule_obj)
-                        else: poules_u11.append(poule_obj)
+                        poules_groupe.append(poule_obj)
                         index_poule += 1
+                    
+                    # Eviter les poules de 1 en les fusionnant
+                    poules_groupe = fusionner_poules_isolees(poules_groupe)
+                    
+                    if age == 'U9': poules_u9.extend(poules_groupe)
+                    else: poules_u11.extend(poules_groupe)
 
             participants_par_poule = {p['nom']: p['participants'] for p in poules_u9 + poules_u11}
             rondes_par_categorie = {p['nom']: p['rondes'] for p in poules_u9 + poules_u11}
@@ -410,7 +475,7 @@ else:
             total_matchs_calcules = 0
 
             def executer_vagues(poules_du_tapis, t_idx, heure_actuelle, duree_combat):
-                global total_matchs_calcules
+                nonlocal total_matchs_calcules
                 vagues = [poules_du_tapis[i:i+3] for i in range(0, len(poules_du_tapis), 3)]
                 
                 for vague in vagues:
