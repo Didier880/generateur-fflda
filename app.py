@@ -950,7 +950,7 @@ else:
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
 
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
-            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🏆 Classement Général"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
             onglets_ui = st.tabs(noms_onglets)
             
             with onglets_ui[0]:
@@ -967,18 +967,7 @@ else:
                 st.table(pd.DataFrame(grille_ui))
                 bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer / Télécharger la Grille (HTML Paysage A4)", key="btn_t1")
 
-            with onglets_ui[2]:
-                st.subheader("🏆 Classement Général Prévisionnel")
-                for nom_poule, liste_p in participants_par_poule.items():
-                    st.markdown(f"### 🤼 {nom_poule}")
-                    df_poule_classement = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']].copy()
-                    df_poule_classement["Points"] = 0
-                    df_poule_classement["Clt"] = "NR"
-                    df_poule_classement = df_poule_classement[['Clt', 'Nom', 'Club', 'Poids', 'Points']]
-                    st.table(df_poule_classement)
-                bouton_imprimer(html_tournoi_complet, filename="Classement_General_Impression.html", label="🖨️ Imprimer / Télécharger le Classement Général (HTML Paysage A4)", key="btn_t2")
-
-            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
+            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
                 with onglets_ui[idx]:
                     st.subheader(f"Feuille de Poule : {nom_poule}")
                     df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
@@ -1250,43 +1239,7 @@ else:
                             
                             row_cursor += 2 
                         
-                        row_cursor += 1 
-
-                # --- CRÉATION DE LA FEUILLE CLASSEMENT GÉNÉRAL ---
-                ws_cg = writer.book.create_sheet("Classement Général", index=2) 
-                ws_cg.cell(row=1, column=1, value="🏆 CLASSEMENT OFFICIEL PAR POULE").font = Font(bold=True, size=16, color="0055A4")
-                
-                row_cg = 3
-                for nom_poule, liste_p in participants_par_poule.items():
-                    ws_cg.cell(row=row_cg, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=13, color="0055A4")
-                    row_cg += 1
-                    
-                    headers_cg = ["Clt", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
-                    for col_idx, h in enumerate(headers_cg, 1):
-                        c = ws_cg.cell(row=row_cg, column=col_idx, value=h)
-                        c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                        c.fill = PatternFill("solid", fgColor="000000")
-                    row_cg += 1
-                    
-                    for i, p in enumerate(liste_p, 1):
-                        current_row = row_cg
-                        ws_cg.cell(row=current_row, column=1, value="NR").border = b_style
-                        ws_cg.cell(row=current_row, column=2, value=p.get('Nom', '')).border = b_style
-                        ws_cg.cell(row=current_row, column=3, value=p.get('Club', '')).border = b_style
-                        ws_cg.cell(row=current_row, column=4, value=p.get('Poids', '')).border = b_style
-                        ws_cg.cell(row=current_row, column=5, value=0).border = b_style
-                        
-                        for c_idx in range(1, 6):
-                            ws_cg.cell(row=current_row, column=c_idx).alignment = Alignment(horizontal="center", vertical="center")
-                        row_cg += 1
-                    
-                    row_cg += 2  
-                
-                ws_cg.column_dimensions['A'].width = 10
-                ws_cg.column_dimensions['B'].width = 30
-                ws_cg.column_dimensions['C'].width = 25
-                ws_cg.column_dimensions['D'].width = 15
-                ws_cg.column_dimensions['E'].width = 12
+                        row_cursor += 1
 
             st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
