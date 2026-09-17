@@ -918,10 +918,7 @@ else:
 
             lignes_accueil.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
-                {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
-                {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
-                {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
-                {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
+                {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')}
             ])
 
             # --- GÉNÉRATION DES DOCUMENTS HTML PAYSAGE DU TOURNOI ---
@@ -1014,10 +1011,7 @@ else:
                 
                 resume_data.extend([
                     {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
-                    {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')},
-                    {"Étape de la journée": "Nombre total de participants (pesés)", "Horaire / Valeur": str(total_participants_peses)},
-                    {"Étape de la journée": "Athlètes non pesés / absents", "Horaire / Valeur": str(total_non_peses)},
-                    {"Étape de la journée": "Nombre total de matchs", "Horaire / Valeur": str(total_matchs_calcules)}
+                    {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')}
                 ])
                 pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
                 
