@@ -16,6 +16,7 @@ with st.sidebar:
     st.markdown("### Paramètres FFLDA")
     st.markdown("---")
     
+    # --- NOM DE LA COMPÉTITION ---
     nom_competition = st.text_input("🏆 Nom de la compétition", value="Tournoi Officiel FFLDA - U9/U11")
     
     with st.expander("⚙️ 1. Logistique & Pesées", expanded=True):
@@ -206,8 +207,8 @@ if mode_app.startswith("2"):
                 b_fin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), 
                                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
                 
-                # Mise en forme Clubs
                 ws_clubs = writer.sheets["Classement Clubs"]
+                ws_clubs.views.sheetView[0].showGridLines = True
                 ws_clubs.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
                 ws_clubs.cell(row=2, column=1, value="🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
                 ws_clubs.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
@@ -234,7 +235,7 @@ if mode_app.startswith("2"):
                 ws_clubs.column_dimensions['F'].width = 12
                 ws_clubs.column_dimensions['G'].width = 12
 
-                # Mise en forme Individuels
+                ws_indiv.views.sheetView[0].showGridLines = True
                 ws_indiv.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
                 ws_indiv.cell(row=2, column=1, value="🏆 CLASSEMENTS INDIVIDUELS OFFICIELS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
                 ws_indiv.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
@@ -290,24 +291,16 @@ if mode_app.startswith("2"):
                 ws_indiv.column_dimensions['D'].width = 15
                 ws_indiv.column_dimensions['E'].width = 12
 
-                # --- CONFIGURATION PRO POUR L'IMPRESSION SANS COUPURE (SUR TOUTES LES FEUILLES) ---
-                for ws_name in writer.book.sheetnames:
-                    ws_sheet = writer.book[ws_name]
-                    ws_sheet.views.sheetView[0].showGridLines = True
-                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
-                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
-                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
-                    ws_sheet.page_setup.fitToWidth = 1
-                    ws_sheet.page_setup.fitToHeight = 0 # Laisse libre en hauteur pour les grands tableaux
-                    
-                    # Définition dynamique de la zone d'impression exacte pour éviter les colonnes vides coupées
-                    if ws_sheet.max_column > 0 and ws_sheet.max_row > 0:
-                        last_col_letter = openpyxl.utils.get_column_letter(ws_sheet.max_column)
-                        ws_sheet.print_area = f"A1:{last_col_letter}{ws_sheet.max_row}"
+            st.markdown("---")
+            st.download_button(
+                label="📥 Télécharger le Bilan Officiel FFLDA (Excel)",
+                data=output_bilan.getvalue(),
+                file_name="Bilan_Officiel_FFLDA.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
-            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
-            st.error(f"Une erreur est survenue : {e}")
+            st.error(f"Erreur lors de l'analyse du fichier : {e}")
 
 else:
     # --- MODE 1 : GÉNÉRATION DE TOURNOI ---
@@ -596,7 +589,7 @@ else:
                         if row_idx < len(planning_tapis[t]):
                             m = planning_tapis[t][row_idx]
                             if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
-                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
+                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
                             else: ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}"
                         else: ligne[col] = ""
                     grille.append(ligne)
@@ -606,6 +599,14 @@ else:
                 bleu = PatternFill("solid", fgColor="0055A4")
                 rouge = PatternFill("solid", fgColor="EF4135")
                 bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
+                
+                for ws_name in writer.book.sheetnames:
+                    ws_sheet = writer.book[ws_name]
+                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
+                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
+                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
+                    ws_sheet.page_setup.fitToWidth = 1
+                    ws_sheet.page_setup.fitToHeight = 0
                 
                 ws_res = writer.sheets["Résumé"]
                 for cell in ws_res[1]: 
@@ -862,20 +863,6 @@ else:
                 ws_cg.column_dimensions['D'].width = 15
                 ws_cg.column_dimensions['E'].width = 12
 
-                # --- CONFIGURATION PRO POUR L'IMPRESSION SANS COUPURE (SUR TOUTES LES FEUILLES) ---
-                for ws_name in writer.book.sheetnames:
-                    ws_sheet = writer.book[ws_name]
-                    ws_sheet.views.sheetView[0].showGridLines = True
-                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
-                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
-                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
-                    ws_sheet.page_setup.fitToWidth = 1
-                    ws_sheet.page_setup.fitToHeight = 0
-                    
-                    if ws_sheet.max_column > 0 and ws_sheet.max_row > 0:
-                        last_col_letter = openpyxl.utils.get_column_letter(ws_sheet.max_column)
-                        ws_sheet.print_area = f"A1:{last_col_letter}{ws_sheet.max_row}"
-
             st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
-            st.error(f"Une erreur est survenue : {e}")
+            st.error(f"Erreur lors de l'analyse du fichier : {e}")
