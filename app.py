@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta, time
 import io
 import urllib.request
+import re
 import streamlit.components.v1 as components
 import openpyxl
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
@@ -69,6 +70,17 @@ def formater_poids_court(val):
     except (ValueError, TypeError):
         s = str(val).strip()
         return f"{s}kg" if (s and not s.lower().endswith('kg')) else s
+
+def abreger_nom_onglet(nom_poule):
+    txt = str(nom_poule)
+    txt = txt.replace("Mixte (LL/LF)", "Mxt").replace("LG (Gréco)", "LG").replace("LL (Libre)", "LL").replace("LF (Féminine)", "LF")
+    # Conserver les termes "Confirmé" et "Débutant" en entier
+    # Supprimer le terme Gr. / Groupe / Poule et le numéro qui suit s'ils sont présents
+    txt = re.sub(r'\b(Gr\.|Gr|Groupe|Poule)\s*\d+\b', '', txt, flags=re.IGNORECASE)
+    txt = txt.replace(" | ", " ").replace(" (", " ").replace(")", "").replace(" - ", "-")
+    txt = txt.replace("/", "-").replace("\\", "-").replace(":", "-").replace("?", "").replace("*", "")
+    txt = re.sub(r'\s+', ' ', txt)
+    return txt[:31].strip()
 
 # --- CORPS PRINCIPAL ---
 st.title(f"🏆 {nom_competition}")
@@ -816,12 +828,23 @@ else:
             
             total_inscrits_global = len(df_inscr_total)
 
+            maitrise_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip().lower()
+                if any(k in col_str for k in ["maîtrise", "maitrise", "niveau", "expérience", "experience"]):
+                    maitrise_col_found = col_name
+                    break
+            if maitrise_col_found:
+                df_raw = df_raw.rename(columns={maitrise_col_found: "Maîtrise"})
+                df_inscr_total["Maîtrise"] = df_raw.loc[df_inscr_total.index, "Maîtrise"]
             if "Maîtrise" not in df_inscr_total.columns: df_inscr_total["Maîtrise"] = ""
+
             def attribuer_niveau(val):
                 val_str = str(val).strip().lower()
-                if val_str in ['d', 'débutant', 'debutant']: return 'Débutant'
-                elif val_str in ['c', 'confirmé', 'confirme']: return 'Confirmé'
-                return ''
+                if any(k in val_str for k in ['confirmé', 'confirme', 'conf']) or val_str in ['c', '1']:
+                    return 'Confirmé'
+                else:
+                    return 'Débutant'
             
             if poules_par_niveau:
                 df_inscr_total['Niveau'] = df_inscr_total['Maîtrise'].apply(attribuer_niveau)
@@ -916,13 +939,13 @@ else:
                             if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
                                 poule_courante.append(p)
                             else:
-                                nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
+                                nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                                 poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                                 poules_groupe.append(poule_obj)
                                 index_poule += 1
                                 poule_courante = [p]
                     if poule_courante:
-                        nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
+                        nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                         poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                         poules_groupe.append(poule_obj)
                         index_poule += 1
@@ -1262,7 +1285,7 @@ else:
                 entete_noir = PatternFill("solid", fgColor="000000")
 
                 for nom_poule, liste_p in participants_par_poule.items():
-                    nom_onglet_court = nom_poule.replace("/", "-").replace("\\", "-").replace(":", "-").replace("?", "").replace("*", "").replace(" | ", " ").replace("(", "").replace(")", "").replace(" - ", "-")[:31].strip()
+                    nom_onglet_court = abreger_nom_onglet(nom_poule)
                     ws_poule = writer.book.create_sheet(nom_onglet_court)
                     
                     ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
