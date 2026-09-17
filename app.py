@@ -6,6 +6,7 @@ import urllib.request
 import streamlit.components.v1 as components
 import openpyxl
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
+from openpyxl.worksheet.pagebreak import Break
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", layout="wide")
@@ -90,7 +91,6 @@ def fusionner_poules_isolees(poules):
     while i < len(poules):
         poule = poules[i]
         if len(poule['participants']) == 1:
-            # Rattraper la poule seule
             if poules_filtrees:
                 poules_filtrees[-1]['participants'].extend(poule['participants'])
                 poules_filtrees[-1]['rondes'] = generer_rondes_fflda(poules_filtrees[-1]['participants'])
@@ -112,17 +112,155 @@ def fusionner_poules_isolees(poules):
         i += 1
     return poules_filtrees
 
-# --- STYLES D'IMPRESSION (CSS @media print) ---
+# --- GÉNÉRATEUR DE DOCUMENTS HTML AUTONOMES POUR IMPRESSION PAYSAGE A4 ---
+def generer_document_html_imprimable(titre, nom_comp, sections):
+    """
+    Génère un document HTML 100% autonome prêt pour l'impression A4 Paysage.
+    Toutes les tables possèdent page-break-inside: avoid pour ne jamais se couper.
+    """
+    html_sections = []
+    for section_title, content in sections:
+        if isinstance(content, pd.DataFrame):
+            table_html = content.to_html(index=False, classes="print-table")
+        else:
+            table_html = str(content)
+        
+        html_sections.append(f"""
+        <div class="block-table">
+            <h3 class="block-title">{section_title}</h3>
+            {table_html}
+        </div>
+        """)
+    
+    sections_str = "\n".join(html_sections)
+    
+    html_doc = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{titre} - {nom_comp}</title>
+    <style>
+        @page {{
+            size: landscape;
+            margin: 10mm;
+        }}
+        body {{
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background: #ffffff;
+            color: #111;
+        }}
+        .header-print {{
+            text-align: center;
+            border-bottom: 3px solid #0055A4;
+            padding-bottom: 12px;
+            margin-bottom: 25px;
+        }}
+        .header-print h1 {{
+            color: #0055A4;
+            margin: 0 0 6px 0;
+            font-size: 24px;
+            text-transform: uppercase;
+        }}
+        .header-print p {{
+            margin: 0;
+            color: #555;
+            font-size: 13px;
+        }}
+        .block-table {{
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            break-inside: avoid !important;
+            margin-bottom: 30px;
+            width: 100%;
+            clear: both;
+        }}
+        .block-title {{
+            background-color: #0055A4;
+            color: #ffffff;
+            padding: 8px 14px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 4px 4px 0 0;
+            margin: 0 0 5px 0;
+        }}
+        table, .print-table {{
+            width: 100% !important;
+            border-collapse: collapse;
+            margin-top: 0;
+            margin-bottom: 10px;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+        }}
+        th {{
+            background-color: #EF4135;
+            color: #ffffff;
+            padding: 8px 12px;
+            font-size: 13px;
+            border: 1px solid #000;
+            text-align: center;
+        }}
+        td {{
+            padding: 7px 12px;
+            font-size: 12px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f8f9fa;
+        }}
+        .no-print-bar {{
+            text-align: center;
+            padding: 12px;
+            background-color: #f0f4f8;
+            border: 1px solid #d0d7de;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }}
+        .btn-imprimer {{
+            background-color: #0055A4;
+            color: white;
+            font-size: 15px;
+            font-weight: bold;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }}
+        .btn-imprimer:hover {{
+            background-color: #003f7d;
+        }}
+        @media print {{
+            .no-print-bar {{
+                display: none !important;
+            }}
+        }}
+    </style>
+</head>
+<body onload="window.print()">
+    <div class="no-print-bar">
+        <button class="btn-imprimer" onclick="window.print()">🖨️ Imprimer le Document (Format Paysage A4)</button>
+    </div>
+    <div class="header-print">
+        <h1>🏆 {nom_comp}</h1>
+        <p><strong>{titre}</strong> — Document Officiel FFLDA — Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}</p>
+    </div>
+    {sections_str}
+</body>
+</html>"""
+    return html_doc
+
+# --- STYLES D'IMPRESSION DIRECTE (CSS @media print) ---
 st.markdown("""
     <style>
     @media print {
-        /* 1. Forcer la page en PAYSAGE (Landscape) avec marges de 8mm */
         @page {
             size: landscape;
             margin: 8mm;
         }
 
-        /* 2. Forcer tout le conteneur principal à s'étaler sur 100% de la largeur */
         html, body, .stApp, .main, .block-container, div[data-testid="stMain"], div[data-testid="stBlock"] {
             width: 100% !important;
             max-width: 100% !important;
@@ -130,31 +268,24 @@ st.markdown("""
             padding: 0 !important;
             background: white !important;
             color: black !important;
+            overflow: visible !important;
         }
 
-        /* 3. S'assurer que chaque tableau s'étire sur toute la largeur de la page A4 paysage */
         table, .stTable, div[data-testid="stTable"], .stDataFrame, div[data-testid="stDataFrame"] {
             width: 100% !important;
             max-width: 100% !important;
             table-layout: auto !important;
-        }
-
-        /* 4. Si un tableau risque de se couper en deux, LE PLACER SUR LA PAGE SUIVANTE */
-        table, 
-        tr,
-        .stTable, 
-        .stDataFrame, 
-        div[data-testid="stTable"], 
-        div[data-testid="stDataFrame"], 
-        div[data-testid="stVerticalBlock"] > div,
-        div[data-baseweb="tab-panel"],
-        .element-container {
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
             break-inside: avoid !important;
         }
 
-        /* 5. Masquer le menu latéral, les boutons et éléments inutiles sur le papier */
+        tr, tbody, thead {
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            break-inside: avoid !important;
+        }
+
         section[data-testid="stSidebar"], 
         header, 
         footer, 
@@ -168,23 +299,32 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-def bouton_imprimer(label="🖨️ Imprimer cette vue"):
-    print_code = f"""
-        <button onclick="window.parent.print()" style="
-            background-color: #0055A4; 
-            color: white; 
-            border: none; 
-            padding: 10px 18px; 
-            font-size: 14px; 
-            font-weight: bold; 
-            border-radius: 6px; 
-            cursor: pointer;
-            box-shadow: 0px 2px 5px rgba(0,0,0,0.2);
-        ">
-            {label}
-        </button>
-    """
-    components.html(print_code, height=50)
+def bouton_imprimer(html_data=None, filename="Fiche_Impression_Paysage.html", label="🖨️ Imprimer / Télécharger Fiche Paysage (HTML)", key=None):
+    if html_data:
+        st.download_button(
+            label=label,
+            data=html_data,
+            file_name=filename,
+            mime="text/html",
+            key=key
+        )
+    else:
+        print_code = f"""
+            <button onclick="window.parent.print()" style="
+                background-color: #0055A4; 
+                color: white; 
+                border: none; 
+                padding: 10px 18px; 
+                font-size: 14px; 
+                font-weight: bold; 
+                border-radius: 6px; 
+                cursor: pointer;
+                box-shadow: 0px 2px 5px rgba(0,0,0,0.2);
+            ">
+                {label}
+            </button>
+        """
+        components.html(print_code, height=50)
 
 # Sélection du mode de travail
 col_mode1, col_mode2 = st.columns([2, 3])
@@ -288,6 +428,14 @@ if mode_app.startswith("2"):
             df_clubs.index = range(1, len(df_clubs) + 1)
             df_clubs.insert(0, "Clt Club", df_clubs.index)
 
+            # --- GÉNÉRATION DU DOCUMENT HTML PAYSAGE POUR IMPRESSION DES BILANS ---
+            sections_bilan = [("🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA", df_clubs)]
+            for poule in df_bilan['Poule'].unique():
+                sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
+                sections_bilan.append((f"🤼 CLASSEMENT INDIVIDUEL : {poule}", sous_df))
+            
+            html_bilan = generer_document_html_imprimable("Bilan Officiel des Classements FFLDA", nom_competition, sections_bilan)
+
             tab_bilan_1, tab_bilan_2 = st.tabs(["🏆 Classements Individuels (U9 / U11)", "🛡️ Classement Général des Clubs"])
             
             with tab_bilan_1:
@@ -296,11 +444,13 @@ if mode_app.startswith("2"):
                     st.markdown(f"#### 🤼 {poule}")
                     sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
                     st.table(sous_df)
+                bouton_imprimer(html_bilan, filename="Bilan_Individuels_Impression.html", label="🖨️ Télécharger la Fiche d'Impression des Classements (HTML Paysage A4)", key="btn_html_indiv")
 
             with tab_bilan_2:
                 st.subheader("🛡️ Podium des Clubs Engagés")
                 st.markdown("*Barème officiel : 1er = 4 pts | 2ème = 3 pts | 3ème = 2 pts | 4ème = 1 pt*")
                 st.table(df_clubs)
+                bouton_imprimer(html_bilan, filename="Bilan_Clubs_Impression.html", label="🖨️ Télécharger la Fiche d'Impression des Clubs (HTML Paysage A4)", key="btn_html_clubs")
 
             output_bilan = io.BytesIO()
             with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
@@ -360,6 +510,8 @@ if mode_app.startswith("2"):
                 headers_indiv = ["Clt", "NOM Prénom", "CLUB", "POIDS (kg)", "POINTS"]
                 
                 for poule in df_bilan['Poule'].unique():
+                    if row_cursor > 5:
+                        ws_indiv.row_breaks.append(Break(id=row_cursor - 1))
                     ws_indiv.merge_cells(start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=5)
                     cell_cat = ws_indiv.cell(row=row_cursor, column=1, value=f"  CATÉGORIE / POULE : {poule}")
                     cell_cat.fill, cell_cat.font, cell_cat.alignment = bleu_fflda, font_section, Alignment(horizontal="left", vertical="center")
@@ -406,6 +558,14 @@ if mode_app.startswith("2"):
                 ws_indiv.column_dimensions['C'].width = 25
                 ws_indiv.column_dimensions['D'].width = 15
                 ws_indiv.column_dimensions['E'].width = 12
+
+                # Configuration Impression Paysage A4 Excel
+                for ws in writer.book.worksheets:
+                    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+                    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+                    ws.sheet_properties.pageSetUpPr.fitToPage = True
+                    ws.page_setup.fitToWidth = 1
+                    ws.page_setup.fitToHeight = 0
 
             st.markdown("---")
             st.download_button(
@@ -612,6 +772,41 @@ else:
 
             st.success("✨ Fichier analysé avec succès ! Tournoi généré.")
             
+            # --- GÉNÉRATION DES DOCUMENTS HTML PAYSAGE DU TOURNOI ---
+            sections_tournoi_complet = [
+                ("📊 Résumé Prévisionnel de la Journée", pd.DataFrame(lignes_accueil))
+            ]
+            
+            max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
+            grille_ui = []
+            for row_idx in range(max_lignes):
+                ligne = {}
+                for t in range(nb_tapis):
+                    col = f"Tapis {t + 1}"
+                    if row_idx < len(planning_tapis[t]):
+                        m = planning_tapis[t][row_idx]
+                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}] ⏸️ PAUSE"
+                        elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
+                        else: ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}"
+                    else: ligne[col] = ""
+                grille_ui.append(ligne)
+            
+            sections_tournoi_complet.append(("📅 Grille de Passage - Tapis", pd.DataFrame(grille_ui)))
+            
+            for nom_poule, liste_p in participants_par_poule.items():
+                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
+                
+            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+
+            st.download_button(
+                label="🖨️ Télécharger l'Ensemble des Feuilles du Tournoi (HTML Paysage A4 Imprimable)",
+                data=html_tournoi_complet,
+                file_name="Tournoi_Complet_Impression_Paysage.html",
+                mime="text/html",
+                key="btn_tournoi_full"
+            )
+
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
             noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🏆 Classement Général"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
             onglets_ui = st.tabs(noms_onglets)
@@ -640,25 +835,12 @@ else:
                 col_m2.metric("Absents / Non pesés", total_non_peses)
                 col_m3.metric("Matchs générés", total_matchs_calcules)
                 
-                bouton_imprimer("🖨️ Imprimer ce Résumé")
+                bouton_imprimer(html_tournoi_complet, filename="Resume_Tournoi_Impression.html", label="🖨️ Imprimer / Télécharger le Résumé (HTML Paysage A4)", key="btn_t0")
 
             with onglets_ui[1]:
                 st.subheader("📅 Grille de Passage - Tapis")
-                max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
-                grille_ui = []
-                for row_idx in range(max_lignes):
-                    ligne = {}
-                    for t in range(nb_tapis):
-                        col = f"Tapis {t + 1}"
-                        if row_idx < len(planning_tapis[t]):
-                            m = planning_tapis[t][row_idx]
-                            if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}] ⏸️ PAUSE"
-                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
-                            else: ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}"
-                        else: ligne[col] = ""
-                    grille_ui.append(ligne)
                 st.table(pd.DataFrame(grille_ui))
-                bouton_imprimer("🖨️ Imprimer la Grille de Passage")
+                bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer / Télécharger la Grille (HTML Paysage A4)", key="btn_t1")
 
             with onglets_ui[2]:
                 st.subheader("🏆 Classement Général Prévisionnel")
@@ -669,14 +851,14 @@ else:
                     df_poule_classement["Clt"] = "NR"
                     df_poule_classement = df_poule_classement[['Clt', 'Nom', 'Club', 'Poids', 'Points']]
                     st.table(df_poule_classement)
-                bouton_imprimer("🖨️ Imprimer le Classement Général")
+                bouton_imprimer(html_tournoi_complet, filename="Classement_General_Impression.html", label="🖨️ Imprimer / Télécharger le Classement Général (HTML Paysage A4)", key="btn_t2")
 
             for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
                 with onglets_ui[idx]:
                     st.subheader(f"Feuille de Poule : {nom_poule}")
                     df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
                     st.table(df_poule_vue)
-                    bouton_imprimer(f"🖨️ Imprimer cette Feuille de Poule")
+                    bouton_imprimer(html_tournoi_complet, filename=f"Feuille_Poule_{idx}_Impression.html", label="🖨️ Imprimer / Télécharger cette Poule (HTML Paysage A4)", key=f"btn_poule_{idx}")
 
             st.markdown("---")
             
@@ -954,6 +1136,8 @@ else:
                 
                 row_cg = 3
                 for nom_poule, liste_p in participants_par_poule.items():
+                    if row_cg > 3:
+                        ws_cg.row_breaks.append(Break(id=row_cg - 1))
                     ws_cg.cell(row=row_cg, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=13, color="0055A4")
                     row_cg += 1
                     
