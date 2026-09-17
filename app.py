@@ -819,6 +819,17 @@ else:
             if "Style" not in df_raw.columns:
                 df_raw["Style"] = ""
 
+            maitrise_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip().lower()
+                if "maîtrise" in col_str or "maitrise" in col_str:
+                    maitrise_col_found = col_name
+                    break
+            if maitrise_col_found:
+                df_raw = df_raw.rename(columns={maitrise_col_found: "Maîtrise"})
+            if "Maîtrise" not in df_raw.columns:
+                df_raw["Maîtrise"] = ""
+
             if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
                 df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
@@ -828,21 +839,12 @@ else:
             
             total_inscrits_global = len(df_inscr_total)
 
-            maitrise_col_found = None
-            for col_name in df_raw.columns:
-                col_str = str(col_name).strip().lower()
-                if any(k in col_str for k in ["maîtrise", "maitrise", "niveau", "expérience", "experience"]):
-                    maitrise_col_found = col_name
-                    break
-            if maitrise_col_found:
-                df_raw = df_raw.rename(columns={maitrise_col_found: "Maîtrise"})
-                df_inscr_total["Maîtrise"] = df_raw.loc[df_inscr_total.index, "Maîtrise"]
-            if "Maîtrise" not in df_inscr_total.columns: df_inscr_total["Maîtrise"] = ""
-
             def attribuer_niveau(val):
                 val_str = str(val).strip().lower()
-                if any(k in val_str for k in ['confirmé', 'confirme', 'conf']) or val_str in ['c', '1']:
+                if val_str.startswith('c') or 'confirm' in val_str:
                     return 'Confirmé'
+                elif val_str.startswith('d') or 'début' in val_str or 'debut' in val_str:
+                    return 'Débutant'
                 else:
                     return 'Débutant'
             
