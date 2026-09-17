@@ -352,18 +352,24 @@ if mode_app.startswith("2"):
                 # --- REPÉRAGE DYNAMIQUE DES COLONNES (Ligne 4 - En-têtes) ---
                 col_total_pts = None
                 col_poids = None
+                col_comite = None
                 for c_idx in range(1, ws.max_column + 1):
                     val_head = str(ws.cell(row=4, column=c_idx).value or "").strip()
+                    val_lower = val_head.lower()
                     if val_head == "Total Pts":
                         col_total_pts = c_idx
                     elif val_head == "Poids":
                         col_poids = c_idx
+                    elif any(k in val_lower for k in ["comité", "comite", "ligue", "région", "region", "c.r."]):
+                        col_comite = c_idx
                 
                 r = 5
                 lutteurs_poule = []
                 while ws.cell(row=r, column=3).value is not None:
                     nom = ws.cell(row=r, column=3).value
                     club = ws.cell(row=r, column=4).value
+                    comite_val = ws.cell(row=r, column=col_comite).value if col_comite else None
+                    comite = str(comite_val).strip() if (comite_val and str(comite_val).strip() not in ["", "None", "nan", "-"]) else "Comité Non Renseigné"
                     
                     total_pts = ws.cell(row=r, column=col_total_pts).value if col_total_pts else 0
                     poids = ws.cell(row=r, column=col_poids).value if col_poids else 0
@@ -377,6 +383,7 @@ if mode_app.startswith("2"):
                         "Poule": nom_feuille,
                         "Nom": nom,
                         "Club": club if club else "Indépendant",
+                        "Comité": comite,
                         "Poids": poids,
                         "Points": pts_val
                     })
@@ -402,24 +409,36 @@ if mode_app.startswith("2"):
 
             df_bilan = pd.DataFrame(tous_les_resultats)
             
-            # --- CALCUL DU CLASSEMENT DES CLUBS (avec départage fin) ---
+            # --- CALCUL DU CLASSEMENT DES CLUBS ET DES COMITÉS RÉGIONAUX ---
             bareme_points = {1: 4, 2: 3, 3: 2, 4: 1}
             points_clubs = {}
+            points_comites = {}
+
             for _, row in df_bilan.iterrows():
                 club = row["Club"]
+                comite = row.get("Comité", "Comité Non Renseigné")
                 clt = row["Clt"]
                 if clt == "NR":
                     continue
                 pts_attribués = bareme_points.get(int(clt), 0)
                 
+                # Ranking Clubs
                 if club not in points_clubs:
                     points_clubs[club] = {"Club": club, "Points Club": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
-                
                 points_clubs[club]["Points Club"] += pts_attribués
                 if int(clt) == 1: points_clubs[club]["1ers"] += 1
                 elif int(clt) == 2: points_clubs[club]["2èmes"] += 1
                 elif int(clt) == 3: points_clubs[club]["3èmes"] += 1
                 elif int(clt) == 4: points_clubs[club]["4èmes"] += 1
+
+                # Ranking Comités Régionaux
+                if comite not in points_comites:
+                    points_comites[comite] = {"Comité Régional": comite, "Points Comité": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
+                points_comites[comite]["Points Comité"] += pts_attribués
+                if int(clt) == 1: points_comites[comite]["1ers"] += 1
+                elif int(clt) == 2: points_comites[comite]["2èmes"] += 1
+                elif int(clt) == 3: points_comites[comite]["3èmes"] += 1
+                elif int(clt) == 4: points_comites[comite]["4èmes"] += 1
 
             df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(
                 by=["Points Club", "1ers", "2èmes", "3èmes", "4èmes"], 
@@ -428,15 +447,30 @@ if mode_app.startswith("2"):
             df_clubs.index = range(1, len(df_clubs) + 1)
             df_clubs.insert(0, "Clt Club", df_clubs.index)
 
+            df_comites = pd.DataFrame(list(points_comites.values())).sort_values(
+                by=["Points Comité", "1ers", "2èmes", "3èmes", "4èmes"], 
+                ascending=False
+            ).reset_index(drop=True)
+            if not df_comites.empty:
+                df_comites.index = range(1, len(df_comites) + 1)
+                df_comites.insert(0, "Clt Comité", df_comites.index)
+
             # --- GÉNÉRATION DU DOCUMENT HTML PAYSAGE POUR IMPRESSION DES BILANS ---
-            sections_bilan = [("🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA", df_clubs)]
+            sections_bilan = [
+                ("🛡️ CLASSEMENT OFFICIEL DES CLUBS - FFLDA", df_clubs),
+                ("🏛️ CLASSEMENT OFFICIEL DES COMITÉS RÉGIONAUX - FFLDA", df_comites)
+            ]
             for poule in df_bilan['Poule'].unique():
                 sous_df = df_bilan[df_bilan['Poule'] == poule][['Clt', 'Nom', 'Club', 'Poids', 'Points']]
                 sections_bilan.append((f"🤼 CLASSEMENT INDIVIDUEL : {poule}", sous_df))
             
             html_bilan = generer_document_html_imprimable("Bilan Officiel des Classements FFLDA", nom_competition, sections_bilan)
 
-            tab_bilan_1, tab_bilan_2 = st.tabs(["🏆 Classements Individuels (U9 / U11)", "🛡️ Classement Général des Clubs"])
+            tab_bilan_1, tab_bilan_2, tab_bilan_3 = st.tabs([
+                "🏆 Classements Individuels (U9 / U11)", 
+                "🛡️ Classement Général des Clubs",
+                "🏛️ Classement des Comités Régionaux"
+            ])
             
             with tab_bilan_1:
                 st.subheader("Classements Individuels Officiels")
@@ -452,9 +486,16 @@ if mode_app.startswith("2"):
                 st.table(df_clubs)
                 bouton_imprimer(html_bilan, filename="Bilan_Clubs_Impression.html", label="🖨️ Télécharger la Fiche d'Impression des Clubs (HTML Paysage A4)", key="btn_html_clubs")
 
+            with tab_bilan_3:
+                st.subheader("🏛️ Classement Officiel des Comités Régionaux")
+                st.markdown("*Barème officiel : 1er = 4 pts | 2ème = 3 pts | 3ème = 2 pts | 4ème = 1 pt*")
+                st.table(df_comites)
+                bouton_imprimer(html_bilan, filename="Bilan_Comites_Impression.html", label="🖨️ Télécharger la Fiche d'Impression des Comités (HTML Paysage A4)", key="btn_html_comites")
+
             output_bilan = io.BytesIO()
             with pd.ExcelWriter(output_bilan, engine='openpyxl') as writer:
                 df_clubs.to_excel(writer, sheet_name="Classement Clubs", index=False, startrow=5)
+                df_comites.to_excel(writer, sheet_name="Classement Comités", index=False, startrow=5)
                 ws_indiv = writer.book.create_sheet("Classements Individuels")
                 
                 bleu_fflda = PatternFill("solid", fgColor="0055A4")
@@ -473,6 +514,7 @@ if mode_app.startswith("2"):
                 b_fin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), 
                                top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
                 
+                # Feuille Classement Clubs
                 ws_clubs = writer.sheets["Classement Clubs"]
                 ws_clubs.views.sheetView[0].showGridLines = True
                 ws_clubs.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
@@ -500,6 +542,35 @@ if mode_app.startswith("2"):
                 ws_clubs.column_dimensions['E'].width = 12
                 ws_clubs.column_dimensions['F'].width = 12
                 ws_clubs.column_dimensions['G'].width = 12
+
+                # Feuille Classement Comités Régionaux
+                ws_comites = writer.sheets["Classement Comités"]
+                ws_comites.views.sheetView[0].showGridLines = True
+                ws_comites.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
+                ws_comites.cell(row=2, column=1, value="🏛️ CLASSEMENT OFFICIEL DES COMITÉS RÉGIONAUX - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
+                ws_comites.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
+                
+                for col_idx in range(1, len(df_comites.columns) + 1):
+                    cell = ws_comites.cell(row=5, column=col_idx)
+                    cell.fill, cell.font, cell.alignment = bleu_fflda, font_entete, Alignment(horizontal="center", vertical="center")
+                    ws_comites.row_dimensions[5].height = 25
+                
+                for row_idx in range(6, ws_comites.max_row + 1):
+                    ws_comites.row_dimensions[row_idx].height = 22
+                    is_even = (row_idx % 2 == 0)
+                    for col_idx in range(1, len(df_comites.columns) + 1):
+                        cell = ws_comites.cell(row=row_idx, column=col_idx)
+                        cell.border, cell.font = b_fin, font_data
+                        cell.fill = gris_zebrage if is_even else fond_blanc
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                ws_comites.column_dimensions['A'].width = 12
+                ws_comites.column_dimensions['B'].width = 30
+                ws_comites.column_dimensions['C'].width = 15
+                ws_comites.column_dimensions['D'].width = 12
+                ws_comites.column_dimensions['E'].width = 12
+                ws_comites.column_dimensions['F'].width = 12
+                ws_comites.column_dimensions['G'].width = 12
 
                 ws_indiv.views.sheetView[0].showGridLines = True
                 ws_indiv.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = font_titre
@@ -601,6 +672,12 @@ else:
 
             if "Catégorie d'âge" in df_raw.columns: df_raw = df_raw.rename(columns={"Catégorie d'âge": "Age"})
             if "Sigle du Club" in df_raw.columns: df_raw = df_raw.rename(columns={"Sigle du Club": "Club"})
+            if "Comité Régional" in df_raw.columns: df_raw = df_raw.rename(columns={"Comité Régional": "Comité"})
+            elif "Ligue" in df_raw.columns: df_raw = df_raw.rename(columns={"Ligue": "Comité"})
+            elif "Région" in df_raw.columns: df_raw = df_raw.rename(columns={"Région": "Comité"})
+            elif "CR" in df_raw.columns: df_raw = df_raw.rename(columns={"CR": "Comité"})
+            if "Comité" not in df_raw.columns: df_raw["Comité"] = "Comité Non Renseigné"
+
             if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
                 df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
