@@ -475,7 +475,7 @@ else:
             total_matchs_calcules = 0
 
             def executer_vagues(poules_du_tapis, t_idx, heure_actuelle, duree_combat):
-                nonlocal total_matchs_calcules
+                global total_matchs_calcules
                 vagues = [poules_du_tapis[i:i+3] for i in range(0, len(poules_du_tapis), 3)]
                 
                 for vague in vagues:
