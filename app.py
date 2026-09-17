@@ -227,7 +227,7 @@ if mode_app.startswith("2"):
 
             df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(
                 by=["Points Club", "1ers", "2èmes", "3èmes", "4èmes"], 
-                ascending=[False, False, False, False]
+                ascending=False
             ).reset_index(drop=True)
             df_clubs.index = range(1, len(df_clubs) + 1)
             df_clubs.insert(0, "Clt Club", df_clubs.index)
