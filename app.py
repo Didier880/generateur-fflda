@@ -45,15 +45,30 @@ def formater_poids(val):
         return ''
     val_str = str(val).lower().replace('kg', '').replace(',', '.').strip()
     try:
-        val_float = float(val_str)
+        val_float = round(float(val_str), 1)
         if val_float == int(val_float):
             num_str = str(int(val_float))
         else:
-            num_str = str(round(val_float, 1))
+            num_str = str(val_float)
         return f"{num_str} kg"
     except (ValueError, TypeError):
         s = str(val).strip()
         return f"{s} kg" if (s and not s.lower().endswith('kg')) else s
+
+def formater_poids_court(val):
+    if val is None or str(val).strip() in ['', 'None', 'nan']:
+        return ''
+    val_str = str(val).lower().replace('kg', '').replace(',', '.').strip()
+    try:
+        val_float = round(float(val_str), 1)
+        if val_float == int(val_float):
+            num_str = str(int(val_float))
+        else:
+            num_str = str(val_float)
+        return f"{num_str}kg"
+    except (ValueError, TypeError):
+        s = str(val).strip()
+        return f"{s}kg" if (s and not s.lower().endswith('kg')) else s
 
 # --- CORPS PRINCIPAL ---
 st.title(f"🏆 {nom_competition}")
@@ -114,14 +129,14 @@ def fusionner_poules_isolees(poules):
                 p_min = poules_filtrees[-1]['participants'][0]['Poids_Num']
                 p_max = poules_filtrees[-1]['participants'][-1]['Poids_Num']
                 prefix = poules_filtrees[-1]['nom'].split(' (')[0]
-                poules_filtrees[-1]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
+                poules_filtrees[-1]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
             elif i + 1 < len(poules):
                 poules[i+1]['participants'] = poule['participants'] + poules[i+1]['participants']
                 poules[i+1]['rondes'] = generer_rondes_fflda(poules[i+1]['participants'])
                 p_min = poules[i+1]['participants'][0]['Poids_Num']
                 p_max = poules[i+1]['participants'][-1]['Poids_Num']
                 prefix = poules[i+1]['nom'].split(' (')[0]
-                poules[i+1]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
+                poules[i+1]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
             else:
                 poules_filtrees.append(poule)
         else:
@@ -197,7 +212,8 @@ def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
                         prefix = poules_groupe[idx_p]['nom'].split(' (')[0]
                         p_min = parts[0]['Poids_Num']
                         p_max = parts[-1]['Poids_Num']
-                        poules_groupe[idx_p]['nom'] = f"{prefix} ({p_min}kg - {p_max}kg)"
+                        poules_groupe[idx_p]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
+                        poules_groupe[idx_p]['rondes'] = generer_rondes_fflda(parts)
                         poules_groupe[idx_p]['rondes'] = generer_rondes_fflda(parts)
                     
                     ameliore = True
@@ -900,13 +916,13 @@ else:
                             if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
                                 poule_courante.append(p)
                             else:
-                                nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                                nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                                 poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                                 poules_groupe.append(poule_obj)
                                 index_poule += 1
                                 poule_courante = [p]
                     if poule_courante:
-                        nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({poule_courante[0]['Poids_Num']}kg - {poule_courante[-1]['Poids_Num']}kg)"
+                        nom_groupe = f"{age} | {style_grp}{suffixe_niveau} | Gr. {index_poule} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                         poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                         poules_groupe.append(poule_obj)
                         index_poule += 1
