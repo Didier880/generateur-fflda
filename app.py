@@ -1184,6 +1184,34 @@ else:
             dt_debut_u9 = dt_pesee_u9 + timedelta(minutes=duree_pesee)
             total_matchs_calcules = 0
 
+            ref_usage_count = {}
+
+            def choisir_arbitre_match(c1_club, c2_club, t_idx):
+                cand_list = tapis_arbitres.get(t_idx, [])
+                if not cand_list and liste_arbitres:
+                    cand_list = liste_arbitres
+                
+                if not cand_list:
+                    return "Non attribué"
+                
+                c1_clean = str(c1_club).strip().lower()
+                c2_clean = str(c2_club).strip().lower()
+                ignored_clubs = ['', '-', 'indépendant', 'independant', 'none', 'nan']
+                
+                sans_conflit = []
+                for arb in cand_list:
+                    arb_club_clean = str(arb.get('Club', '')).strip().lower()
+                    if arb_club_clean in ignored_clubs:
+                        sans_conflit.append(arb)
+                    elif arb_club_clean != c1_clean and arb_club_clean != c2_clean:
+                        sans_conflit.append(arb)
+                        
+                pool_choix = sans_conflit if sans_conflit else cand_list
+                arb_choisi = min(pool_choix, key=lambda a: ref_usage_count.get(a['Nom_Complet'], 0))
+                
+                ref_usage_count[arb_choisi['Nom_Complet']] = ref_usage_count.get(arb_choisi['Nom_Complet'], 0) + 1
+                return arb_choisi['Nom_Complet']
+
             def ordonnancer_phase(poules_phase, heure_debut_phase, duree_combat, meme_tapis=True):
                 global total_matchs_calcules
                 if not poules_phase:
@@ -1213,7 +1241,9 @@ else:
                                         matchs_tapis.append({
                                             'poule': p['nom'],
                                             'p1': m[0]['Nom'],
+                                            'p1_club': m[0].get('Club', ''),
                                             'p2': m[1]['Nom'],
+                                            'p2_club': m[1].get('Club', ''),
                                             'tour': r + 1
                                         })
 
@@ -1254,13 +1284,16 @@ else:
                                             "Texte": f"⏳ Repos ({attente_min} min)"
                                         })
 
+                            arb_nom = choisir_arbitre_match(m['p1_club'], m['p2_club'], t)
+
                             planning[t].append({
                                 "Type": "MATCH",
                                 "Heure": heure_debut_match.strftime("%H:%M"),
                                 "Duree": duree_combat,
                                 "Cat": m['poule'],
                                 "Combattant 1": m['p1'],
-                                "Combattant 2": m['p2']
+                                "Combattant 2": m['p2'],
+                                "Arbitre": arb_nom
                             })
                             
                             total_matchs_calcules += 1
@@ -1282,7 +1315,9 @@ else:
                                     matchs_a_jouer.append({
                                         'poule': p['nom'],
                                         'p1': m[0]['Nom'],
+                                        'p1_club': m[0].get('Club', ''),
                                         'p2': m[1]['Nom'],
+                                        'p2_club': m[1].get('Club', ''),
                                         'tour': r + 1
                                     })
                     
@@ -1324,13 +1359,16 @@ else:
                                         "Texte": f"⏳ Repos ({attente_min} min)"
                                     })
 
+                        arb_nom = choisir_arbitre_match(m['p1_club'], m['p2_club'], t_min_idx)
+
                         planning[t_min_idx].append({
                             "Type": "MATCH",
                             "Heure": heure_debut_match.strftime("%H:%M"),
                             "Duree": duree_combat,
                             "Cat": m['poule'],
                             "Combattant 1": m['p1'],
-                            "Combattant 2": m['p2']
+                            "Combattant 2": m['p2'],
+                            "Arbitre": arb_nom
                         })
                         
                         total_matchs_calcules += 1
