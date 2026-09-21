@@ -1877,6 +1877,10 @@ else:
                 bleu = PatternFill("solid", fgColor="0055A4")
                 rouge = PatternFill("solid", fgColor="EF4135")
                 bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
+                rouge_lutte = PatternFill("solid", fgColor="E53935") 
+                bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
+                gris_clair = PatternFill("solid", fgColor="F2F2F2")
+                entete_noir = PatternFill("solid", fgColor="000000")
 
                 coords_matchs_tapis = {}
 
