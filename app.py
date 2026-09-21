@@ -15,10 +15,12 @@ st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", l
 # --- MENU LATÉRAL (PARAMÈTRES INTERACTIFS) ---
 with st.sidebar:
     import os
-    if os.path.exists("logo_fflda.png"):
-        st.image("logo_fflda.png", use_container_width=True)
-    else:
-        st.image("https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png", use_container_width=True)
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
+        if os.path.exists("logo_fflda.png"):
+            st.image("logo_fflda.png", use_container_width=True)
+        else:
+            st.image("https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png", use_container_width=True)
     st.markdown("### Paramètres FFLDA")
     st.markdown("---")
     
@@ -1661,7 +1663,7 @@ else:
                         req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
                         with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
                         img = OpenpyxlImage(img_data)
-                    img.height, img.width = 60, 72
+                    img.height, img.width = 30, 36
                     ws_grille.add_image(img, 'A1')
                 except Exception: pass 
 
