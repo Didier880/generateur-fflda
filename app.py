@@ -14,13 +14,7 @@ st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", l
 
 # --- MENU LATÉRAL (PARAMÈTRES INTERACTIFS) ---
 with st.sidebar:
-    import os
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-        if os.path.exists("logo_fflda.png"):
-            st.image("logo_fflda.png", use_container_width=True)
-        else:
-            st.image("https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png", use_container_width=True)
+    st.image("https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/1200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png", use_container_width=True)
     st.markdown("### Paramètres FFLDA")
     st.markdown("---")
     
@@ -436,7 +430,7 @@ def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
 def generer_document_html_imprimable(titre, nom_comp, sections):
     """
     Génère un document HTML 100% autonome prêt pour l'impression A4 Paysage.
-    Chaque section / onglet occupe sa propre page (page-break-after: always) et les tables ne sont jamais coupées.
+    Toutes les tables possèdent page-break-inside: avoid pour ne jamais se couper.
     """
     html_sections = []
     for section_title, content in sections:
@@ -489,17 +483,12 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
             font-size: 13px;
         }}
         .block-table {{
-            page-break-after: always !important;
-            break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
+            break-inside: avoid !important;
             margin-bottom: 30px;
             width: 100%;
             clear: both;
-        }}
-        .block-table:last-child {{
-            page-break-after: auto !important;
-            break-after: auto !important;
         }}
         .block-title {{
             background-color: #0055A4;
@@ -576,126 +565,6 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
 </body>
 </html>"""
     return html_doc
-
-# --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS (REPORTLAB - A4 PAYSAGE - 1 PAGE PAR ONGLET) ---
-def generer_pdf_tournoi_complet(titre, nom_comp, sections):
-    """
-    Génère un fichier PDF vectoriel (A4 Paysage) prêt à imprimer et télécharger.
-    Chaque onglet / section commence sur une nouvelle page (PageBreak) et aucun tableau n'est coupé.
-    """
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, 
-        pagesize=landscape(A4), 
-        rightMargin=20, 
-        leftMargin=20, 
-        topMargin=20, 
-        bottomMargin=20
-    )
-    styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle(
-        'PDFTitle', 
-        parent=styles['Heading1'], 
-        fontName='Helvetica-Bold', 
-        fontSize=16, 
-        textColor=colors.HexColor('#0055A4'), 
-        alignment=1,
-        spaceAfter=6
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'PDFSubtitle', 
-        parent=styles['Normal'], 
-        fontName='Helvetica', 
-        fontSize=10, 
-        textColor=colors.HexColor('#555555'), 
-        alignment=1,
-        spaceAfter=12
-    )
-
-    sec_banner_style = ParagraphStyle(
-        'SecBanner', 
-        parent=styles['Heading2'], 
-        fontName='Helvetica-Bold', 
-        fontSize=12, 
-        textColor=colors.white, 
-        backColor=colors.HexColor('#0055A4'), 
-        borderPadding=6,
-        spaceAfter=10,
-        alignment=0
-    )
-    
-    cell_head_style = ParagraphStyle(
-        'CellHead', 
-        parent=styles['Normal'], 
-        fontName='Helvetica-Bold', 
-        fontSize=9, 
-        textColor=colors.white, 
-        alignment=1
-    )
-    
-    cell_body_style = ParagraphStyle(
-        'CellBody', 
-        parent=styles['Normal'], 
-        fontName='Helvetica', 
-        fontSize=8, 
-        textColor=colors.black, 
-        alignment=1
-    )
-
-    story = []
-    page_width = landscape(A4)[0] - 40  # 841.89 - 40 = 801.89 pt
-
-    for idx, (sec_title, content) in enumerate(sections):
-        if idx > 0:
-            story.append(PageBreak())
-        
-        story.append(Paragraph(f"🏆 {nom_comp.upper()}", title_style))
-        story.append(Paragraph(f"<b>{titre}</b> — Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}", subtitle_style))
-        story.append(Paragraph(f"<b>{sec_title}</b>", sec_banner_style))
-        story.append(Spacer(1, 8))
-        
-        if isinstance(content, pd.DataFrame):
-            df = content
-            if df.empty:
-                continue
-            
-            headers = [Paragraph(str(col), cell_head_style) for col in df.columns]
-            data = [headers]
-            
-            for _, row in df.iterrows():
-                r_cells = []
-                for val in row:
-                    txt = str(val).replace('\n', '<br/>') if pd.notna(val) else ''
-                    r_cells.append(Paragraph(txt, cell_body_style))
-                data.append(r_cells)
-            
-            nb_cols = len(df.columns)
-            col_w = page_width / nb_cols if nb_cols > 0 else page_width
-            col_widths = [col_w] * nb_cols
-            
-            t = Table(data, colWidths=col_widths, repeatRows=1)
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EF4135')),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ]))
-            story.append(KeepTogether(t))
-        else:
-            story.append(Paragraph(str(content), cell_body_style))
-
-    doc.build(story)
-    return buffer.getvalue()
 
 # --- STYLES D'IMPRESSION DIRECTE (CSS @media print) ---
 st.markdown("""
@@ -1620,7 +1489,99 @@ else:
             ])
 
             # --- GÉNÉRATION DES DOCUMENTS HTML PAYSAGE DU TOURNOI ---
-            # --- EXPORT EXCEL OFFICIEL FFLDA ---
+            sections_tournoi_complet = [
+                ("📊 Résumé Prévisionnel de la Journée", pd.DataFrame(lignes_accueil))
+            ]
+            
+            if liste_arbitres:
+                lignes_arb_print = []
+                for t in range(nb_tapis):
+                    noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
+                    lignes_arb_print.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
+                sections_tournoi_complet.append(("🛡️ Désignation des Équipes d'Arbitrage par Tapis", pd.DataFrame(lignes_arb_print)))
+
+            max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
+            grille_ui = []
+            for row_idx in range(max_lignes):
+                ligne = {}
+                for t in range(nb_tapis):
+                    col = f"Tapis {t + 1}"
+                    if row_idx < len(planning_tapis[t]):
+                        m = planning_tapis[t][row_idx]
+                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}] ⏸️ PAUSE"
+                        elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
+                        elif m["Type"] == "VIDE": ligne[col] = ""
+                        else:
+                            arb_str = f" (🛡️ {m['Arbitre']})" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
+                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}{arb_str}"
+                    else: ligne[col] = ""
+                grille_ui.append(ligne)
+            
+            sections_tournoi_complet.append(("📅 Grille de Passage - Tapis", pd.DataFrame(grille_ui)))
+            
+            for nom_poule, liste_p in participants_par_poule.items():
+                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
+                
+            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+
+            # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
+            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🛡️ Équipes d'Arbitrage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+            onglets_ui = st.tabs(noms_onglets)
+            
+            with onglets_ui[0]:
+                st.subheader("📊 Résumé prévisionnel de la journée")
+                st.table(pd.DataFrame(lignes_accueil))
+                
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                col_m1.metric("Participants (pesés)", total_participants_peses)
+                col_m2.metric("Absents / Non pesés", total_non_peses)
+                col_m3.metric("Matchs générés", total_matchs_calcules)
+                col_m4.metric("Arbitres engagés", len(liste_arbitres))
+
+                if liste_arbitres:
+                    st.markdown("#### 🛡️ Désignation des Équipes d'Arbitrage par Tapis")
+                    lignes_arb_sum = []
+                    for t in range(nb_tapis):
+                        noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
+                        lignes_arb_sum.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
+                    st.table(pd.DataFrame(lignes_arb_sum))
+
+            with onglets_ui[1]:
+                st.subheader("📅 Grille de Passage - Tapis")
+                if liste_arbitres:
+                    st.markdown("**🛡️ Équipes d'arbitrage affectées aux tapis :**")
+                    cols_arb_disp = st.columns(nb_tapis)
+                    for t in range(nb_tapis):
+                        with cols_arb_disp[t]:
+                            arb_list_txt = "\n".join([f"• **{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "• Aucun"
+                            st.info(f"**Tapis {t+1}** ({len(tapis_arbitres[t])} arbitres) :\n\n{arb_list_txt}")
+                st.table(pd.DataFrame(grille_ui))
+                bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer / Télécharger la Grille (HTML Paysage A4)", key="btn_t1")
+
+            with onglets_ui[2]:
+                st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
+                if liste_arbitres:
+                    for t in range(nb_tapis):
+                        st.markdown(f"#### 🥋 Tapis {t + 1} ({len(tapis_arbitres[t])} arbitres)")
+                        if tapis_arbitres[t]:
+                            df_arb_tapis = pd.DataFrame(tapis_arbitres[t])[['Nom', 'Prenom', 'Licence', 'Club', 'Comite']]
+                            df_arb_tapis.columns = ['Nom', 'Prénom', 'N° Licence', 'Club', 'Comité Régional']
+                            st.table(df_arb_tapis)
+                        else:
+                            st.info("Aucun arbitre affecté à ce tapis.")
+                else:
+                    st.info("Aucun fichier d'arbitres n'a été chargé.")
+
+            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
+                with onglets_ui[idx]:
+                    st.subheader(f"Feuille de Poule : {nom_poule}")
+                    df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                    st.table(df_poule_vue)
+
+            st.markdown("---")
+            
+            # --- EXPORT EXCEL ---
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 
@@ -1689,14 +1650,11 @@ else:
                 
                 try:
                     from openpyxl.drawing.image import Image as OpenpyxlImage
-                    if os.path.exists("logo_fflda.png"):
-                        img = OpenpyxlImage("logo_fflda.png")
-                    else:
-                        url_logo = "https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png"
-                        req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
-                        with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
-                        img = OpenpyxlImage(img_data)
-                    img.height, img.width = 30, 36
+                    url_logo = "https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png"
+                    req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
+                    img = OpenpyxlImage(img_data)
+                    img.height, img.width = 70, 70
                     ws_grille.add_image(img, 'A1')
                 except Exception: pass 
 
@@ -1720,7 +1678,6 @@ else:
                                 cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                                 cell.font = Font(size=12)
 
-                df_excel_arb = None
                 if liste_arbitres:
                     lignes_excel_arb = []
                     for t in range(nb_tapis):
@@ -1935,114 +1892,6 @@ else:
                         
                         row_cursor += 1
 
-            # --- GÉNÉRATION DU PDF & HTML BASE SUR LE DOSSIER EXCEL ---
-            sections_tournoi_complet = [
-                ("📊 Résumé Prévisionnel de la Journée", pd.DataFrame(resume_data)),
-                ("📅 Grille de Passage - Tapis", pd.DataFrame(grille))
-            ]
-            
-            if df_excel_arb is not None:
-                sections_tournoi_complet.append(("🛡️ Corps d'Arbitrage et Affectation aux Tapis", df_excel_arb))
-
-            for nom_poule, liste_p in participants_par_poule.items():
-                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
-                sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
-
-            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
-            pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
-
-            st.markdown("### 📄 Impression & Exportations (1 Page par Onglet / Feuille Excel)")
-            col_pdf_top, col_excel_top, col_html_top = st.columns([1, 1, 1])
-            with col_pdf_top:
-                st.download_button(
-                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage)",
-                    data=pdf_bytes_tournoi_complet,
-                    file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
-                    mime="application/pdf",
-                    key="btn_pdf_top"
-                )
-            with col_excel_top:
-                st.download_button(
-                    label="📥 Télécharger le Bilan Officiel Excel (.xlsx)",
-                    data=output.getvalue(),
-                    file_name=f"Bilan_Officiel_FFLDA_{nom_competition.replace(' ', '_')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="btn_excel_top"
-                )
-            with col_html_top:
-                bouton_imprimer(html_tournoi_complet, filename="Dossier_Tournoi_Impression.html", label="🖨️ Imprimer la Version Web Paysage A4", key="btn_html_top")
-
-            st.markdown("---")
-
-            # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
-            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🛡️ Équipes d'Arbitrage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
-            onglets_ui = st.tabs(noms_onglets)
-            
-            with onglets_ui[0]:
-                st.subheader("📊 Résumé prévisionnel de la journée")
-                st.table(pd.DataFrame(lignes_accueil))
-                
-                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                col_m1.metric("Participants (pesés)", total_participants_peses)
-                col_m2.metric("Absents / Non pesés", total_non_peses)
-                col_m3.metric("Matchs générés", total_matchs_calcules)
-                col_m4.metric("Arbitres engagés", len(liste_arbitres))
-
-                if liste_arbitres:
-                    st.markdown("#### 🛡️ Désignation des Équipes d'Arbitrage par Tapis")
-                    lignes_arb_sum = []
-                    for t in range(nb_tapis):
-                        noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
-                        lignes_arb_sum.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
-                    st.table(pd.DataFrame(lignes_arb_sum))
-
-            with onglets_ui[1]:
-                st.subheader("📅 Grille de Passage - Tapis")
-                if liste_arbitres:
-                    st.markdown("**🛡️ Équipes d'arbitrage affectées aux tapis :**")
-                    cols_arb_disp = st.columns(nb_tapis)
-                    for t in range(nb_tapis):
-                        with cols_arb_disp[t]:
-                            arb_list_txt = "\n".join([f"• **{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "• Aucun"
-                            st.info(f"**Tapis {t+1}** ({len(tapis_arbitres[t])} arbitres) :\n\n{arb_list_txt}")
-                st.table(pd.DataFrame(grille))
-                
-                col_p1, col_h1 = st.columns(2)
-                with col_p1:
-                    pdf_grille_bytes = generer_pdf_tournoi_complet("Grille de Passage Officielle", nom_competition, [("📅 Grille de Passage - Tapis", pd.DataFrame(grille))])
-                    st.download_button(
-                        label="📄 Télécharger la Grille en PDF (A4 Paysage)",
-                        data=pdf_grille_bytes,
-                        file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
-                        mime="application/pdf",
-                        key="btn_pdf_grille"
-                    )
-                with col_h1:
-                    bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer la Grille (HTML A4)", key="btn_t1")
-
-            with onglets_ui[2]:
-                st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
-                if df_excel_arb is not None:
-                    st.table(df_excel_arb)
-                elif liste_arbitres:
-                    for t in range(nb_tapis):
-                        st.markdown(f"#### 🥋 Tapis {t + 1} ({len(tapis_arbitres[t])} arbitres)")
-                        if tapis_arbitres[t]:
-                            df_arb_tapis = pd.DataFrame(tapis_arbitres[t])[['Nom', 'Prenom', 'Licence', 'Club', 'Comite']]
-                            df_arb_tapis.columns = ['Nom', 'Prénom', 'N° Licence', 'Club', 'Comité Régional']
-                            st.table(df_arb_tapis)
-                        else:
-                            st.info("Aucun arbitre affecté à ce tapis.")
-                else:
-                    st.info("Aucun fichier d'arbitres n'a été chargé.")
-
-            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
-                with onglets_ui[idx]:
-                    st.subheader(f"Feuille de Poule : {nom_poule}")
-                    df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
-                    st.table(df_poule_vue)
-
-        except Exception as e:
-            st.error(f"Erreur lors de l'analyse du fichier : {e}")
+            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
             st.error(f"Erreur lors de l'analyse du fichier : {e}")
