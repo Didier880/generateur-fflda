@@ -1620,6 +1620,127 @@ else:
             ])
 
             # --- GÉNÉRATION DES DOCUMENTS HTML PAYSAGE DU TOURNOI ---
+            # --- GÉNÉRATION DES DOCUMENTS HTML & PDF PAYSAGE DU TOURNOI ---
+            sections_tournoi_complet = [
+                ("📊 Résumé Prévisionnel de la Journée", pd.DataFrame(lignes_accueil))
+            ]
+            
+            if liste_arbitres:
+                lignes_arb_print = []
+                for t in range(nb_tapis):
+                    noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
+                    lignes_arb_print.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
+                sections_tournoi_complet.append(("🛡️ Désignation des Équipes d'Arbitrage par Tapis", pd.DataFrame(lignes_arb_print)))
+
+            max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
+            grille_ui = []
+            for row_idx in range(max_lignes):
+                ligne = {}
+                for t in range(nb_tapis):
+                    col = f"Tapis {t + 1}"
+                    if row_idx < len(planning_tapis[t]):
+                        m = planning_tapis[t][row_idx]
+                        if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}] ⏸️ PAUSE"
+                        elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
+                        elif m["Type"] == "VIDE": ligne[col] = ""
+                        else:
+                            arb_str = f" (🛡️ {m['Arbitre']})" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
+                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}{arb_str}"
+                    else: ligne[col] = ""
+                grille_ui.append(ligne)
+            
+            sections_tournoi_complet.append(("📅 Grille de Passage - Tapis", pd.DataFrame(grille_ui)))
+            
+            for nom_poule, liste_p in participants_par_poule.items():
+                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
+                
+            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+            pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+
+            st.markdown("### 📄 Impression & Exportations PDF (1 Page par Onglet / Section)")
+            col_pdf_top, col_html_top = st.columns([1, 1])
+            with col_pdf_top:
+                st.download_button(
+                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage - 1 page par onglet)",
+                    data=pdf_bytes_tournoi_complet,
+                    file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key="btn_pdf_top"
+                )
+            with col_html_top:
+                bouton_imprimer(html_tournoi_complet, filename="Dossier_Tournoi_Impression.html", label="🖨️ Imprimer la Version Web Paysage A4 (1 page par onglet)", key="btn_html_top")
+
+            st.markdown("---")
+
+            # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
+            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🛡️ Équipes d'Arbitrage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+            onglets_ui = st.tabs(noms_onglets)
+            
+            with onglets_ui[0]:
+                st.subheader("📊 Résumé prévisionnel de la journée")
+                st.table(pd.DataFrame(lignes_accueil))
+                
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                col_m1.metric("Participants (pesés)", total_participants_peses)
+                col_m2.metric("Absents / Non pesés", total_non_peses)
+                col_m3.metric("Matchs générés", total_matchs_calcules)
+                col_m4.metric("Arbitres engagés", len(liste_arbitres))
+
+                if liste_arbitres:
+                    st.markdown("#### 🛡️ Désignation des Équipes d'Arbitrage par Tapis")
+                    lignes_arb_sum = []
+                    for t in range(nb_tapis):
+                        noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
+                        lignes_arb_sum.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
+                    st.table(pd.DataFrame(lignes_arb_sum))
+
+            with onglets_ui[1]:
+                st.subheader("📅 Grille de Passage - Tapis")
+                if liste_arbitres:
+                    st.markdown("**🛡️ Équipes d'arbitrage affectées aux tapis :**")
+                    cols_arb_disp = st.columns(nb_tapis)
+                    for t in range(nb_tapis):
+                        with cols_arb_disp[t]:
+                            arb_list_txt = "\n".join([f"• **{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "• Aucun"
+                            st.info(f"**Tapis {t+1}** ({len(tapis_arbitres[t])} arbitres) :\n\n{arb_list_txt}")
+                st.table(pd.DataFrame(grille_ui))
+                
+                col_p1, col_h1 = st.columns(2)
+                with col_p1:
+                    pdf_grille_bytes = generer_pdf_tournoi_complet("Grille de Passage Officielle", nom_competition, [("📅 Grille de Passage - Tapis", pd.DataFrame(grille_ui))])
+                    st.download_button(
+                        label="📄 Télécharger la Grille en PDF (A4 Paysage)",
+                        data=pdf_grille_bytes,
+                        file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
+                        mime="application/pdf",
+                        key="btn_pdf_grille"
+                    )
+                with col_h1:
+                    bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer la Grille (HTML A4)", key="btn_t1")
+
+            with onglets_ui[2]:
+                st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
+                if liste_arbitres:
+                    for t in range(nb_tapis):
+                        st.markdown(f"#### 🥋 Tapis {t + 1} ({len(tapis_arbitres[t])} arbitres)")
+                        if tapis_arbitres[t]:
+                            df_arb_tapis = pd.DataFrame(tapis_arbitres[t])[['Nom', 'Prenom', 'Licence', 'Club', 'Comite']]
+                            df_arb_tapis.columns = ['Nom', 'Prénom', 'N° Licence', 'Club', 'Comité Régional']
+                            st.table(df_arb_tapis)
+                        else:
+                            st.info("Aucun arbitre affecté à ce tapis.")
+                else:
+                    st.info("Aucun fichier d'arbitres n'a été chargé.")
+
+            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
+                with onglets_ui[idx]:
+                    st.subheader(f"Feuille de Poule : {nom_poule}")
+                    df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                    st.table(df_poule_vue)
+
+            st.markdown("---")
+            
             # --- EXPORT EXCEL OFFICIEL FFLDA ---
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -1935,114 +2056,6 @@ else:
                         
                         row_cursor += 1
 
-            # --- GÉNÉRATION DU PDF & HTML BASE SUR LE DOSSIER EXCEL ---
-            sections_tournoi_complet = [
-                ("📊 Résumé Prévisionnel de la Journée", pd.DataFrame(resume_data)),
-                ("📅 Grille de Passage - Tapis", pd.DataFrame(grille))
-            ]
-            
-            if df_excel_arb is not None:
-                sections_tournoi_complet.append(("🛡️ Corps d'Arbitrage et Affectation aux Tapis", df_excel_arb))
-
-            for nom_poule, liste_p in participants_par_poule.items():
-                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
-                sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
-
-            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
-            pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
-
-            st.markdown("### 📄 Impression & Exportations (1 Page par Onglet / Feuille Excel)")
-            col_pdf_top, col_excel_top, col_html_top = st.columns([1, 1, 1])
-            with col_pdf_top:
-                st.download_button(
-                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage)",
-                    data=pdf_bytes_tournoi_complet,
-                    file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
-                    mime="application/pdf",
-                    key="btn_pdf_top"
-                )
-            with col_excel_top:
-                st.download_button(
-                    label="📥 Télécharger le Bilan Officiel Excel (.xlsx)",
-                    data=output.getvalue(),
-                    file_name=f"Bilan_Officiel_FFLDA_{nom_competition.replace(' ', '_')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="btn_excel_top"
-                )
-            with col_html_top:
-                bouton_imprimer(html_tournoi_complet, filename="Dossier_Tournoi_Impression.html", label="🖨️ Imprimer la Version Web Paysage A4", key="btn_html_top")
-
-            st.markdown("---")
-
-            # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
-            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🛡️ Équipes d'Arbitrage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
-            onglets_ui = st.tabs(noms_onglets)
-            
-            with onglets_ui[0]:
-                st.subheader("📊 Résumé prévisionnel de la journée")
-                st.table(pd.DataFrame(lignes_accueil))
-                
-                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                col_m1.metric("Participants (pesés)", total_participants_peses)
-                col_m2.metric("Absents / Non pesés", total_non_peses)
-                col_m3.metric("Matchs générés", total_matchs_calcules)
-                col_m4.metric("Arbitres engagés", len(liste_arbitres))
-
-                if liste_arbitres:
-                    st.markdown("#### 🛡️ Désignation des Équipes d'Arbitrage par Tapis")
-                    lignes_arb_sum = []
-                    for t in range(nb_tapis):
-                        noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
-                        lignes_arb_sum.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
-                    st.table(pd.DataFrame(lignes_arb_sum))
-
-            with onglets_ui[1]:
-                st.subheader("📅 Grille de Passage - Tapis")
-                if liste_arbitres:
-                    st.markdown("**🛡️ Équipes d'arbitrage affectées aux tapis :**")
-                    cols_arb_disp = st.columns(nb_tapis)
-                    for t in range(nb_tapis):
-                        with cols_arb_disp[t]:
-                            arb_list_txt = "\n".join([f"• **{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "• Aucun"
-                            st.info(f"**Tapis {t+1}** ({len(tapis_arbitres[t])} arbitres) :\n\n{arb_list_txt}")
-                st.table(pd.DataFrame(grille))
-                
-                col_p1, col_h1 = st.columns(2)
-                with col_p1:
-                    pdf_grille_bytes = generer_pdf_tournoi_complet("Grille de Passage Officielle", nom_competition, [("📅 Grille de Passage - Tapis", pd.DataFrame(grille))])
-                    st.download_button(
-                        label="📄 Télécharger la Grille en PDF (A4 Paysage)",
-                        data=pdf_grille_bytes,
-                        file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
-                        mime="application/pdf",
-                        key="btn_pdf_grille"
-                    )
-                with col_h1:
-                    bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer la Grille (HTML A4)", key="btn_t1")
-
-            with onglets_ui[2]:
-                st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
-                if df_excel_arb is not None:
-                    st.table(df_excel_arb)
-                elif liste_arbitres:
-                    for t in range(nb_tapis):
-                        st.markdown(f"#### 🥋 Tapis {t + 1} ({len(tapis_arbitres[t])} arbitres)")
-                        if tapis_arbitres[t]:
-                            df_arb_tapis = pd.DataFrame(tapis_arbitres[t])[['Nom', 'Prenom', 'Licence', 'Club', 'Comite']]
-                            df_arb_tapis.columns = ['Nom', 'Prénom', 'N° Licence', 'Club', 'Comité Régional']
-                            st.table(df_arb_tapis)
-                        else:
-                            st.info("Aucun arbitre affecté à ce tapis.")
-                else:
-                    st.info("Aucun fichier d'arbitres n'a été chargé.")
-
-            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
-                with onglets_ui[idx]:
-                    st.subheader(f"Feuille de Poule : {nom_poule}")
-                    df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
-                    st.table(df_poule_vue)
-
-        except Exception as e:
-            st.error(f"Erreur lors de l'analyse du fichier : {e}")
+            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
             st.error(f"Erreur lors de l'analyse du fichier : {e}")
