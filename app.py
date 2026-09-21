@@ -119,6 +119,74 @@ def abreger_nom_onglet(nom_poule):
     txt = re.sub(r'\s+', ' ', txt)
     return txt[:31].strip()
 
+def charger_liste_arbitres(fichier_arbitres_in=None):
+    """
+    Charge la liste des arbitres inscrits depuis le fichier téléversé ou le fichier par défaut FFLDA - Inscription arbitres.xlsx.
+    """
+    arbitres = []
+    filepath = None
+    
+    if fichier_arbitres_in is not None:
+        filepath = fichier_arbitres_in
+    else:
+        import os
+        default_name = 'FFLDA - Inscription arbitres.xlsx'
+        if os.path.exists(default_name):
+            filepath = default_name
+            
+    if filepath is None:
+        return arbitres
+        
+    try:
+        if hasattr(filepath, 'name') and filepath.name.endswith('.csv'):
+            df_arb = pd.read_csv(filepath, sep=';', encoding='utf-8')
+            if len(df_arb.columns) == 1:
+                filepath.seek(0)
+                df_arb = pd.read_csv(filepath, sep=',', encoding='utf-8')
+        elif isinstance(filepath, str) and filepath.endswith('.csv'):
+            df_arb = pd.read_csv(filepath, sep=';', encoding='utf-8')
+            if len(df_arb.columns) == 1:
+                df_arb = pd.read_csv(filepath, sep=',', encoding='utf-8')
+        else:
+            df_temp = pd.read_excel(filepath, nrows=5)
+            header_row = 0
+            for i, row in df_temp.iterrows():
+                if 'Licence' in str(row.values) or 'Nom' in str(row.values) or "Inscrit Par" in str(row.values):
+                    header_row = i + 1
+                    break
+            if hasattr(filepath, 'seek'):
+                filepath.seek(0)
+            df_arb = pd.read_excel(filepath, header=header_row)
+
+        col_nom = next((c for c in df_arb.columns if str(c).strip().lower() == 'nom'), None)
+        col_prenom = next((c for c in df_arb.columns if 'prénom' in str(c).strip().lower() or 'prenom' in str(c).strip().lower()), None)
+        col_club = next((c for c in df_arb.columns if any(k in str(c).strip().lower() for k in ['sigle du club', 'club'])), None)
+        col_comite = next((c for c in df_arb.columns if any(k in str(c).strip().lower() for k in ['comité', 'comite', 'ligue', 'région', 'region'])), None)
+        col_licence = next((c for c in df_arb.columns if 'licence' in str(c).strip().lower()), None)
+
+        for _, row in df_arb.iterrows():
+            nom_val = str(row[col_nom]).strip() if (col_nom and pd.notna(row[col_nom])) else ''
+            prenom_val = str(row[col_prenom]).strip() if (col_prenom and pd.notna(row[col_prenom])) else ''
+            if not nom_val or nom_val.lower() in ['nan', 'none', 'photo']:
+                continue
+            
+            club_val = str(row[col_club]).strip() if (col_club and pd.notna(row[col_club])) else 'Indépendant'
+            comite_val = str(row[col_comite]).strip() if (col_comite and pd.notna(row[col_comite])) else 'Comité Non Renseigné'
+            licence_val = str(row[col_licence]).strip() if (col_licence and pd.notna(row[col_licence])) else ''
+
+            arbitres.append({
+                'Nom_Complet': f"{nom_val} {prenom_val}".strip(),
+                'Nom': nom_val,
+                'Prenom': prenom_val,
+                'Licence': licence_val,
+                'Club': club_val if club_val not in ['', 'None', 'nan', '-'] else 'Indépendant',
+                'Comite': comite_val if comite_val not in ['', 'None', 'nan', '-'] else 'Comité Non Renseigné'
+            })
+    except Exception:
+        pass
+        
+    return arbitres
+
 # --- CORPS PRINCIPAL ---
 st.title(f"🏆 {nom_competition}")
 st.markdown("**Plateforme officielle d'optimisation des tournois de jeunes et d'édition des bilans fédéraux.**")
@@ -896,12 +964,21 @@ if mode_app.startswith("2"):
 
 else:
     # --- MODE 1 : GÉNÉRATION DE TOURNOI ---
-    fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
+    col_up1, col_up2 = st.columns([1, 1])
+    with col_up1:
+        fichier_upload = st.file_uploader("📂 Importez votre liste d'inscrits (.csv ou .xlsx)", type=["xlsx", "csv"])
+    with col_up2:
+        fichier_arbitres_upload = st.file_uploader("🛡️ (Optionnel) Importez la liste des arbitres (.xlsx ou .csv)", type=["xlsx", "csv"], key="upload_arbitres")
 
     if fichier_upload is None:
         st.info("👈 Veuillez importer un fichier de participants (format Exalto .csv ou .xlsx) pour lancer l'optimisation des poules et plannings.")
     else:
         try:
+            liste_arbitres = charger_liste_arbitres(fichier_arbitres_upload)
+            tapis_arbitres = {t: [] for t in range(nb_tapis)}
+            if liste_arbitres:
+                for idx_arb, arb in enumerate(liste_arbitres):
+                    tapis_arbitres[idx_arb % nb_tapis].append(arb)
             if fichier_upload.name.endswith('.csv'):
                 df_raw = pd.read_csv(fichier_upload, sep=';', encoding='utf-8')
                 if len(df_raw.columns) == 1:
@@ -1343,6 +1420,13 @@ else:
                 ("📊 Résumé Prévisionnel de la Journée", pd.DataFrame(lignes_accueil))
             ]
             
+            if liste_arbitres:
+                lignes_arb_print = []
+                for t in range(nb_tapis):
+                    noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
+                    lignes_arb_print.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
+                sections_tournoi_complet.append(("🛡️ Désignation des Équipes d'Arbitrage par Tapis", pd.DataFrame(lignes_arb_print)))
+
             max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
             grille_ui = []
             for row_idx in range(max_lignes):
@@ -1367,24 +1451,54 @@ else:
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
 
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
-            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+            noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🛡️ Équipes d'Arbitrage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
             onglets_ui = st.tabs(noms_onglets)
             
             with onglets_ui[0]:
                 st.subheader("📊 Résumé prévisionnel de la journée")
                 st.table(pd.DataFrame(lignes_accueil))
                 
-                col_m1, col_m2, col_m3 = st.columns(3)
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                 col_m1.metric("Participants (pesés)", total_participants_peses)
                 col_m2.metric("Absents / Non pesés", total_non_peses)
                 col_m3.metric("Matchs générés", total_matchs_calcules)
+                col_m4.metric("Arbitres engagés", len(liste_arbitres))
+
+                if liste_arbitres:
+                    st.markdown("#### 🛡️ Désignation des Équipes d'Arbitrage par Tapis")
+                    lignes_arb_sum = []
+                    for t in range(nb_tapis):
+                        noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "Aucun arbitre affecté"
+                        lignes_arb_sum.append({"Tapis": f"Tapis {t + 1}", "Effectif": f"{len(tapis_arbitres[t])} arbitres", "Équipe d'Arbitrage Désignée": noms_arb})
+                    st.table(pd.DataFrame(lignes_arb_sum))
 
             with onglets_ui[1]:
                 st.subheader("📅 Grille de Passage - Tapis")
+                if liste_arbitres:
+                    st.markdown("**🛡️ Équipes d'arbitrage affectées aux tapis :**")
+                    cols_arb_disp = st.columns(nb_tapis)
+                    for t in range(nb_tapis):
+                        with cols_arb_disp[t]:
+                            arb_list_txt = "\n".join([f"• **{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "• Aucun"
+                            st.info(f"**Tapis {t+1}** ({len(tapis_arbitres[t])} arbitres) :\n\n{arb_list_txt}")
                 st.table(pd.DataFrame(grille_ui))
                 bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer / Télécharger la Grille (HTML Paysage A4)", key="btn_t1")
 
-            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=2):
+            with onglets_ui[2]:
+                st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
+                if liste_arbitres:
+                    for t in range(nb_tapis):
+                        st.markdown(f"#### 🥋 Tapis {t + 1} ({len(tapis_arbitres[t])} arbitres)")
+                        if tapis_arbitres[t]:
+                            df_arb_tapis = pd.DataFrame(tapis_arbitres[t])[['Nom', 'Prenom', 'Licence', 'Club', 'Comite']]
+                            df_arb_tapis.columns = ['Nom', 'Prénom', 'N° Licence', 'Club', 'Comité Régional']
+                            st.table(df_arb_tapis)
+                        else:
+                            st.info("Aucun arbitre affecté à ce tapis.")
+                else:
+                    st.info("Aucun fichier d'arbitres n'a été chargé.")
+
+            for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=3):
                 with onglets_ui[idx]:
                     st.subheader(f"Feuille de Poule : {nom_poule}")
                     df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
@@ -1486,6 +1600,46 @@ else:
                             else:
                                 cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
                                 cell.font = Font(size=12)
+
+                if liste_arbitres:
+                    lignes_excel_arb = []
+                    for t in range(nb_tapis):
+                        for a in tapis_arbitres[t]:
+                            lignes_excel_arb.append({
+                                "Tapis Affecté": f"Tapis {t + 1}",
+                                "Nom": a['Nom'],
+                                "Prénom": a['Prenom'],
+                                "N° Licence": a['Licence'],
+                                "Club": a['Club'],
+                                "Comité Régional": a['Comite']
+                            })
+                    if lignes_excel_arb:
+                        df_excel_arb = pd.DataFrame(lignes_excel_arb)
+                        df_excel_arb.to_excel(writer, sheet_name="Corps d'Arbitrage", index=False, startrow=4)
+                        ws_arb_sheet = writer.sheets["Corps d'Arbitrage"]
+                        ws_arb_sheet.views.sheetView[0].showGridLines = True
+                        ws_arb_sheet.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = Font(name="Arial", size=15, bold=True, color="0055A4")
+                        ws_arb_sheet.cell(row=2, column=1, value="🛡️ CORPS D'ARBITRAGE ET AFFECTATION AUX TAPIS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
+                        ws_arb_sheet.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
+                        
+                        for col_idx in range(1, len(df_excel_arb.columns) + 1):
+                            cell = ws_arb_sheet.cell(row=5, column=col_idx)
+                            cell.fill, cell.font, cell.alignment = bleu, Font(name="Arial", size=10, bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center")
+                        
+                        for row_idx in range(6, ws_arb_sheet.max_row + 1):
+                            is_even = (row_idx % 2 == 0)
+                            for col_idx in range(1, len(df_excel_arb.columns) + 1):
+                                cell = ws_arb_sheet.cell(row=row_idx, column=col_idx)
+                                cell.border = b_style
+                                cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
+                                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                        ws_arb_sheet.column_dimensions['A'].width = 15
+                        ws_arb_sheet.column_dimensions['B'].width = 25
+                        ws_arb_sheet.column_dimensions['C'].width = 20
+                        ws_arb_sheet.column_dimensions['D'].width = 15
+                        ws_arb_sheet.column_dimensions['E'].width = 25
+                        ws_arb_sheet.column_dimensions['F'].width = 25
 
                 rouge_lutte = PatternFill("solid", fgColor="E53935") 
                 bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
