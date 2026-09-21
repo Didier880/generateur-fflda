@@ -28,11 +28,11 @@ with st.sidebar:
         heure_pesee_u9 = st.time_input(label_pesee_1, value=time(9, 0))
         duree_pesee = st.selectbox("Durée allouée à la pesée + échauffement (min)", [30, 45, 60, 90], index=1)
         
-    with st.expander("⏱️ 2. Pause de la compétition"):
+    with st.expander("⏱️ 2. Pause de la compétition", expanded=False):
         activer_pause = st.checkbox("Activer la pause", value=True)
         duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2) if activer_pause else 0
     
-    with st.expander("🤼 3. Règles Sportives & Temps"):
+    with st.expander("🤼 3. Règles Sportives & Temps", expanded=False):
         mixte_active = st.checkbox("Catégories Mixtes (U9/U11 ensemble)", value=True)
         poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
         separer_clubs = st.checkbox("Éviter les lutteurs d'un même club dans la même poule (dans la mesure du possible)", value=True)
@@ -41,6 +41,42 @@ with st.sidebar:
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
         duree_u11 = st.number_input("Temps total U11 (min)", value=4)
+
+    # JavaScript pour le comportement d'accordéon à ouverture unique (ferme les autres au clic)
+    components.html("""
+    <script>
+    (function() {
+        const parentDoc = window.parent.document;
+        function initAccordion() {
+            const sidebar = parentDoc.querySelector('section[data-testid="stSidebar"]');
+            if (!sidebar) return;
+            const expanders = sidebar.querySelectorAll('div[data-testid="stExpander"]');
+            expanders.forEach(exp => {
+                if (exp.dataset.accordionAttached) return;
+                exp.dataset.accordionAttached = "true";
+                exp.addEventListener('click', function() {
+                    setTimeout(() => {
+                        const details = exp.querySelector('details');
+                        if (details && details.open) {
+                            expanders.forEach(otherExp => {
+                                if (otherExp !== exp) {
+                                    const otherDetails = otherExp.querySelector('details');
+                                    if (otherDetails) {
+                                        otherDetails.open = false;
+                                    }
+                                }
+                            });
+                        }
+                    }, 50);
+                }, false);
+            });
+        }
+        initAccordion();
+        const observer = new MutationObserver(initAccordion);
+        observer.observe(parentDoc.body, { childList: true, subtree: true });
+    })();
+    </script>
+    """, height=0)
 
 def formater_poids(val):
     if val is None or str(val).strip() in ['', 'None', 'nan']:
