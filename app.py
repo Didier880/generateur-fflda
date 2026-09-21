@@ -874,45 +874,58 @@ if mode_app.startswith("2"):
             points_comites = {}
 
             for _, row in df_bilan.iterrows():
-                club = row["Club"]
-                comite = row.get("Comité", "Comité Non Renseigné")
-                clt = row["Clt"]
-                if clt == "NR":
+                club = str(row.get("Club", "")).strip()
+                comite = str(row.get("Comité", "Comité Non Renseigné")).strip()
+                if not comite or comite in ["None", "nan", "-"]:
+                    comite = "Comité Non Renseigné"
+                
+                if club and club not in ["", "-", "None", "nan"] and club not in points_clubs:
+                    points_clubs[club] = {"Club": club, "Points Club": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
+                if comite and comite not in points_comites:
+                    points_comites[comite] = {"Comité Régional": comite, "Points Comité": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
+                
+                clt = str(row.get("Clt", "NR")).strip()
+                if clt == "NR" or not clt.isdigit():
                     continue
-                pts_attribués = bareme_points.get(int(clt), 0)
+                
+                clt_num = int(clt)
+                pts_attribués = bareme_points.get(clt_num, 0)
                 
                 # Ranking Clubs
-                if club not in points_clubs:
-                    points_clubs[club] = {"Club": club, "Points Club": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
-                points_clubs[club]["Points Club"] += pts_attribués
-                if int(clt) == 1: points_clubs[club]["1ers"] += 1
-                elif int(clt) == 2: points_clubs[club]["2èmes"] += 1
-                elif int(clt) == 3: points_clubs[club]["3èmes"] += 1
-                elif int(clt) == 4: points_clubs[club]["4èmes"] += 1
+                if club in points_clubs:
+                    points_clubs[club]["Points Club"] += pts_attribués
+                    if clt_num == 1: points_clubs[club]["1ers"] += 1
+                    elif clt_num == 2: points_clubs[club]["2èmes"] += 1
+                    elif clt_num == 3: points_clubs[club]["3èmes"] += 1
+                    elif clt_num == 4: points_clubs[club]["4èmes"] += 1
 
                 # Ranking Comités Régionaux
-                if comite not in points_comites:
-                    points_comites[comite] = {"Comité Régional": comite, "Points Comité": 0, "1ers": 0, "2èmes": 0, "3èmes": 0, "4èmes": 0}
-                points_comites[comite]["Points Comité"] += pts_attribués
-                if int(clt) == 1: points_comites[comite]["1ers"] += 1
-                elif int(clt) == 2: points_comites[comite]["2èmes"] += 1
-                elif int(clt) == 3: points_comites[comite]["3èmes"] += 1
-                elif int(clt) == 4: points_comites[comite]["4èmes"] += 1
+                if comite in points_comites:
+                    points_comites[comite]["Points Comité"] += pts_attribués
+                    if clt_num == 1: points_comites[comite]["1ers"] += 1
+                    elif clt_num == 2: points_comites[comite]["2èmes"] += 1
+                    elif clt_num == 3: points_comites[comite]["3èmes"] += 1
+                    elif clt_num == 4: points_comites[comite]["4èmes"] += 1
 
-            df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(
-                by=["Points Club", "1ers", "2èmes", "3èmes", "4èmes"], 
-                ascending=False
-            ).reset_index(drop=True)
-            df_clubs.index = range(1, len(df_clubs) + 1)
-            df_clubs.insert(0, "Clt Club", df_clubs.index)
+            if points_clubs:
+                df_clubs = pd.DataFrame(list(points_clubs.values())).sort_values(
+                    by=["Points Club", "1ers", "2èmes", "3èmes", "4èmes"], 
+                    ascending=False
+                ).reset_index(drop=True)
+                df_clubs.index = range(1, len(df_clubs) + 1)
+                df_clubs.insert(0, "Clt Club", df_clubs.index)
+            else:
+                df_clubs = pd.DataFrame(columns=["Clt Club", "Club", "Points Club", "1ers", "2èmes", "3èmes", "4èmes"])
 
-            df_comites = pd.DataFrame(list(points_comites.values())).sort_values(
-                by=["Points Comité", "1ers", "2èmes", "3èmes", "4èmes"], 
-                ascending=False
-            ).reset_index(drop=True)
-            if not df_comites.empty:
+            if points_comites:
+                df_comites = pd.DataFrame(list(points_comites.values())).sort_values(
+                    by=["Points Comité", "1ers", "2èmes", "3èmes", "4èmes"], 
+                    ascending=False
+                ).reset_index(drop=True)
                 df_comites.index = range(1, len(df_comites) + 1)
                 df_comites.insert(0, "Clt Comité", df_comites.index)
+            else:
+                df_comites = pd.DataFrame(columns=["Clt Comité", "Comité Régional", "Points Comité", "1ers", "2èmes", "3èmes", "4èmes"])
 
             # --- GÉNÉRATION DU DOCUMENT HTML PAYSAGE POUR IMPRESSION DES BILANS ---
             tab_bilan_1, tab_bilan_2, tab_bilan_3 = st.tabs([
