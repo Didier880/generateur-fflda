@@ -1878,10 +1878,7 @@ else:
                 rouge = PatternFill("solid", fgColor="EF4135")
                 bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
 
-                # Onglets Excel "Grille Tapis X" autonomes avec zones de saisie de score
-                rouge_lutte = PatternFill("solid", fgColor="E53935") 
-                bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
-                gris_clair = PatternFill("solid", fgColor="F2F2F2")
+                coords_matchs_tapis = {}
 
                 for t in range(nb_tapis):
                     ws_mat = writer.book.create_sheet(f"Grille Tapis {t + 1}")
@@ -1998,6 +1995,15 @@ else:
                             box_ptb = ws_mat.cell(row=r_curr, column=9)
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
+
+                            # Enregistrement des coordonnées des cases Pt Clt sur la Grille Tapis X
+                            coords_matchs_tapis[(item['Cat'], item['Combattant 1'], item['Combattant 2'])] = {
+                                'sheet': f"Grille Tapis {t + 1}",
+                                'ptr_cell': f"E{r_curr}",
+                                'ptb_cell': f"I{r_curr}",
+                                'p1': item['Combattant 1'],
+                                'p2': item['Combattant 2']
+                            }
                             
                             r_curr += 1
                             
@@ -2138,7 +2144,7 @@ else:
                     ws_poule = writer.book.create_sheet(nom_onglet_court)
                     
                     ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
-                    ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite").font = Font(italic=True, size=9)
+                    ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite (Calculés depuis les onglets Grille Tapis)").font = Font(italic=True, size=9)
                     
                     row_cursor = 4
                     headers = ["CLT", "N°", "NOM Prénom", "CLUB", "COMITÉ"]
@@ -2263,6 +2269,20 @@ else:
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
                             
+                            # Recherche de la correspondance exacte du match sur l'onglet Grille Tapis X
+                            m_info = coords_matchs_tapis.get((nom_poule, p1['Nom'], p2['Nom']))
+                            if not m_info:
+                                m_info = coords_matchs_tapis.get((nom_poule, p2['Nom'], p1['Nom']))
+
+                            if m_info:
+                                sheet_name = m_info['sheet']
+                                if p1['Nom'] == m_info['p1']:
+                                    box_ptr.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
+                                    box_ptb.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
+                                else:
+                                    box_ptr.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
+                                    box_ptb.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
+
                             if p1['Nom'] in lignes_lutteurs:
                                 lig_haut_p1 = lignes_lutteurs[p1['Nom']]
                                 cell_haut_p1 = ws_poule.cell(row=lig_haut_p1, column=col_offset_tours + (tour_idx - 1))
