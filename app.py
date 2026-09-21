@@ -2305,12 +2305,40 @@ else:
                             ws_poule.cell(row=row_cursor, column=3).border = b_style
                             ws_poule.cell(row=row_cursor, column=4).border = b_style
                             ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
-                            ws_poule.cell(row=row_cursor, column=5).border = b_style
+                            box_tot_r = ws_poule.cell(row=row_cursor, column=5)
+                            box_tot_r.border = b_style
+                            box_tot_r.alignment = Alignment(horizontal="center", vertical="center")
                             
-                            ws_poule.cell(row=row_cursor, column=7).border = b_style
+                            box_act_b = ws_poule.cell(row=row_cursor, column=7)
+                            box_act_b.border = b_style
+                            box_act_b.alignment = Alignment(horizontal="center", vertical="center")
                             ws_poule.cell(row=row_cursor, column=8).border = b_style
                             ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
-                            ws_poule.cell(row=row_cursor, column=9).border = b_style
+                            box_tot_b = ws_poule.cell(row=row_cursor, column=9)
+                            box_tot_b.border = b_style
+                            box_tot_b.alignment = Alignment(horizontal="center", vertical="center")
+
+                            # Recherche de la correspondance exacte du match sur l'onglet Grille Tapis X
+                            m_info = coords_matchs_tapis.get((nom_poule, p1['Nom'], p2['Nom']))
+                            if not m_info:
+                                m_info = coords_matchs_tapis.get((nom_poule, p2['Nom'], p1['Nom']))
+
+                            if m_info:
+                                sheet_name = m_info['sheet']
+                                if p1['Nom'] == m_info['p1']:
+                                    box_ptr.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
+                                    box_ptb.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
+                                    box_act_r.value = f"='{sheet_name}'!{m_info['act_r_cell']}"
+                                    box_tot_r.value = f"='{sheet_name}'!{m_info['tot_r_cell']}"
+                                    box_act_b.value = f"='{sheet_name}'!{m_info['act_b_cell']}"
+                                    box_tot_b.value = f"='{sheet_name}'!{m_info['tot_b_cell']}"
+                                else:
+                                    box_ptr.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
+                                    box_ptb.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
+                                    box_act_r.value = f"='{sheet_name}'!{m_info['act_b_cell']}"
+                                    box_tot_r.value = f"='{sheet_name}'!{m_info['tot_b_cell']}"
+                                    box_act_b.value = f"='{sheet_name}'!{m_info['act_r_cell']}"
+                                    box_tot_b.value = f"='{sheet_name}'!{m_info['tot_r_cell']}"
                             
                             row_cursor += 2 
                         
