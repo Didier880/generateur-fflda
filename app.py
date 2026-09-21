@@ -2302,9 +2302,12 @@ else:
                             row_cursor += 1
                             
                             ws_poule.row_dimensions[row_cursor].height = 25
-                            ws_poule.cell(row=row_cursor, column=3).border = b_style
+                            box_act_r = ws_poule.cell(row=row_cursor, column=3)
+                            box_act_r.border = b_style
+                            box_act_r.alignment = Alignment(horizontal="center", vertical="center")
                             ws_poule.cell(row=row_cursor, column=4).border = b_style
                             ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
+                            
                             box_tot_r = ws_poule.cell(row=row_cursor, column=5)
                             box_tot_r.border = b_style
                             box_tot_r.alignment = Alignment(horizontal="center", vertical="center")
@@ -2314,6 +2317,7 @@ else:
                             box_act_b.alignment = Alignment(horizontal="center", vertical="center")
                             ws_poule.cell(row=row_cursor, column=8).border = b_style
                             ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
+                            
                             box_tot_b = ws_poule.cell(row=row_cursor, column=9)
                             box_tot_b.border = b_style
                             box_tot_b.alignment = Alignment(horizontal="center", vertical="center")
