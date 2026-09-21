@@ -36,6 +36,7 @@ with st.sidebar:
         mixte_active = st.checkbox("Catégories Mixtes (U9/U11 ensemble)", value=True)
         poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
         separer_clubs = st.checkbox("Éviter les lutteurs d'un même club dans la même poule (dans la mesure du possible)", value=True)
+        eviter_arbitre_meme_club = st.checkbox("Éviter les matchs entre arbitres et lutteurs du même club", value=True)
         meme_tapis_poule = st.checkbox("Maintenir chaque poule / lutteur sur un même tapis", value=True)
         tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=10, max_value=15, value=10, step=1)
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
@@ -1229,15 +1230,18 @@ else:
                 c2_clean = str(c2_club).strip().lower()
                 ignored_clubs = ['', '-', 'indépendant', 'independant', 'none', 'nan']
                 
-                sans_conflit = []
-                for arb in cand_list:
-                    arb_club_clean = str(arb.get('Club', '')).strip().lower()
-                    if arb_club_clean in ignored_clubs:
-                        sans_conflit.append(arb)
-                    elif arb_club_clean != c1_clean and arb_club_clean != c2_clean:
-                        sans_conflit.append(arb)
+                if eviter_arbitre_meme_club:
+                    sans_conflit = []
+                    for arb in cand_list:
+                        arb_club_clean = str(arb.get('Club', '')).strip().lower()
+                        if arb_club_clean in ignored_clubs:
+                            sans_conflit.append(arb)
+                        elif arb_club_clean != c1_clean and arb_club_clean != c2_clean:
+                            sans_conflit.append(arb)
+                    pool_choix = sans_conflit if sans_conflit else cand_list
+                else:
+                    pool_choix = cand_list
                         
-                pool_choix = sans_conflit if sans_conflit else cand_list
                 arb_choisi = min(pool_choix, key=lambda a: ref_usage_count.get(a['Nom_Complet'], 0))
                 
                 ref_usage_count[arb_choisi['Nom_Complet']] = ref_usage_count.get(arb_choisi['Nom_Complet'], 0) + 1
