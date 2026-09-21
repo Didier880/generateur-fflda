@@ -36,6 +36,7 @@ with st.sidebar:
         mixte_active = st.checkbox("Catégories Mixtes (U9/U11 ensemble)", value=True)
         poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
         separer_clubs = st.checkbox("Éviter les lutteurs d'un même club dans la même poule (dans la mesure du possible)", value=True)
+        meme_tapis_poule = st.checkbox("Maintenir chaque poule / lutteur sur un même tapis", value=True)
         tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=10, max_value=15, value=10, step=1)
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
@@ -1070,92 +1071,168 @@ else:
             dt_debut_u9 = dt_pesee_u9 + timedelta(minutes=duree_pesee)
             total_matchs_calcules = 0
 
-            def ordonnancer_phase(poules_phase, heure_debut_phase, duree_combat):
+            def ordonnancer_phase(poules_phase, heure_debut_phase, duree_combat, meme_tapis=True):
                 global total_matchs_calcules
                 if not poules_phase:
                     return [heure_debut_phase for _ in range(nb_tapis)], {t: [] for t in range(nb_tapis)}
                 
-                # Récupération de tous les matchs ordonnés par tour
-                matchs_a_jouer = []
-                max_rondes = max((len(p['rondes']) for p in poules_phase), default=0)
-                for r in range(max_rondes):
-                    for p in poules_phase:
-                        if r < len(p['rondes']):
-                            for m in p['rondes'][r]:
-                                matchs_a_jouer.append({
-                                    'poule': p['nom'],
-                                    'p1': m[0]['Nom'],
-                                    'p2': m[1]['Nom'],
-                                    'tour': r + 1
-                                })
-                
+                planning = {t: [] for t in range(nb_tapis)}
                 tapis_heure = [heure_debut_phase for _ in range(nb_tapis)]
                 last_match_time = {}
-                planning = {t: [] for t in range(nb_tapis)}
-                
-                while matchs_a_jouer:
-                    # Trouver le tapis qui se libère le plus tôt
-                    t_min_idx = min(range(nb_tapis), key=lambda t: tapis_heure[t])
-                    t_min_time = tapis_heure[t_min_idx]
+
+                if meme_tapis:
+                    # Chaque poule (et ses lutteurs) reste affectée à un tapis fixe
+                    tapis_poules = {t: [] for t in range(nb_tapis)}
+                    for idx, p in enumerate(poules_phase):
+                        tapis_poules[idx % nb_tapis].append(p)
+
+                    for t in range(nb_tapis):
+                        poules_t = tapis_poules[t]
+                        if not poules_t:
+                            continue
+                        
+                        matchs_tapis = []
+                        max_rondes = max((len(p['rondes']) for p in poules_t), default=0)
+                        for r in range(max_rondes):
+                            for p in poules_t:
+                                if r < len(p['rondes']):
+                                    for m in p['rondes'][r]:
+                                        matchs_tapis.append({
+                                            'poule': p['nom'],
+                                            'p1': m[0]['Nom'],
+                                            'p2': m[1]['Nom'],
+                                            'tour': r + 1
+                                        })
+
+                        while matchs_tapis:
+                            t_curr_time = tapis_heure[t]
+                            
+                            match_choisi_idx = None
+                            for idx, m in enumerate(matchs_tapis):
+                                p1, p2 = m['p1'], m['p2']
+                                t_pret_p1 = last_match_time.get(p1, heure_debut_phase)
+                                t_pret_p2 = last_match_time.get(p2, heure_debut_phase)
+                                if t_pret_p1 <= t_curr_time and t_pret_p2 <= t_curr_time:
+                                    match_choisi_idx = idx
+                                    break
+                            
+                            if match_choisi_idx is not None:
+                                m = matchs_tapis.pop(match_choisi_idx)
+                                heure_debut_match = t_curr_time
+                            else:
+                                meilleur_idx = 0
+                                meilleur_temps = datetime.max
+                                for idx, m in enumerate(matchs_tapis):
+                                    p1, p2 = m['p1'], m['p2']
+                                    t_pret = max(last_match_time.get(p1, heure_debut_phase), last_match_time.get(p2, heure_debut_phase))
+                                    if t_pret < meilleur_temps:
+                                        meilleur_temps = t_pret
+                                        meilleur_idx = idx
+                                
+                                m = matchs_tapis.pop(meilleur_idx)
+                                heure_debut_match = max(t_curr_time, meilleur_temps)
+                                
+                                if heure_debut_match > t_curr_time:
+                                    attente_min = int((heure_debut_match - t_curr_time).total_seconds() // 60)
+                                    if attente_min > 0:
+                                        planning[t].append({
+                                            "Type": "ATTENTE", 
+                                            "Heure": t_curr_time.strftime("%H:%M"), 
+                                            "Texte": f"⏳ Repos ({attente_min} min)"
+                                        })
+
+                            planning[t].append({
+                                "Type": "MATCH",
+                                "Heure": heure_debut_match.strftime("%H:%M"),
+                                "Duree": duree_combat,
+                                "Cat": m['poule'],
+                                "Combattant 1": m['p1'],
+                                "Combattant 2": m['p2']
+                            })
+                            
+                            total_matchs_calcules += 1
+                            fin_match = heure_debut_match + timedelta(minutes=duree_combat)
+                            delai_repos = timedelta(minutes=(repos_matchs * duree_combat))
+                            
+                            last_match_time[m['p1']] = fin_match + delai_repos
+                            last_match_time[m['p2']] = fin_match + delai_repos
+                            
+                            tapis_heure[t] = fin_match
+                else:
+                    # Répartition dynamique sur le premier tapis disponible
+                    matchs_a_jouer = []
+                    max_rondes = max((len(p['rondes']) for p in poules_phase), default=0)
+                    for r in range(max_rondes):
+                        for p in poules_phase:
+                            if r < len(p['rondes']):
+                                for m in p['rondes'][r]:
+                                    matchs_a_jouer.append({
+                                        'poule': p['nom'],
+                                        'p1': m[0]['Nom'],
+                                        'p2': m[1]['Nom'],
+                                        'tour': r + 1
+                                    })
                     
-                    # Chercher un match d'une catégorie quelconque prêt à t_min_time
-                    match_choisi_idx = None
-                    for idx, m in enumerate(matchs_a_jouer):
-                        p1, p2 = m['p1'], m['p2']
-                        t_pret_p1 = last_match_time.get(p1, heure_debut_phase)
-                        t_pret_p2 = last_match_time.get(p2, heure_debut_phase)
-                        if t_pret_p1 <= t_min_time and t_pret_p2 <= t_min_time:
-                            match_choisi_idx = idx
-                            break
-                    
-                    if match_choisi_idx is not None:
-                        m = matchs_a_jouer.pop(match_choisi_idx)
-                        heure_debut_match = t_min_time
-                    else:
-                        # Si aucun match n'est immédiatement prêt, prendre le match prêt le plus tôt
-                        meilleur_idx = 0
-                        meilleur_temps = datetime.max
+                    while matchs_a_jouer:
+                        t_min_idx = min(range(nb_tapis), key=lambda t: tapis_heure[t])
+                        t_min_time = tapis_heure[t_min_idx]
+                        
+                        match_choisi_idx = None
                         for idx, m in enumerate(matchs_a_jouer):
                             p1, p2 = m['p1'], m['p2']
-                            t_pret = max(last_match_time.get(p1, heure_debut_phase), last_match_time.get(p2, heure_debut_phase))
-                            if t_pret < meilleur_temps:
-                                meilleur_temps = t_pret
-                                meilleur_idx = idx
+                            t_pret_p1 = last_match_time.get(p1, heure_debut_phase)
+                            t_pret_p2 = last_match_time.get(p2, heure_debut_phase)
+                            if t_pret_p1 <= t_min_time and t_pret_p2 <= t_min_time:
+                                match_choisi_idx = idx
+                                break
                         
-                        m = matchs_a_jouer.pop(meilleur_idx)
-                        heure_debut_match = max(t_min_time, meilleur_temps)
-                        
-                        if heure_debut_match > t_min_time:
-                            attente_min = int((heure_debut_match - t_min_time).total_seconds() // 60)
-                            if attente_min > 0:
-                                planning[t_min_idx].append({
-                                    "Type": "ATTENTE", 
-                                    "Heure": t_min_time.strftime("%H:%M"), 
-                                    "Texte": f"⏳ Repos ({attente_min} min)"
-                                })
+                        if match_choisi_idx is not None:
+                            m = matchs_a_jouer.pop(match_choisi_idx)
+                            heure_debut_match = t_min_time
+                        else:
+                            meilleur_idx = 0
+                            meilleur_temps = datetime.max
+                            for idx, m in enumerate(matchs_a_jouer):
+                                p1, p2 = m['p1'], m['p2']
+                                t_pret = max(last_match_time.get(p1, heure_debut_phase), last_match_time.get(p2, heure_debut_phase))
+                                if t_pret < meilleur_temps:
+                                    meilleur_temps = t_pret
+                                    meilleur_idx = idx
+                            
+                            m = matchs_a_jouer.pop(meilleur_idx)
+                            heure_debut_match = max(t_min_time, meilleur_temps)
+                            
+                            if heure_debut_match > t_min_time:
+                                attente_min = int((heure_debut_match - t_min_time).total_seconds() // 60)
+                                if attente_min > 0:
+                                    planning[t_min_idx].append({
+                                        "Type": "ATTENTE", 
+                                        "Heure": t_min_time.strftime("%H:%M"), 
+                                        "Texte": f"⏳ Repos ({attente_min} min)"
+                                    })
 
-                    planning[t_min_idx].append({
-                        "Type": "MATCH",
-                        "Heure": heure_debut_match.strftime("%H:%M"),
-                        "Duree": duree_combat,
-                        "Cat": m['poule'],
-                        "Combattant 1": m['p1'],
-                        "Combattant 2": m['p2']
-                    })
-                    
-                    total_matchs_calcules += 1
-                    fin_match = heure_debut_match + timedelta(minutes=duree_combat)
-                    delai_repos = timedelta(minutes=(repos_matchs * duree_combat))
-                    
-                    last_match_time[m['p1']] = fin_match + delai_repos
-                    last_match_time[m['p2']] = fin_match + delai_repos
-                    
-                    tapis_heure[t_min_idx] = fin_match
+                        planning[t_min_idx].append({
+                            "Type": "MATCH",
+                            "Heure": heure_debut_match.strftime("%H:%M"),
+                            "Duree": duree_combat,
+                            "Cat": m['poule'],
+                            "Combattant 1": m['p1'],
+                            "Combattant 2": m['p2']
+                        })
+                        
+                        total_matchs_calcules += 1
+                        fin_match = heure_debut_match + timedelta(minutes=duree_combat)
+                        delai_repos = timedelta(minutes=(repos_matchs * duree_combat))
+                        
+                        last_match_time[m['p1']] = fin_match + delai_repos
+                        last_match_time[m['p2']] = fin_match + delai_repos
+                        
+                        tapis_heure[t_min_idx] = fin_match
 
                 return tapis_heure, planning
 
             # PHASE 1 : Tous les U9
-            tapis_heure_u9, planning_u9 = ordonnancer_phase(poules_u9, dt_debut_u9, duree_u9)
+            tapis_heure_u9, planning_u9 = ordonnancer_phase(poules_u9, dt_debut_u9, duree_u9, meme_tapis_poule)
             fin_u9_globale = max(tapis_heure_u9) if poules_u9 else dt_debut_u9
 
             # PAUSE / PESÉE U11
@@ -1196,7 +1273,7 @@ else:
 
             # PHASE 2 : Tous les U11
             if poules_u11:
-                tapis_heure_u11, planning_u11 = ordonnancer_phase(poules_u11, debut_u11_reel, duree_u11)
+                tapis_heure_u11, planning_u11 = ordonnancer_phase(poules_u11, debut_u11_reel, duree_u11, meme_tapis_poule)
                 planning_tapis = {t: planning_u9[t] + planning_u11[t] for t in range(nb_tapis)}
                 fin_estimee = max(tapis_heure_u11)
             else:
