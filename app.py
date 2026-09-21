@@ -996,6 +996,18 @@ else:
 
             if "Catégorie d'âge" in df_raw.columns: df_raw = df_raw.rename(columns={"Catégorie d'âge": "Age"})
             if "Sigle du Club" in df_raw.columns: df_raw = df_raw.rename(columns={"Sigle du Club": "Club"})
+            
+            licence_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip().lower()
+                if any(k in col_str for k in ["licence", "n° licence", "num_licence", "n°licence"]):
+                    licence_col_found = col_name
+                    break
+            if licence_col_found:
+                df_raw = df_raw.rename(columns={licence_col_found: "Licence"})
+            elif "Licence" not in df_raw.columns:
+                df_raw["Licence"] = ""
+
             comite_col_found = None
             for col_name in df_raw.columns:
                 col_str = str(col_name).strip()
@@ -1056,6 +1068,25 @@ else:
             df_inscr_total['Poids_Clean'] = df_inscr_total['Poids'].astype(str).str.replace(',', '.')
             df_inscr_total['Poids_Num'] = pd.to_numeric(df_inscr_total['Poids_Clean'], errors='coerce').fillna(0)
             df_inscr_total['Poids'] = df_inscr_total['Poids_Num'].apply(formater_poids)
+
+            # --- DÉTECTION ET VALIDATION DES LICENCES MANQUANTES ---
+            erreurs_licence = []
+            for _, row_test in df_inscr_total.iterrows():
+                nom_raw = str(row_test.get('Nom', '')).strip()
+                if not nom_raw or nom_raw.lower() in ['nan', 'nan nan', 'none', '']:
+                    continue
+                
+                club_lutteur = str(row_test.get('Club', '')).strip()
+                lic_val = str(row_test.get('Licence', '')).strip().lower()
+                
+                if lic_val in ['', 'nan', 'none', 'null', '-', '0', 'unspecified', 'inconnu'] or pd.isna(row_test.get('Licence')):
+                    club_txt = f" ({club_lutteur})" if club_lutteur and club_lutteur.lower() not in ['nan', 'none', '-'] else ""
+                    erreurs_licence.append(f"• **{nom_raw}**{club_txt} : Le numéro de licence n'est pas renseigné.")
+
+            if erreurs_licence:
+                st.error("❌ **Erreur d'importation dans le fichier de base (Licences manquantes) :**\n\n" + "\n".join(erreurs_licence))
+                st.info("💡 *Remarque : Tous les lutteurs enregistrés dans le fichier de base doivent posséder un numéro de licence valide avant de générer la compétition.*")
+                st.stop()
 
             # --- DÉTECTION ET VALIDATION DU STYLE "JEUNE" ---
             erreurs_jeune = []
