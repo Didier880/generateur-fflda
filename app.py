@@ -436,7 +436,7 @@ def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
 def generer_document_html_imprimable(titre, nom_comp, sections):
     """
     Génère un document HTML 100% autonome prêt pour l'impression A4 Paysage.
-    Toutes les tables possèdent page-break-inside: avoid pour ne jamais se couper.
+    Chaque section / onglet occupe sa propre page (page-break-after: always) et les tables ne sont jamais coupées.
     """
     html_sections = []
     for section_title, content in sections:
@@ -489,12 +489,17 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
             font-size: 13px;
         }}
         .block-table {{
+            page-break-after: always !important;
+            break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
-            break-inside: avoid !important;
             margin-bottom: 30px;
             width: 100%;
             clear: both;
+        }}
+        .block-table:last-child {{
+            page-break-after: auto !important;
+            break-after: auto !important;
         }}
         .block-title {{
             background-color: #0055A4;
@@ -571,6 +576,126 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
 </body>
 </html>"""
     return html_doc
+
+# --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS (REPORTLAB - A4 PAYSAGE - 1 PAGE PAR ONGLET) ---
+def generer_pdf_tournoi_complet(titre, nom_comp, sections):
+    """
+    Génère un fichier PDF vectoriel (A4 Paysage) prêt à imprimer et télécharger.
+    Chaque onglet / section commence sur une nouvelle page (PageBreak) et aucun tableau n'est coupé.
+    """
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=landscape(A4), 
+        rightMargin=20, 
+        leftMargin=20, 
+        topMargin=20, 
+        bottomMargin=20
+    )
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'PDFTitle', 
+        parent=styles['Heading1'], 
+        fontName='Helvetica-Bold', 
+        fontSize=16, 
+        textColor=colors.HexColor('#0055A4'), 
+        alignment=1,
+        spaceAfter=6
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'PDFSubtitle', 
+        parent=styles['Normal'], 
+        fontName='Helvetica', 
+        fontSize=10, 
+        textColor=colors.HexColor('#555555'), 
+        alignment=1,
+        spaceAfter=12
+    )
+
+    sec_banner_style = ParagraphStyle(
+        'SecBanner', 
+        parent=styles['Heading2'], 
+        fontName='Helvetica-Bold', 
+        fontSize=12, 
+        textColor=colors.white, 
+        backColor=colors.HexColor('#0055A4'), 
+        borderPadding=6,
+        spaceAfter=10,
+        alignment=0
+    )
+    
+    cell_head_style = ParagraphStyle(
+        'CellHead', 
+        parent=styles['Normal'], 
+        fontName='Helvetica-Bold', 
+        fontSize=9, 
+        textColor=colors.white, 
+        alignment=1
+    )
+    
+    cell_body_style = ParagraphStyle(
+        'CellBody', 
+        parent=styles['Normal'], 
+        fontName='Helvetica', 
+        fontSize=8, 
+        textColor=colors.black, 
+        alignment=1
+    )
+
+    story = []
+    page_width = landscape(A4)[0] - 40  # 841.89 - 40 = 801.89 pt
+
+    for idx, (sec_title, content) in enumerate(sections):
+        if idx > 0:
+            story.append(PageBreak())
+        
+        story.append(Paragraph(f"🏆 {nom_comp.upper()}", title_style))
+        story.append(Paragraph(f"<b>{titre}</b> — Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}", subtitle_style))
+        story.append(Paragraph(f"<b>{sec_title}</b>", sec_banner_style))
+        story.append(Spacer(1, 8))
+        
+        if isinstance(content, pd.DataFrame):
+            df = content
+            if df.empty:
+                continue
+            
+            headers = [Paragraph(str(col), cell_head_style) for col in df.columns]
+            data = [headers]
+            
+            for _, row in df.iterrows():
+                r_cells = []
+                for val in row:
+                    txt = str(val).replace('\n', '<br/>') if pd.notna(val) else ''
+                    r_cells.append(Paragraph(txt, cell_body_style))
+                data.append(r_cells)
+            
+            nb_cols = len(df.columns)
+            col_w = page_width / nb_cols if nb_cols > 0 else page_width
+            col_widths = [col_w] * nb_cols
+            
+            t = Table(data, colWidths=col_widths, repeatRows=1)
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EF4135')),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ]))
+            story.append(KeepTogether(t))
+        else:
+            story.append(Paragraph(str(content), cell_body_style))
+
+    doc.build(story)
+    return buffer.getvalue()
 
 # --- STYLES D'IMPRESSION DIRECTE (CSS @media print) ---
 st.markdown("""
@@ -1530,6 +1655,22 @@ else:
                 sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
                 
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+            pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+
+            st.markdown("### 📄 Impression & Exportations PDF (1 Page par Onglet / Section)")
+            col_pdf_top, col_html_top = st.columns([1, 1])
+            with col_pdf_top:
+                st.download_button(
+                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage - 1 page par onglet)",
+                    data=pdf_bytes_tournoi_complet,
+                    file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key="btn_pdf_top"
+                )
+            with col_html_top:
+                bouton_imprimer(html_tournoi_complet, filename="Dossier_Tournoi_Impression.html", label="🖨️ Imprimer la Version Web Paysage A4 (1 page par onglet)", key="btn_html_top")
+
+            st.markdown("---")
 
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
             noms_onglets = ["📊 Résumé & Stats", "📅 Grille de Passage", "🛡️ Équipes d'Arbitrage"] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
@@ -1563,7 +1704,19 @@ else:
                             arb_list_txt = "\n".join([f"• **{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "• Aucun"
                             st.info(f"**Tapis {t+1}** ({len(tapis_arbitres[t])} arbitres) :\n\n{arb_list_txt}")
                 st.table(pd.DataFrame(grille_ui))
-                bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer / Télécharger la Grille (HTML Paysage A4)", key="btn_t1")
+                
+                col_p1, col_h1 = st.columns(2)
+                with col_p1:
+                    pdf_grille_bytes = generer_pdf_tournoi_complet("Grille de Passage Officielle", nom_competition, [("📅 Grille de Passage - Tapis", pd.DataFrame(grille_ui))])
+                    st.download_button(
+                        label="📄 Télécharger la Grille en PDF (A4 Paysage)",
+                        data=pdf_grille_bytes,
+                        file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
+                        mime="application/pdf",
+                        key="btn_pdf_grille"
+                    )
+                with col_h1:
+                    bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer la Grille (HTML A4)", key="btn_t1")
 
             with onglets_ui[2]:
                 st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
