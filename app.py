@@ -21,7 +21,7 @@ with st.sidebar:
             st.image("logo_fflda.png", use_container_width=True)
         else:
             st.image("https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png", use_container_width=True)
-    st.markdown("### Paramètres FFLDA")
+    st.markdown("### Paramètres du tournoi")
     st.markdown("---")
     
     # --- NOM DE LA COMPÉTITION ---
