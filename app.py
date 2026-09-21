@@ -14,7 +14,11 @@ st.set_page_config(page_title="Générateur Officiel FFLDA", page_icon="🤼", l
 
 # --- MENU LATÉRAL (PARAMÈTRES INTERACTIFS) ---
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/1200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png", use_container_width=True)
+    import os
+    if os.path.exists("logo_fflda.png"):
+        st.image("logo_fflda.png", use_container_width=True)
+    else:
+        st.image("https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png", use_container_width=True)
     st.markdown("### Paramètres FFLDA")
     st.markdown("---")
     
@@ -1650,11 +1654,14 @@ else:
                 
                 try:
                     from openpyxl.drawing.image import Image as OpenpyxlImage
-                    url_logo = "https://upload.wikimedia.org/wikipedia/fr/thumb/5/58/Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg/200px-Logo_F%C3%A9d%C3%A9ration_Fran%C3%A7aise_de_Lutte.svg.png"
-                    req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
-                    with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
-                    img = OpenpyxlImage(img_data)
-                    img.height, img.width = 70, 70
+                    if os.path.exists("logo_fflda.png"):
+                        img = OpenpyxlImage("logo_fflda.png")
+                    else:
+                        url_logo = "https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png"
+                        req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
+                        img = OpenpyxlImage(img_data)
+                    img.height, img.width = 60, 72
                     ws_grille.add_image(img, 'A1')
                 except Exception: pass 
 
