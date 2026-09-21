@@ -1999,15 +1999,6 @@ else:
                             box_ptb = ws_mat.cell(row=r_curr, column=9)
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
-
-                            # Enregistrement des coordonnées des cases Pt Clt sur la Grille Tapis X
-                            coords_matchs_tapis[(item['Cat'], item['Combattant 1'], item['Combattant 2'])] = {
-                                'sheet': f"Grille Tapis {t + 1}",
-                                'ptr_cell': f"E{r_curr}",
-                                'ptb_cell': f"I{r_curr}",
-                                'p1': item['Combattant 1'],
-                                'p2': item['Combattant 2']
-                            }
                             
                             r_curr += 1
                             
@@ -2035,6 +2026,19 @@ else:
                             ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
                             
                             ws_mat.cell(row=r_curr, column=9).border = b_style
+
+                            # Enregistrement des coordonnées des cases Pt Clt, Actions et Total Score sur la Grille Tapis X
+                            coords_matchs_tapis[(item['Cat'], item['Combattant 1'], item['Combattant 2'])] = {
+                                'sheet': f"Grille Tapis {t + 1}",
+                                'ptr_cell': f"E{r_curr - 2}",
+                                'ptb_cell': f"I{r_curr - 2}",
+                                'act_r_cell': f"C{r_curr}",
+                                'tot_r_cell': f"E{r_curr}",
+                                'act_b_cell': f"G{r_curr}",
+                                'tot_b_cell': f"I{r_curr}",
+                                'p1': item['Combattant 1'],
+                                'p2': item['Combattant 2']
+                            }
                             
                             r_curr += 2 
                 
@@ -2272,20 +2276,6 @@ else:
                             box_ptb = ws_poule.cell(row=row_cursor, column=9)
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
-                            
-                            # Recherche de la correspondance exacte du match sur l'onglet Grille Tapis X
-                            m_info = coords_matchs_tapis.get((nom_poule, p1['Nom'], p2['Nom']))
-                            if not m_info:
-                                m_info = coords_matchs_tapis.get((nom_poule, p2['Nom'], p1['Nom']))
-
-                            if m_info:
-                                sheet_name = m_info['sheet']
-                                if p1['Nom'] == m_info['p1']:
-                                    box_ptr.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
-                                    box_ptb.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
-                                else:
-                                    box_ptr.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
-                                    box_ptb.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
 
                             if p1['Nom'] in lignes_lutteurs:
                                 lig_haut_p1 = lignes_lutteurs[p1['Nom']]
