@@ -646,6 +646,16 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
         alignment=1
     )
 
+    def nettoyer_txt_reportlab(val):
+        if pd.isna(val):
+            return ""
+        txt = str(val)
+        txt = re.sub(r':red\[(.*?)\]', r'<font color="#E53935"><b>\1</b></font>', txt)
+        txt = re.sub(r'<span\s+style=[\'"][^\'"]*color:\s*(#[a-fA-F0-9]{3,6}|red)[^\'"]*[\'"]>(.*?)</span>', r'<font color="#E53935"><b>\2</b></font>', txt, flags=re.IGNORECASE)
+        txt = re.sub(r'</?span[^>]*>', '', txt, flags=re.IGNORECASE)
+        txt = txt.replace('\n', '<br/>')
+        return txt
+
     story = []
     page_width = landscape(A4)[0] - 40  # 841.89 - 40 = 801.89 pt
 
@@ -655,7 +665,7 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
         
         story.append(Paragraph(f"🏆 {nom_comp.upper()}", title_style))
         story.append(Paragraph(f"<b>{titre}</b> — Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}", subtitle_style))
-        story.append(Paragraph(f"<b>{sec_title}</b>", sec_banner_style))
+        story.append(Paragraph(f"<b>{nettoyer_txt_reportlab(sec_title)}</b>", sec_banner_style))
         story.append(Spacer(1, 8))
         
         if isinstance(content, pd.DataFrame):
@@ -663,14 +673,13 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
             if df.empty:
                 continue
             
-            headers = [Paragraph(str(col), cell_head_style) for col in df.columns]
+            headers = [Paragraph(nettoyer_txt_reportlab(col), cell_head_style) for col in df.columns]
             data = [headers]
             
             for _, row in df.iterrows():
                 r_cells = []
                 for val in row:
-                    txt = str(val).replace('\n', '<br/>') if pd.notna(val) else ''
-                    r_cells.append(Paragraph(txt, cell_body_style))
+                    r_cells.append(Paragraph(nettoyer_txt_reportlab(val), cell_body_style))
                 data.append(r_cells)
             
             nb_cols = len(df.columns)
@@ -689,7 +698,7 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
             ]))
             story.append(KeepTogether(t))
         else:
-            story.append(Paragraph(str(content), cell_body_style))
+            story.append(Paragraph(nettoyer_txt_reportlab(content), cell_body_style))
 
     doc.build(story)
     return buffer.getvalue()
@@ -1696,12 +1705,12 @@ else:
                         lignes_tapis_doc.append({
                             "N°": f"M{m_count_doc}",
                             "Heure": f"{m['Heure']}",
-                            "Catégorie": f"<span style='color: #E53935; font-weight: bold;'>{m['Cat']}</span>",
-                            "Lutteur Rouge": f"<span style='color: #E53935; font-weight: bold;'>{c1_t}</span>",
+                            "Catégorie": f'<font color="#E53935"><b>{m["Cat"]}</b></font>',
+                            "Lutteur Rouge": f'<font color="#E53935"><b>{c1_t}</b></font>',
                             "Pt Clt (R)": "[   ]",
-                            "Lutteur Bleu": f"<span style='color: #E53935; font-weight: bold;'>{c2_t}</span>",
+                            "Lutteur Bleu": f'<font color="#E53935"><b>{c2_t}</b></font>',
                             "Pt Clt (B)": "[   ]",
-                            "Arbitre": f"<span style='color: #E53935; font-weight: bold;'>{m.get('Arbitre', '')}</span>"
+                            "Arbitre": f'<font color="#E53935"><b>{m.get("Arbitre", "")}</b></font>'
                         })
                 sections_tournoi_complet.append((f"🥋 Grille de Passage & Scores - Tapis {t + 1}", pd.DataFrame(lignes_tapis_doc)))
 
