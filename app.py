@@ -1671,8 +1671,8 @@ else:
                         elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
                         elif m["Type"] == "VIDE": ligne[col] = ""
                         else:
-                            arb_str = f" (🛡️ {m['Arbitre']})" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}{arb_str}"
+                            arb_str = f" (🛡️ :red[{m['Arbitre']}])" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
+                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [:red[{m['Cat']}]] - :red[{m['Combattant 1']}] vs :red[{m['Combattant 2']}]{arb_str}"
                     else: ligne[col] = ""
                 grille_ui.append(ligne)
             
@@ -1696,12 +1696,12 @@ else:
                         lignes_tapis_doc.append({
                             "N°": f"M{m_count_doc}",
                             "Heure": f"{m['Heure']}",
-                            "Catégorie": m['Cat'],
-                            "Lutteur Rouge": c1_t,
+                            "Catégorie": f"<span style='color: #E53935; font-weight: bold;'>{m['Cat']}</span>",
+                            "Lutteur Rouge": f"<span style='color: #E53935; font-weight: bold;'>{c1_t}</span>",
                             "Pt Clt (R)": "[   ]",
-                            "Lutteur Bleu": c2_t,
+                            "Lutteur Bleu": f"<span style='color: #E53935; font-weight: bold;'>{c2_t}</span>",
                             "Pt Clt (B)": "[   ]",
-                            "Arbitre": m.get("Arbitre", "")
+                            "Arbitre": f"<span style='color: #E53935; font-weight: bold;'>{m.get('Arbitre', '')}</span>"
                         })
                 sections_tournoi_complet.append((f"🥋 Grille de Passage & Scores - Tapis {t + 1}", pd.DataFrame(lignes_tapis_doc)))
 
@@ -1807,8 +1807,8 @@ else:
                             st.info(f"[{m['Heure']}] {m['Texte']}")
                         elif m["Type"] == "MATCH":
                             m_count_st += 1
-                            arb_info_st = f" | 🛡️ Arbitre : {m['Arbitre']}" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Catégorie : `{m['Cat']}`{arb_info_st}")
+                            arb_info_st = f" | 🛡️ Arbitre : :red[{m['Arbitre']}]" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
+                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Poule : :red[{m['Cat']}]{arb_info_st}")
                             
                             c1_cl = f" ({m.get('Club 1', '')})" if m.get('Club 1') else ""
                             c1_co = f" - {m.get('Comité 1', '')}" if (m.get('Comité 1') and m.get('Comité 1') != 'Comité Non Renseigné') else ""
@@ -1818,12 +1818,12 @@ else:
                             df_m_ui = pd.DataFrame([
                                 {
                                     "N°": m_count_st,
-                                    "LUTTEUR ROUGE": f"🔴 {m['Combattant 1']}{c1_cl}{c1_co}",
+                                    "LUTTEUR ROUGE": f"🔴 :red[{m['Combattant 1']}]{c1_cl}{c1_co}",
                                     "Pt Clt (Rouge)": "[   ]",
                                     "Points Techniques (Actions Rouge)": "[                                 ]",
                                     "Total Score (Rouge)": "[   ]",
                                     "VS": "VS",
-                                    "LUTTEUR BLEU": f"🔵 {m['Combattant 2']}{c2_cl}{c2_co}",
+                                    "LUTTEUR BLEU": f"🔵 :red[{m['Combattant 2']}]{c2_cl}{c2_co}",
                                     "Pt Clt (Bleu)": "[   ]",
                                     "Points Techniques (Actions Bleu)": "[                                 ]",
                                     "Total Score (Bleu)": "[   ]"
@@ -1941,7 +1941,7 @@ else:
                             arb_txt = f" | 🛡️ Arbitre : {item['Arbitre']}" if item.get('Arbitre') and item['Arbitre'] != "Non attribué" else ""
                             hdr_text = f"MATCH N° {m_count_t}  |  🕘 {item['Heure']} ({item['Duree']} min)  |  Catégorie : {item['Cat']}{arb_txt}"
                             h_cell = ws_mat.cell(row=r_curr, column=1, value=hdr_text)
-                            h_cell.fill, h_cell.font, h_cell.alignment = bleu, Font(bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
+                            h_cell.fill, h_cell.font, h_cell.alignment, h_cell.border = gris_clair, Font(bold=True, color="E53935", size=11), Alignment(horizontal="center", vertical="center"), b_style
                             ws_mat.row_dimensions[r_curr].height = 22
                             r_curr += 1
 
@@ -1977,6 +1977,7 @@ else:
                             
                             c_r_info = ws_mat.cell(row=r_curr, column=3, value=c1_str)
                             c_r_info.border = b_style
+                            c_r_info.font = Font(bold=True, color="E53935", size=11)
                             c_r_info.alignment = Alignment(vertical="center")
                             ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
                             ws_mat.cell(row=r_curr, column=4).border = b_style
@@ -1996,6 +1997,7 @@ else:
                             
                             c_b_info = ws_mat.cell(row=r_curr, column=7, value=c2_str)
                             c_b_info.border = b_style
+                            c_b_info.font = Font(bold=True, color="E53935", size=11)
                             c_b_info.alignment = Alignment(vertical="center")
                             ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
                             ws_mat.cell(row=r_curr, column=8).border = b_style
@@ -2116,7 +2118,7 @@ else:
                             elif any(k in str(cell.value) for k in ["Attente", "Pesée", "échauffement", "Repos"]): cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
                             else:
                                 cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
-                                cell.font = Font(size=12)
+                                cell.font = Font(bold=True, color="E53935", size=11)
 
                 df_excel_arb = None
                 if liste_arbitres:
