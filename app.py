@@ -1333,12 +1333,12 @@ else:
                     if separer_clubs:
                         poules_groupe = optimiser_poules_clubs(poules_groupe, multiplicateur_poids)
                     
-                    # Formater et numéroter en CONTINU par catégorie d'âge (ex: Gr. 1 à Gr. 14)
+                    # Formater et numéroter en CONTINU par catégorie d'âge (ex: Poule 1 à Poule 14)
                     for p_obj in poules_groupe:
                         parts = p_obj['participants']
                         p_min = parts[0]['Poids_Num']
                         p_max = parts[-1]['Poids_Num']
-                        p_obj['nom'] = f"{age} | {style_grp}{suffixe_niveau} | Gr. {counter_gr} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
+                        p_obj['nom'] = f"{age} | {style_grp}{suffixe_niveau} | Poule {counter_gr} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
                         p_obj['rondes'] = generer_rondes_fflda(parts)
                         counter_gr += 1
                     
