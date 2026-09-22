@@ -118,9 +118,6 @@ def formater_poids_court(val):
 def abreger_nom_onglet(nom_poule):
     txt = str(nom_poule)
     txt = txt.replace("Mixte (LL/LF)", "Mxt").replace("LG (Gréco)", "LG").replace("LL (Libre)", "LL").replace("LF (Féminine)", "LF")
-    # Conserver les termes "Confirmé" et "Débutant" en entier
-    # Supprimer le terme Gr. / Groupe / Poule et le numéro qui suit s'ils sont présents
-    txt = re.sub(r'\b(Gr\.|Gr|Groupe|Poule)\s*\d+\b', '', txt, flags=re.IGNORECASE)
     txt = txt.replace(" | ", " ").replace(" (", " ").replace(")", "").replace(" - ", "-")
     txt = txt.replace("/", "-").replace("\\", "-").replace(":", "-").replace("?", "").replace("*", "")
     txt = re.sub(r'\s+', ' ', txt)
@@ -1302,7 +1299,7 @@ else:
             for age in ['U9', 'U11']:
                 df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num')
                 max_size = 4 if age == 'U9' else 5
-                index_poule = 1
+                counter_gr = 1  # Numérotation continue des groupes pour la catégorie d'âge (ex: Gr. 1 à 14)
                 
                 for (style_grp, niveau), groupe in df_age.groupby(['Style_Groupe', 'Niveau']):
                     participants = groupe.to_dict('records')
@@ -1321,13 +1318,11 @@ else:
                                 nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                                 poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                                 poules_groupe.append(poule_obj)
-                                index_poule += 1
                                 poule_courante = [p]
                     if poule_courante:
                         nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
                         poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
                         poules_groupe.append(poule_obj)
-                        index_poule += 1
                     
                     if separer_clubs:
                         poules_groupe = optimiser_poules_clubs(poules_groupe, multiplicateur_poids)
@@ -1338,13 +1333,14 @@ else:
                     if separer_clubs:
                         poules_groupe = optimiser_poules_clubs(poules_groupe, multiplicateur_poids)
                     
-                    # Formater et ré-indexer proprement les noms des poules finales
-                    for idx_p, p_obj in enumerate(poules_groupe, 1):
+                    # Formater et numéroter en CONTINU par catégorie d'âge (ex: Gr. 1 à Gr. 14)
+                    for p_obj in poules_groupe:
                         parts = p_obj['participants']
                         p_min = parts[0]['Poids_Num']
                         p_max = parts[-1]['Poids_Num']
-                        p_obj['nom'] = f"{age} | {style_grp}{suffixe_niveau} | Gr. {idx_p} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
+                        p_obj['nom'] = f"{age} | {style_grp}{suffixe_niveau} | Gr. {counter_gr} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
                         p_obj['rondes'] = generer_rondes_fflda(parts)
+                        counter_gr += 1
                     
                     if age == 'U9': poules_u9.extend(poules_groupe)
                     else: poules_u11.extend(poules_groupe)
