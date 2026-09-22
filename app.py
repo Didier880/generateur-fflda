@@ -6,7 +6,7 @@ import urllib.request
 import re
 import streamlit.components.v1 as components
 import openpyxl
-from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
+from openpyxl.styles import Alignment, PatternFill, Font, Border, Side, Protection
 from openpyxl.worksheet.pagebreak import Break
 
 # --- CONFIGURATION DE LA PAGE ---
@@ -1984,6 +1984,7 @@ else:
                             box_ptr = ws_mat.cell(row=r_curr, column=5)
                             box_ptr.border, box_ptr.fill = b_style, gris_clair
                             box_ptr.alignment = Alignment(horizontal="center", vertical="center")
+                            box_ptr.protection = Protection(locked=False)
                             
                             c_vs_mid = ws_mat.cell(row=r_curr, column=6, value="-")
                             c_vs_mid.alignment = Alignment(horizontal="center", vertical="center")
@@ -2002,6 +2003,7 @@ else:
                             box_ptb = ws_mat.cell(row=r_curr, column=9)
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
+                            box_ptb.protection = Protection(locked=False)
                             
                             r_curr += 1
                             
@@ -2018,17 +2020,27 @@ else:
                             ws_mat.row_dimensions[r_curr].height = 25
                             c_act_r = ws_mat.cell(row=r_curr, column=3)
                             c_act_r.border = b_style
-                            ws_mat.cell(row=r_curr, column=4).border = b_style
+                            c_act_r.protection = Protection(locked=False)
+                            c_act_r_2 = ws_mat.cell(row=r_curr, column=4)
+                            c_act_r_2.border = b_style
+                            c_act_r_2.protection = Protection(locked=False)
                             ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
                             
-                            ws_mat.cell(row=r_curr, column=5).border = b_style
+                            c_tot_r = ws_mat.cell(row=r_curr, column=5)
+                            c_tot_r.border = b_style
+                            c_tot_r.protection = Protection(locked=False)
                             
                             c_act_b = ws_mat.cell(row=r_curr, column=7)
                             c_act_b.border = b_style
-                            ws_mat.cell(row=r_curr, column=8).border = b_style
+                            c_act_b.protection = Protection(locked=False)
+                            c_act_b_2 = ws_mat.cell(row=r_curr, column=8)
+                            c_act_b_2.border = b_style
+                            c_act_b_2.protection = Protection(locked=False)
                             ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
                             
-                            ws_mat.cell(row=r_curr, column=9).border = b_style
+                            c_tot_b = ws_mat.cell(row=r_curr, column=9)
+                            c_tot_b.border = b_style
+                            c_tot_b.protection = Protection(locked=False)
 
                             # Enregistrement des coordonnées des cases Pt Clt, Actions et Total Score sur la Grille Tapis X
                             coords_matchs_tapis[(item['Cat'], item['Combattant 1'], item['Combattant 2'])] = {
@@ -2043,7 +2055,9 @@ else:
                                 'p2': item['Combattant 2']
                             }
                             
-                            r_curr += 2 
+                            r_curr += 2
+                    
+                    ws_mat.protection.sheet = True 
                 
                 for ws_name in writer.book.sheetnames:
                     ws_sheet = writer.book[ws_name]
@@ -2153,6 +2167,7 @@ else:
                 for nom_poule, liste_p in participants_par_poule.items():
                     nom_onglet_court = abreger_nom_onglet(nom_poule)
                     ws_poule = writer.book.create_sheet(nom_onglet_court)
+                    ws_poule.protection.sheet = True  # Verrouiller l'onglet de poule en lecture seule dans Excel
                     
                     ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
                     ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite (Calculés depuis les onglets Grille Tapis)").font = Font(italic=True, size=9)
