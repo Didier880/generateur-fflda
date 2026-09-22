@@ -1178,7 +1178,7 @@ else:
             maitrise_col_found = None
             for col_name in df_raw.columns:
                 col_str = str(col_name).strip().lower()
-                if "maîtrise" in col_str or "maitrise" in col_str:
+                if any(k in col_str for k in ["maîtrise", "maitrise", "niveau", "expéri", "experi", "niv"]):
                     maitrise_col_found = col_name
                     break
             if maitrise_col_found:
@@ -1197,9 +1197,11 @@ else:
 
             def attribuer_niveau(val):
                 val_str = str(val).strip().lower()
-                if val_str.startswith('c') or 'confirm' in val_str:
+                if not val_str or val_str in ['nan', 'none', '', '-']:
+                    return 'Débutant'
+                if any(k in val_str for k in ['confirm', 'expert', 'avanc', 'haut']) or val_str.startswith('c') or val_str in ['2', 'n2', 'niv 2', 'niveau 2']:
                     return 'Confirmé'
-                elif val_str.startswith('d') or 'début' in val_str or 'debut' in val_str:
+                elif any(k in val_str for k in ['début', 'debut', 'novice', 'initia']) or val_str.startswith('d') or val_str in ['1', 'n1', 'niv 1', 'niveau 1']:
                     return 'Débutant'
                 else:
                     return 'Débutant'
