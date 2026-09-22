@@ -1636,6 +1636,7 @@ else:
             lignes_accueil = [
                 {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+                {"Étape de la journée": "Poules U9 générées", "Horaire / Valeur": f"{len(poules_u9)} poules"},
                 {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
             ]
             if "2" in type_pesee and dt_pesee_u11:
@@ -1643,6 +1644,8 @@ else:
 
             lignes_accueil.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
+                {"Étape de la journée": "Poules U11 générées", "Horaire / Valeur": f"{len(poules_u11)} poules"},
+                {"Étape de la journée": "Total Poules (U9 + U11)", "Horaire / Valeur": f"{len(poules_u9) + len(poules_u11)} poules"},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')}
             ])
 
@@ -1734,11 +1737,13 @@ else:
                 st.subheader("📊 Résumé prévisionnel de la journée")
                 st.table(pd.DataFrame(lignes_accueil))
                 
-                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
                 col_m1.metric("Participants (pesés)", total_participants_peses)
                 col_m2.metric("Absents / Non pesés", total_non_peses)
-                col_m3.metric("Matchs générés", total_matchs_calcules)
-                col_m4.metric("Arbitres engagés", len(liste_arbitres))
+                col_m3.metric("Poules U9", len(poules_u9))
+                col_m4.metric("Poules U11", len(poules_u11))
+                col_m5.metric("Matchs générés", total_matchs_calcules)
+                col_m6.metric("Arbitres engagés", len(liste_arbitres))
 
                 if liste_arbitres:
                     st.markdown("#### 🛡️ Désignation des Équipes d'Arbitrage par Tapis")
