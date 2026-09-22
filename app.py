@@ -1167,7 +1167,7 @@ else:
             style_col_found = None
             for col_name in df_raw.columns:
                 col_str = str(col_name).strip().lower()
-                if any(k in col_str for k in ["style", "discipline"]):
+                if any(k in col_str for k in ["style", "discipline", "gréco", "greco", "gr/ll"]):
                     style_col_found = col_name
                     break
             if style_col_found:
@@ -1245,22 +1245,22 @@ else:
                 
                 if val_style_raw == 'jeune':
                     if poids_val > 0:
-                        erreurs_jeune.append(f"• **{nom_lutteur}** ({club_lutteur}) : Poids renseigné (**{poids_val} kg**) avec le style '**jeune**'. Le style doit être corrigé en LL, LF ou LG.")
+                        erreurs_jeune.append(f"• **{nom_lutteur}** ({club_lutteur}) : Poids renseigné (**{poids_val} kg**) avec le style '**jeune**'. Le style doit être corrigé en LL, LF, GR ou LG.")
 
             if erreurs_jeune:
                 st.error("❌ **Erreur d'importation dans le fichier :**\n\n" + "\n".join(erreurs_jeune))
-                st.info("💡 *Remarque : Le style 'jeune' ne peut pas être associé à un poids validé. Veuillez corriger les styles dans votre fichier Excel (LL, LF ou LG) avant de réimporter.*")
+                st.info("💡 *Remarque : Le style 'jeune' ne peut pas être associé à un poids validé. Veuillez corriger les styles dans votre fichier Excel (LL, LF, GR ou LG) avant de réimporter.*")
                 st.stop()
 
-            # Normalisation des styles (LL, LF, LG) et exclusion des "jeune" sans poids
+            # Normalisation des styles (LL, LF, LG / GR) et exclusion des "jeune" sans poids
             def normaliser_style(row_p):
                 st_str = str(row_p.get('Style', '')).strip().upper()
                 sexe_str = str(row_p.get('Sexe', '')).strip().upper()
-                if 'LG' in st_str or 'GRECO' in st_str or 'GRÉCO' in st_str:
+                if any(k in st_str for k in ['LG', 'GR', 'GRECO', 'GRÉCO', 'ROMAIN']) or st_str == 'G':
                     return 'LG'
-                elif 'LF' in st_str or 'FEM' in st_str or 'FÉM' in st_str or sexe_str == 'F':
+                elif any(k in st_str for k in ['LF', 'FEM', 'FÉM', 'FILLE']) or st_str == 'F' or sexe_str in ['F', 'FEMME', 'FILLE']:
                     return 'LF'
-                elif 'LL' in st_str or 'LIBRE' in st_str or sexe_str in ['M', 'H', 'G']:
+                elif any(k in st_str for k in ['LL', 'LIBRE', 'GARCON', 'GARÇON']) or st_str in ['M', 'H'] or sexe_str in ['M', 'H', 'GARCON', 'GARÇON']:
                     return 'LL'
                 else:
                     return 'LL'
