@@ -1014,7 +1014,25 @@ def draw_excel_podium_card(ws, start_row, start_col, title, subtitle, fill_bg, f
             ws.cell(row=r, column=col).border = b_style
 
 
-def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition):
+def link_tapis_slot(tapis_slots, cat, p_nom, ws_bracket, bracket_cell):
+    if not tapis_slots or not p_nom or not bracket_cell:
+        return
+    slot = tapis_slots.get((cat, p_nom))
+    if not slot:
+        slot = tapis_slots.get(p_nom)
+    if not slot:
+        for k, sl in tapis_slots.items():
+            if isinstance(k, tuple):
+                c, nom = k
+                if nom == p_nom and (cat in c or c in cat):
+                    slot = sl
+                    break
+    if slot:
+        ws_m, cell_coord = slot
+        ws_m[cell_coord].value = f'=SUBSTITUTE(SUBSTITUTE(\'{ws_bracket.title}\'!{bracket_cell.coordinate}, "🔴 ", ""), "🔵 ", "")'
+
+
+def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=None):
     font_title = Font(name="Arial", size=13, bold=True, color="0055A4")
     font_sub = Font(name="Arial", size=9, italic=True, color="64748B")
     font_hdr = Font(name="Arial", size=10, bold=True, color="FFFFFF")
@@ -1207,6 +1225,30 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         form_b2 = f'=IF(AND({r_b2}=0, {b_b2}=0), "🥉 3ème PLACE (Bronze 2)\nVainqueur Finale Bronze 2", "🥉 3ème PLACE (Bronze 2)\n" & SUBSTITUTE(SUBSTITUTE(IF({r_b2}>{b_b2}, {b2_r.coordinate}, IF({b_b2}>{r_b2}, {b2_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
         draw_excel_podium_card(ws, row_rep+8, col_pod, "🥉 3ème PLACE (Bronze 2)", "Vainqueur Finale Bronze 2", fill_bronze, font_color="9A3412", formula_val=form_b2)
 
+        # Liaison dynamique vers les cartes de match sur les Grilles Tapis
+        link_tapis_slot(tapis_slots, nom_poule, sf1[0]['Nom'], ws, sf1_r)
+        link_tapis_slot(tapis_slots, nom_poule, sf1[1]['Nom'], ws, sf1_b)
+        link_tapis_slot(tapis_slots, nom_poule, sf2[0]['Nom'], ws, sf2_r)
+        if n >= 8 and isinstance(sf2[1], dict):
+            link_tapis_slot(tapis_slots, nom_poule, sf2[1]['Nom'], ws, sf2_b)
+
+        if rep1:
+            link_tapis_slot(tapis_slots, nom_poule, rep1[0]['Nom'], ws, rep1_r)
+            link_tapis_slot(tapis_slots, nom_poule, rep1[1]['Nom'], ws, rep1_b)
+        if n >= 8 and rep2:
+            link_tapis_slot(tapis_slots, nom_poule, rep2[0]['Nom'], ws, rep2_r)
+            link_tapis_slot(tapis_slots, nom_poule, rep2[1]['Nom'], ws, rep2_b)
+
+        link_tapis_slot(tapis_slots, nom_poule, f_or[0]['Nom'], ws, fn_r)
+        link_tapis_slot(tapis_slots, nom_poule, f_or[1]['Nom'], ws, fn_b)
+
+        if f_b1:
+            link_tapis_slot(tapis_slots, nom_poule, f_b1[0]['Nom'], ws, b1_r)
+            link_tapis_slot(tapis_slots, nom_poule, f_b1[1]['Nom'], ws, b1_b)
+        if f_b2:
+            link_tapis_slot(tapis_slots, nom_poule, f_b2[0]['Nom'], ws, b2_r)
+            link_tapis_slot(tapis_slots, nom_poule, f_b2[1]['Nom'], ws, b2_b)
+
     else:
         col_cur = 6
         for r_idx, ronde in enumerate(rondes):
@@ -1252,7 +1294,7 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
     ws.page_setup.fitToHeight = 0
 
 
-def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition):
+def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=None):
     font_title = Font(name="Arial", size=13, bold=True, color="0055A4")
     font_sub = Font(name="Arial", size=9, italic=True, color="64748B")
     font_hdr = Font(name="Arial", size=10, bold=True, color="FFFFFF")
@@ -1419,6 +1461,18 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     draw_excel_podium_card(ws, 6, col_pod, "🥇 OR", "Vainqueur Finale 1-2", fill_gold, font_color="B45309", formula_val=form_or)
     draw_excel_podium_card(ws, 9, col_pod, "🥈 ARGENT", "Perdant Finale 1-2", fill_silver, font_color="475569", formula_val=form_arg)
     draw_excel_podium_card(ws, 13, col_pod, "🥉 BRONZE (Unique)", "Vainqueur Finale 3-4", fill_bronze, font_color="9A3412", formula_val=form_brz)
+
+    # Liaison dynamique vers les cartes de match sur les Grilles Tapis
+    link_tapis_slot(tapis_slots, nom_poule, sf1[0]['Nom'], ws, sf1_r)
+    link_tapis_slot(tapis_slots, nom_poule, sf1[1]['Nom'], ws, sf1_b)
+    link_tapis_slot(tapis_slots, nom_poule, sf2[0]['Nom'], ws, sf2_r)
+    link_tapis_slot(tapis_slots, nom_poule, sf2[1]['Nom'], ws, sf2_b)
+
+    link_tapis_slot(tapis_slots, nom_poule, f_or[0]['Nom'], ws, for_r)
+    link_tapis_slot(tapis_slots, nom_poule, f_or[1]['Nom'], ws, for_b)
+
+    link_tapis_slot(tapis_slots, nom_poule, f_b[0]['Nom'], ws, fb_r)
+    link_tapis_slot(tapis_slots, nom_poule, f_b[1]['Nom'], ws, fb_b)
 
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
@@ -3182,6 +3236,7 @@ else:
                 entete_noir = PatternFill("solid", fgColor="000000")
 
                 coords_matchs_tapis = {}
+                tapis_slots_map = {}
 
                 for t in range(nb_tapis):
                     ws_mat = writer.book.create_sheet(f"Grille Tapis {t + 1}")
@@ -3298,6 +3353,11 @@ else:
                             box_ptb = ws_mat.cell(row=r_curr, column=9)
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
+                            
+                            tapis_slots_map[(item['Cat'], item['Combattant 1'])] = (ws_mat, f"C{r_curr}")
+                            tapis_slots_map[(item['Cat'], item['Combattant 2'])] = (ws_mat, f"G{r_curr}")
+                            tapis_slots_map[item['Combattant 1']] = (ws_mat, f"C{r_curr}")
+                            tapis_slots_map[item['Combattant 2']] = (ws_mat, f"G{r_curr}")
                             
                             r_curr += 1
                             
@@ -3459,9 +3519,9 @@ else:
                     
                     p_obj = poule_obj_map.get(nom_poule)
                     if p_obj and p_obj.get('type_formule') == 'tableau':
-                        construire_feuille_tableau_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition)
+                        construire_feuille_tableau_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
                     elif p_obj and p_obj.get('type_formule') == 'poules_croisees':
-                        construire_feuille_poules_croisees_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition)
+                        construire_feuille_poules_croisees_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
                     else:
                         ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
                         ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite (Calculés depuis les onglets Grille Tapis)").font = Font(italic=True, size=9)
