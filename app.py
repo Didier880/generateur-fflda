@@ -1103,6 +1103,7 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
     fill_silver = PatternFill("solid", fgColor="F1F5F9")
     fill_bronze = PatternFill("solid", fgColor="FFEDD5")
     fill_zebra = PatternFill("solid", fgColor="F8FAFC")
+    fill_gray_h = PatternFill("solid", fgColor="475569")
     
     b_thin = Side(style='thin', color='CBD5E1')
     b_style = Border(left=b_thin, right=b_thin, top=b_thin, bottom=b_thin)
