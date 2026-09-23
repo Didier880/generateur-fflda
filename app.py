@@ -985,9 +985,27 @@ def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, co
         m_info = coords_map.get((cat_poule, nom1, nom2))
         if not m_info:
             m_info = coords_map.get((cat_poule, nom2, nom1))
+        if not m_info:
+            b1 = re.sub(r'\s*\[.*?\]', '', nom1).strip()
+            b2 = re.sub(r'\s*\[.*?\]', '', nom2).strip()
+            m_info = coords_map.get((cat_poule, b1, b2))
+            if not m_info:
+                m_info = coords_map.get((cat_poule, b2, b1))
+        if not m_info:
+            b1 = re.sub(r'\s*\[.*?\]', '', nom1).strip()
+            b2 = re.sub(r'\s*\[.*?\]', '', nom2).strip()
+            for (c, k1, k2), inf in coords_map.items():
+                if cat_poule == c or cat_poule in c or c in cat_poule:
+                    kb1 = re.sub(r'\s*\[.*?\]', '', str(k1)).strip()
+                    kb2 = re.sub(r'\s*\[.*?\]', '', str(k2)).strip()
+                    if (nom1 == k1 and nom2 == k2) or (b1 == kb1 and b2 == kb2) or (nom1 == k2 and nom2 == k1) or (b1 == kb2 and b2 == kb1):
+                        m_info = inf
+                        break
         if m_info:
             s_name = m_info['sheet']
-            if nom1 == m_info['p1']:
+            b1 = re.sub(r'\s*\[.*?\]', '', nom1).strip()
+            bp1 = re.sub(r'\s*\[.*?\]', '', str(m_info.get('p1', ''))).strip()
+            if nom1 == m_info['p1'] or (b1 and b1 == bp1) or (b1 and b1 in bp1) or (bp1 and bp1 in b1):
                 ptr_c = m_info['ptr_cell']
                 tot_c = m_info.get('tot_r_cell', ptr_c)
                 ptb_c = m_info['ptb_cell']
@@ -1031,24 +1049,45 @@ def draw_excel_podium_card(ws, start_row, start_col, title, subtitle, fill_bg, f
 def link_tapis_slot(tapis_slots, cat, p_nom, ws_bracket, bracket_cell):
     if not tapis_slots or not p_nom or not bracket_cell:
         return
-    slot = tapis_slots.get((cat, p_nom))
-    if not slot:
-        slot = tapis_slots.get(p_nom)
-    if not slot:
+    slots_to_update = []
+    
+    def collect_slots(k):
+        v = tapis_slots.get(k)
+        if v:
+            if isinstance(v, list):
+                slots_to_update.extend(v)
+            elif isinstance(v, tuple):
+                slots_to_update.append(v)
+
+    collect_slots((cat, p_nom))
+    collect_slots(p_nom)
+    
+    base_nom = re.sub(r'\s*\[.*?\]', '', str(p_nom)).strip()
+    if base_nom and base_nom != p_nom:
+        collect_slots((cat, base_nom))
+        collect_slots(base_nom)
+        
+    if not slots_to_update:
         for k, sl in tapis_slots.items():
             if isinstance(k, tuple):
                 c, nom = k
-                if (nom == p_nom or p_nom in nom or nom in p_nom) and (cat in c or c in cat):
-                    slot = sl
-                    break
-    if not slot:
-        for k, sl in tapis_slots.items():
-            if isinstance(k, str) and (k == p_nom or p_nom in k or k in p_nom):
-                slot = sl
-                break
-    if slot:
-        ws_m, cell_coord = slot
-        ws_m[cell_coord].value = f'=SUBSTITUTE(SUBSTITUTE(\'{ws_bracket.title}\'!{bracket_cell.coordinate}, "🔴 ", ""), "🔵 ", "")'
+                c_clean = str(c)
+                nom_clean = str(nom)
+                if (p_nom == nom_clean or p_nom in nom_clean or nom_clean in p_nom or (base_nom and base_nom in nom_clean)) and (cat in c_clean or c_clean in cat):
+                    if isinstance(sl, list): slots_to_update.extend(sl)
+                    elif isinstance(sl, tuple): slots_to_update.append(sl)
+            elif isinstance(k, str):
+                if p_nom == k or p_nom in k or k in p_nom or (base_nom and base_nom in k):
+                    if isinstance(sl, list): slots_to_update.extend(sl)
+                    elif isinstance(sl, tuple): slots_to_update.append(sl)
+                    
+    seen = set()
+    formula_str = f'=SUBSTITUTE(SUBSTITUTE(\'{ws_bracket.title}\'!{bracket_cell.coordinate}, "🔴 ", ""), "🔵 ", "")'
+    for ws_m, cell_coord in slots_to_update:
+        if (ws_m.title, cell_coord) not in seen:
+            seen.add((ws_m.title, cell_coord))
+            ws_m[cell_coord].value = formula_str
+
 
 
 def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=None):
@@ -1108,6 +1147,9 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
     rondes = p_obj.get('rondes', [])
     n = len(liste_p)
     
+    m_cp = re.search(r'(\+?\d+\s*kg)', nom_poule)
+    cat_poids = m_cp.group(1) if m_cp else ""
+
     f_or = rondes[-1][0]
     f_b1 = rondes[-1][1] if len(rondes[-1]) > 1 else None
     f_b2 = rondes[-1][2] if len(rondes[-1]) > 2 else None
@@ -1117,50 +1159,216 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
     rep1 = rondes[-2][2] if len(rondes[-2]) > 2 else None
     rep2 = rondes[-2][3] if len(rondes[-2]) > 3 else None
 
-    if 7 <= n <= 16 and len(rondes) >= 3:
-        # N = 7 à 16 (Quarts, Demis, Finales et Repêchages)
-        col_qf = 6
-        col_c1 = 8
-        col_sf = 9
-        col_c2 = 11
-        col_fn = 12
-        col_pod = 14
+    if len(rondes) >= 3:
+        # Configuration dynamique des colonnes selon le nombre de tours (1/16, 1/8, 1/4, 1/2, Finales)
+        col_cur = 6
+        if len(rondes) >= 5:
+            # 1/16 de finale + 1/8 de finale + 1/4 + 1/2 + Finales (n > 16)
+            col_16 = col_cur
+            col_c0 = col_cur + 2
+            col_cur += 3
+            
+            col_18 = col_cur
+            col_c1 = col_cur + 2
+            col_cur += 3
+            
+            col_qf = col_cur
+            col_c2 = col_cur + 2
+            col_cur += 3
+            
+            col_sf = col_cur
+            col_c3 = col_cur + 2
+            col_cur += 3
+            
+            col_fn = col_cur
+            col_pod = col_cur + 2
+            
+            stage_cols = [col_16, col_18, col_qf, col_sf]
+            conn_col_qf_sf = col_c2
+            conn_col_sf_fn = col_c3
+        elif len(rondes) == 4:
+            # Tour préliminaire (1/8) + 1/4 + 1/2 + Finales (9 <= n <= 16)
+            col_prelim = col_cur
+            col_c0 = col_cur + 2
+            col_cur += 3
+            
+            col_qf = col_cur
+            col_c1 = col_cur + 2
+            col_cur += 3
+            
+            col_sf = col_cur
+            col_c2 = col_cur + 2
+            col_cur += 3
+            
+            col_fn = col_cur
+            col_pod = col_cur + 2
+            
+            stage_cols = [col_prelim, col_qf, col_sf]
+            conn_col_qf_sf = col_c1
+            conn_col_sf_fn = col_c2
+        else:
+            # 1/4 + 1/2 + Finales (n = 7 ou 8)
+            col_qf = col_cur
+            col_c1 = col_cur + 2
+            col_cur += 3
+            
+            col_sf = col_cur
+            col_c2 = col_cur + 2
+            col_cur += 3
+            
+            col_fn = col_cur
+            col_pod = col_cur + 2
+            
+            stage_cols = [col_qf, col_sf]
+            conn_col_qf_sf = col_c1
+            conn_col_sf_fn = col_c2
 
-        ws.column_dimensions['F'].width = 23
-        ws.column_dimensions['G'].width = 6
-        ws.column_dimensions['H'].width = 3
-        ws.column_dimensions['I'].width = 23
-        ws.column_dimensions['J'].width = 6
-        ws.column_dimensions['K'].width = 3
-        ws.column_dimensions['L'].width = 23
-        ws.column_dimensions['M'].width = 6
-        ws.column_dimensions['N'].width = 12
-        ws.column_dimensions['O'].width = 12
+        for sc in stage_cols:
+            ws.column_dimensions[get_column_letter(sc)].width = 23
+            ws.column_dimensions[get_column_letter(sc+1)].width = 6
+            ws.column_dimensions[get_column_letter(sc+2)].width = 3
+        ws.column_dimensions[get_column_letter(col_fn)].width = 23
+        ws.column_dimensions[get_column_letter(col_fn+1)].width = 6
+        ws.column_dimensions[get_column_letter(col_pod)].width = 12
+        ws.column_dimensions[get_column_letter(col_pod+1)].width = 12
 
-        ws.merge_cells(start_row=4, start_column=col_qf, end_row=4, end_column=col_pod+1)
-        c_bann = ws.cell(row=4, column=col_qf, value="🏆 TABLEAU PRINCIPAL D'ÉLIMINATION DIRECTE (OR / ARGENT)")
+        # Bannière principale
+        ws.merge_cells(start_row=4, start_column=6, end_row=4, end_column=col_pod+1)
+        c_bann = ws.cell(row=4, column=6, value="🏆 TABLEAU PRINCIPAL D'ÉLIMINATION DIRECTE (OR / ARGENT)")
         c_bann.font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
         c_bann.fill = fill_blue
         c_bann.alignment = Alignment(horizontal="center", vertical="center")
 
+        qualif_map = {}
+        max_upper_row = 23
+
+        # 1. Traitement des tours préliminaires (1/16 et 1/8) si n > 16 ou 9 <= n <= 16
+        if len(rondes) >= 5:
+            ws.merge_cells(start_row=5, start_column=col_16, end_row=5, end_column=col_16+1)
+            c_h16 = ws.cell(row=5, column=col_16, value="1/16 DE FINALE")
+            c_h16.font, c_h16.fill, c_h16.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_dark, Alignment(horizontal="center", vertical="center")
+
+            r16_matches = rondes[0]
+            max_upper_row = max(max_upper_row, 6 + len(r16_matches) * 4)
+            for i, m in enumerate(r16_matches):
+                r_i = 6 + i * 4
+                ptr, ptb, c_r, c_b = draw_excel_match_card(ws, r_i, col_16, f"1/16 DE FINALE {i+1}", m[0], m[1], nom_poule, coords_matchs_tapis, bg_header=fill_gray_h)
+                k1 = f"Vainqueur 1/16 ({i+1}) [{cat_poids}]"
+                k2 = f"Vainqueur 1/16 ({i+1})"
+                w_info = {'c_r': c_r, 'c_b': c_b, 'ptr': ptr, 'ptb': ptb, 'nom': f"Vainqueur 1/16 ({i+1})"}
+                qualif_map[k1] = w_info
+                qualif_map[k2] = w_info
+
+            # Traitement des 1/8 de finale
+            ws.merge_cells(start_row=5, start_column=col_18, end_row=5, end_column=col_18+1)
+            c_h18 = ws.cell(row=5, column=col_18, value="1/8 DE FINALE")
+            c_h18.font, c_h18.fill, c_h18.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_blue, Alignment(horizontal="center", vertical="center")
+
+            r18_matches = rondes[1]
+            max_upper_row = max(max_upper_row, 6 + len(r18_matches) * 4)
+            for i, m in enumerate(r18_matches):
+                r_i = 6 + i * 4
+                p1_nom = m[0]['Nom'] if isinstance(m[0], dict) else str(m[0])
+                p2_nom = m[1]['Nom'] if isinstance(m[1], dict) else str(m[1])
+                
+                if p1_nom in qualif_map:
+                    qi = qualif_map[p1_nom]
+                    p1_in = {'Nom': p1_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔴")}
+                else:
+                    p1_in = m[0]
+                    
+                if p2_nom in qualif_map:
+                    qi = qualif_map[p2_nom]
+                    p2_in = {'Nom': p2_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔵")}
+                else:
+                    p2_in = m[1]
+                    
+                ptr, ptb, c_r, c_b = draw_excel_match_card(ws, r_i, col_18, f"1/8 DE FINALE {i+1}", p1_in, p2_in, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
+                
+                if p1_nom in qualif_map:
+                    link_tapis_slot(tapis_slots, nom_poule, p1_nom, ws, c_r)
+                if p2_nom in qualif_map:
+                    link_tapis_slot(tapis_slots, nom_poule, p2_nom, ws, c_b)
+                    
+                k1 = f"Vainqueur 1/8 ({i+1}) [{cat_poids}]"
+                k2 = f"Vainqueur 1/8 ({i+1})"
+                w_info = {'c_r': c_r, 'c_b': c_b, 'ptr': ptr, 'ptb': ptb, 'nom': f"Vainqueur 1/8 ({i+1})"}
+                qualif_map[k1] = w_info
+                qualif_map[k2] = w_info
+
+        elif len(rondes) == 4:
+            # Traitement du Tour préliminaire (1/8)
+            ws.merge_cells(start_row=5, start_column=col_prelim, end_row=5, end_column=col_prelim+1)
+            c_hp = ws.cell(row=5, column=col_prelim, value="TOUR PRÉLIMINAIRE (1/8)")
+            c_hp.font, c_hp.fill, c_hp.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_dark, Alignment(horizontal="center", vertical="center")
+
+            prelim_matches = rondes[0]
+            max_upper_row = max(max_upper_row, 6 + len(prelim_matches) * 4)
+            for i, m in enumerate(prelim_matches):
+                r_i = 6 + i * 4
+                ptr, ptb, c_r, c_b = draw_excel_match_card(ws, r_i, col_prelim, f"PRÉLIMINAIRE {i+1}", m[0], m[1], nom_poule, coords_matchs_tapis, bg_header=fill_gray_h)
+                k1 = f"Vainqueur Prél. {i+1} [{cat_poids}]"
+                k2 = f"Vainqueur Prél. {i+1}"
+                w_info = {'c_r': c_r, 'c_b': c_b, 'ptr': ptr, 'ptb': ptb, 'nom': f"Vainqueur Prél. {i+1}"}
+                qualif_map[k1] = w_info
+                qualif_map[k2] = w_info
+
+        # 2. Quarts de finale (Toujours rondes[-3])
+        ws.merge_cells(start_row=5, start_column=col_qf, end_row=5, end_column=col_qf+1)
+        c_hqf = ws.cell(row=5, column=col_qf, value="QUARTS DE FINALE")
+        c_hqf.font, c_hqf.fill, c_hqf.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_blue, Alignment(horizontal="center", vertical="center")
+
         q_matches = rondes[-3]
-        q1 = q_matches[0]
-        q2 = q_matches[1]
-        q3 = q_matches[2]
-        q4 = q_matches[3] if len(q_matches) > 3 else (liste_p[6], {'Nom': 'EXEMPT (BYE)', 'Club': '-'})
+        q_list = [
+            q_matches[0],
+            q_matches[1],
+            q_matches[2],
+            q_matches[3] if len(q_matches) > 3 else (liste_p[6], {'Nom': 'EXEMPT (BYE)', 'Club': '-'})
+        ]
 
-        qf1_ptr, qf1_ptb, qf1_r, qf1_b = draw_excel_match_card(ws, 6, col_qf, "1/4 DE FINALE 1", q1[0], q1[1], nom_poule, coords_matchs_tapis)
-        qf2_ptr, qf2_ptb, qf2_r, qf2_b = draw_excel_match_card(ws, 11, col_qf, "1/4 DE FINALE 2", q2[0], q2[1], nom_poule, coords_matchs_tapis)
-        qf3_ptr, qf3_ptb, qf3_r, qf3_b = draw_excel_match_card(ws, 16, col_qf, "1/4 DE FINALE 3", q3[0], q3[1], nom_poule, coords_matchs_tapis)
-        qf4_ptr, qf4_ptb, qf4_r, qf4_b = draw_excel_match_card(ws, 21, col_qf, "1/4 DE FINALE 4", q4[0], q4[1], nom_poule, coords_matchs_tapis)
+        qf_cards = []
+        qf_rows = [6, 11, 16, 21]
+        for k in range(4):
+            m = q_list[k]
+            p1_obj = m[0]
+            p2_obj = m[1]
+            p1_nom = p1_obj.get('Nom', '') if isinstance(p1_obj, dict) else str(p1_obj)
+            p2_nom = p2_obj.get('Nom', '') if isinstance(p2_obj, dict) else str(p2_obj)
+            
+            p1_in = p1_obj
+            if p1_nom in qualif_map:
+                qi = qualif_map[p1_nom]
+                p1_in = {'Nom': p1_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔴")}
+                
+            p2_in = p2_obj
+            if p2_nom in qualif_map:
+                qi = qualif_map[p2_nom]
+                p2_in = {'Nom': p2_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔵")}
+                
+            q_ptr, q_ptb, q_r, q_b = draw_excel_match_card(ws, qf_rows[k], col_qf, f"1/4 DE FINALE {k+1}", p1_in, p2_in, nom_poule, coords_matchs_tapis)
+            qf_cards.append((q_ptr, q_ptb, q_r, q_b))
+            
+            if p1_nom in qualif_map:
+                link_tapis_slot(tapis_slots, nom_poule, p1_nom, ws, q_r)
+            if p2_nom in qualif_map:
+                link_tapis_slot(tapis_slots, nom_poule, p2_nom, ws, q_b)
 
-        draw_excel_vertical_connector(ws, 7, 12, col_c1)
-        ws.cell(row=10, column=col_c1).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
+        qf1_ptr, qf1_ptb, qf1_r, qf1_b = qf_cards[0]
+        qf2_ptr, qf2_ptb, qf2_r, qf2_b = qf_cards[1]
+        qf3_ptr, qf3_ptb, qf3_r, qf3_b = qf_cards[2]
+        qf4_ptr, qf4_ptb, qf4_r, qf4_b = qf_cards[3]
 
-        draw_excel_vertical_connector(ws, 17, 22, col_c1)
-        ws.cell(row=20, column=col_c1).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
+        draw_excel_vertical_connector(ws, 7, 12, conn_col_qf_sf)
+        ws.cell(row=10, column=conn_col_qf_sf).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
 
-        # Demi-finales dynamiques (avancement automatique des vainqueurs de 1/4)
+        draw_excel_vertical_connector(ws, 17, 22, conn_col_qf_sf)
+        ws.cell(row=20, column=conn_col_qf_sf).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
+
+        # 3. Demi-finales dynamiques
+        ws.merge_cells(start_row=5, start_column=col_sf, end_row=5, end_column=col_sf+1)
+        c_hsf = ws.cell(row=5, column=col_sf, value="DEMI-FINALES")
+        c_hsf.font, c_hsf.fill, c_hsf.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_sky, Alignment(horizontal="center", vertical="center")
+
         sf1_p1 = {'Nom': sf1[0]['Nom'], 'formula': make_winner_formula(qf1_r, qf1_b, qf1_ptr, qf1_ptb, "Vainqueur 1/4 (1)", "🔴")}
         sf1_p2 = {'Nom': sf1[1]['Nom'], 'formula': make_winner_formula(qf2_r, qf2_b, qf2_ptr, qf2_ptb, "Vainqueur 1/4 (2)", "🔵")}
         sf1_ptr, sf1_ptb, sf1_r, sf1_b = draw_excel_match_card(ws, 8, col_sf, "DEMI-FINALE 1", sf1_p1, sf1_p2, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
@@ -1172,15 +1380,19 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
             sf2_p2 = {'Nom': sf2[1]['Nom'], 'formula': make_winner_formula(qf4_r, qf4_b, qf4_ptr, qf4_ptb, "Vainqueur 1/4 (4)", "🔵")}
         sf2_ptr, sf2_ptb, sf2_r, sf2_b = draw_excel_match_card(ws, 18, col_sf, "DEMI-FINALE 2", sf2_p1, sf2_p2, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
 
-        draw_excel_vertical_connector(ws, 10, 19, col_c2)
-        ws.cell(row=14, column=col_c2).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
+        draw_excel_vertical_connector(ws, 10, 19, conn_col_sf_fn)
+        ws.cell(row=14, column=conn_col_sf_fn).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
 
-        # Grande Finale dynamique (avancement automatique des vainqueurs de 1/2)
+        # 4. Grande Finale dynamique
+        ws.merge_cells(start_row=5, start_column=col_fn, end_row=5, end_column=col_fn+1)
+        c_hfn = ws.cell(row=5, column=col_fn, value="GRANDE FINALE")
+        c_hfn.font, c_hfn.fill, c_hfn.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_dark, Alignment(horizontal="center", vertical="center")
+
         fn_p1 = {'Nom': f_or[0]['Nom'], 'formula': make_winner_formula(sf1_r, sf1_b, sf1_ptr, sf1_ptb, "Vainqueur 1/2 (1)", "🔴")}
         fn_p2 = {'Nom': f_or[1]['Nom'], 'formula': make_winner_formula(sf2_r, sf2_b, sf2_ptr, sf2_ptb, "Vainqueur 1/2 (2)", "🔵")}
         fn_ptr, fn_ptb, fn_r, fn_b = draw_excel_match_card(ws, 13, col_fn, "GRANDE FINALE (OR)", fn_p1, fn_p2, nom_poule, coords_matchs_tapis, bg_header=fill_dark)
 
-        # Podiums Or & Argent dynamiques
+        # 5. Podiums Or & Argent
         r_fn = f"IF({fn_ptr.coordinate}=\"\",0,{fn_ptr.coordinate})"
         b_fn = f"IF({fn_ptb.coordinate}=\"\",0,{fn_ptb.coordinate})"
         form_gold = f'=IF({r_fn}+{b_fn}=0, "🥇 CHAMPION (OR)" & CHAR(10) & "Vainqueur Grande Finale", "🥇 CHAMPION (OR)" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_fn}>{b_fn}, {fn_r.coordinate}, IF({b_fn}>{r_fn}, {fn_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
@@ -1188,8 +1400,8 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         draw_excel_podium_card(ws, 12, col_pod, "🥇 CHAMPION (OR)", "Vainqueur Grande Finale", fill_gold, font_color="B45309", formula_val=form_gold)
         draw_excel_podium_card(ws, 15, col_pod, "🥈 VICE-CHAMPION (ARGENT)", "Perdant Grande Finale", fill_silver, font_color="475569", formula_val=form_silver)
 
-        # Repêchages & Bronze (Row 26+)
-        row_rep = 26
+        # 6. Repêchages & Bronze
+        row_rep = max(26, max_upper_row + 3)
         ws.merge_cells(start_row=row_rep, start_column=col_qf, end_row=row_rep, end_column=col_pod+1)
         c_rep_h = ws.cell(row=row_rep, column=col_qf, value="🔄 TABLEAU DE REPÊCHAGE & MATCHS POUR LE BRONZE (2 Troisièmes Places)")
         c_rep_h.font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
@@ -1219,8 +1431,8 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
                 for c_k in range(col_qf, col_qf+2):
                     ws.cell(row=r_k, column=c_k).border = b_style
 
-        ws.cell(row=row_rep+4, column=col_c1).border = Border(bottom=Side(style='medium', color='94A3B8'))
-        ws.cell(row=row_rep+9, column=col_c1).border = Border(bottom=Side(style='medium', color='94A3B8'))
+        ws.cell(row=row_rep+4, column=conn_col_qf_sf).border = Border(bottom=Side(style='medium', color='94A3B8'))
+        ws.cell(row=row_rep+9, column=conn_col_qf_sf).border = Border(bottom=Side(style='medium', color='94A3B8'))
 
         # Finale Bronze 1 (Vainqueur Repêchage 1 vs Perdant Demi-Finale 2)
         fb1_p1 = {'Nom': f_b1[0]['Nom'], 'formula': make_winner_formula(rep1_r, rep1_b, rep1_ptr, rep1_ptb, "Vainqueur Repêchage 1", "🔴")}
@@ -3374,10 +3586,33 @@ else:
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
                             
-                            tapis_slots_map[(item['Cat'], item['Combattant 1'])] = (ws_mat, f"C{r_curr}")
-                            tapis_slots_map[(item['Cat'], item['Combattant 2'])] = (ws_mat, f"G{r_curr}")
-                            tapis_slots_map[item['Combattant 1']] = (ws_mat, f"C{r_curr}")
-                            tapis_slots_map[item['Combattant 2']] = (ws_mat, f"G{r_curr}")
+                            def reg_tapis_slot(k, sl):
+                                if k not in tapis_slots_map:
+                                    tapis_slots_map[k] = [sl]
+                                elif isinstance(tapis_slots_map[k], list):
+                                    tapis_slots_map[k].append(sl)
+                                else:
+                                    tapis_slots_map[k] = [tapis_slots_map[k], sl]
+
+                            cat_m = item.get('Cat', '')
+                            c1_m = str(item.get('Combattant 1', ''))
+                            c2_m = str(item.get('Combattant 2', ''))
+                            s1 = (ws_mat, f"C{r_curr}")
+                            s2 = (ws_mat, f"G{r_curr}")
+                            
+                            reg_tapis_slot((cat_m, c1_m), s1)
+                            reg_tapis_slot((cat_m, c2_m), s2)
+                            reg_tapis_slot(c1_m, s1)
+                            reg_tapis_slot(c2_m, s2)
+                            
+                            b_c1 = re.sub(r'\s*\[.*?\]', '', c1_m).strip()
+                            b_c2 = re.sub(r'\s*\[.*?\]', '', c2_m).strip()
+                            if b_c1 and b_c1 != c1_m:
+                                reg_tapis_slot((cat_m, b_c1), s1)
+                                reg_tapis_slot(b_c1, s1)
+                            if b_c2 and b_c2 != c2_m:
+                                reg_tapis_slot((cat_m, b_c2), s2)
+                                reg_tapis_slot(b_c2, s2)
                             
                             r_curr += 1
                             
@@ -3407,7 +3642,7 @@ else:
                             ws_mat.cell(row=r_curr, column=9).border = b_style
 
                             # Enregistrement des coordonnées des cases Pt Clt, Actions et Total Score sur la Grille Tapis X
-                            coords_matchs_tapis[(item['Cat'], item['Combattant 1'], item['Combattant 2'])] = {
+                            m_coord_info = {
                                 'sheet': f"Grille Tapis {t + 1}",
                                 'ptr_cell': f"E{r_curr - 2}",
                                 'ptb_cell': f"I{r_curr - 2}",
@@ -3418,6 +3653,9 @@ else:
                                 'p1': item['Combattant 1'],
                                 'p2': item['Combattant 2']
                             }
+                            coords_matchs_tapis[(cat_m, c1_m, c2_m)] = m_coord_info
+                            if (b_c1 and b_c1 != c1_m) or (b_c2 and b_c2 != c2_m):
+                                coords_matchs_tapis[(cat_m, b_c1 or c1_m, b_c2 or c2_m)] = m_coord_info
                             
                             r_curr += 2 
                 
