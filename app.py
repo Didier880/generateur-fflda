@@ -450,8 +450,8 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             )
             rondes.append([f_or, f_b1, f_b2])
 
-        else:
-            # n > 16 (ex: jusqu'à 32)
+        elif n <= 32:
+            # 17 <= n <= 32 (Tableau de 32 : 1/16, 1/8, 1/4, 1/2, Finales & Repêchages)
             nb_prelim = n - 16
             nb_byes = max(0, 32 - n)
             byes_16 = participants[:nb_byes]
@@ -479,6 +479,96 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             for i in range(8):
                 p1 = slots_16[i * 2]
                 p2 = slots_16[i * 2 + 1]
+                matches_18.append((p1, p2))
+                winners_18.append({
+                    "Nom": f"Vainqueur 1/8 ({i+1}) [{cat_poids}]",
+                    "Club": "Qualifié",
+                    "Comité": "-"
+                })
+            rondes.append(matches_18)
+            
+            qf_matches = [
+                (winners_18[0], winners_18[1]),
+                (winners_18[2], winners_18[3]),
+                (winners_18[4], winners_18[5]),
+                (winners_18[6], winners_18[7])
+            ]
+            rondes.append(qf_matches)
+            
+            sf1 = (
+                {"Nom": f"Vainqueur 1/4 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/4 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            sf2 = (
+                {"Nom": f"Vainqueur 1/4 (3) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/4 (4) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            rep1 = (
+                {"Nom": f"Perdant 1/4 (1) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/4 (2) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+            )
+            rep2 = (
+                {"Nom": f"Perdant 1/4 (3) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/4 (4) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+            )
+            rondes.append([sf1, sf2, rep1, rep2])
+            
+            f_or = (
+                {"Nom": f"Vainqueur 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b1 = (
+                {"Nom": f"Vainqueur Repêchage 1 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b2 = (
+                {"Nom": f"Vainqueur Repêchage 2 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            rondes.append([f_or, f_b1, f_b2])
+
+        else:
+            # 33 <= n <= 64 (Tableau de 64 : 1/32, 1/16, 1/8, 1/4, 1/2, Finales & Repêchages)
+            nb_prelim = n - 32
+            nb_byes = max(0, 64 - n)
+            byes_32 = participants[:nb_byes]
+            prelim_pts = participants[nb_byes:]
+            
+            prelim_matches = []
+            prelim_winners = []
+            for i in range(nb_prelim):
+                p1 = prelim_pts[i * 2] if i * 2 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+1}", "Club": "-"}
+                p2 = prelim_pts[i * 2 + 1] if i * 2 + 1 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+2}", "Club": "-"}
+                prelim_matches.append((p1, p2))
+                prelim_winners.append({
+                    "Nom": f"Vainqueur 1/32 ({i+1}) [{cat_poids}]",
+                    "Club": "Qualifié",
+                    "Comité": "-"
+                })
+            rondes.append(prelim_matches)
+            
+            slots_32 = (byes_32 + prelim_winners)[:32]
+            while len(slots_32) < 32:
+                slots_32.append({"Nom": f"Qualifié 1/16 ({len(slots_32)+1})", "Club": "Qualifié", "Comité": "-"})
+            
+            matches_116 = []
+            winners_116 = []
+            for i in range(16):
+                p1 = slots_32[i * 2]
+                p2 = slots_32[i * 2 + 1]
+                matches_116.append((p1, p2))
+                winners_116.append({
+                    "Nom": f"Vainqueur 1/16 ({i+1}) [{cat_poids}]",
+                    "Club": "Qualifié",
+                    "Comité": "-"
+                })
+            rondes.append(matches_116)
+            
+            matches_18 = []
+            winners_18 = []
+            for i in range(8):
+                p1 = winners_116[i * 2]
+                p2 = winners_116[i * 2 + 1]
                 matches_18.append((p1, p2))
                 winners_18.append({
                     "Nom": f"Vainqueur 1/8 ({i+1}) [{cat_poids}]",
@@ -690,7 +780,17 @@ def generer_arbre_tableau_html(p_obj):
             main_columns.append(('TOUR PRÉLIMINAIRE', prelim_m))
             main_columns.append(('QUARTS DE FINALE', q_matches))
 
-        elif len(rondes) >= 5:
+        elif len(rondes) >= 6:
+            p32 = [(m[0], m[1], f'1/32 DE FINALE {i+1}') for i, m in enumerate(rondes[0])]
+            p16 = [(m[0], m[1], f'1/16 DE FINALE {i+1}') for i, m in enumerate(rondes[1])]
+            p18 = [(m[0], m[1], f'1/8 DE FINALE {i+1}') for i, m in enumerate(rondes[2])]
+            q_matches = [(m[0], m[1], f'1/4 DE FINALE {i+1}') for i, m in enumerate(rondes[3])]
+            main_columns.append(('1/32 DE FINALE', p32))
+            main_columns.append(('1/16 DE FINALE', p16))
+            main_columns.append(('1/8 DE FINALE', p18))
+            main_columns.append(('QUARTS DE FINALE', q_matches))
+
+        elif len(rondes) == 5:
             p16 = [(m[0], m[1], f'1/16 DE FINALE {i+1}') for i, m in enumerate(rondes[0])]
             p18 = [(m[0], m[1], f'1/8 DE FINALE {i+1}') for i, m in enumerate(rondes[1])]
             q_matches = [(m[0], m[1], f'1/4 DE FINALE {i+1}') for i, m in enumerate(rondes[2])]
@@ -1169,10 +1269,38 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
     rep2 = rondes[-2][3] if len(rondes[-2]) > 3 else None
 
     if len(rondes) >= 3:
-        # Configuration dynamique des colonnes selon le nombre de tours (1/16, 1/8, 1/4, 1/2, Finales)
+        # Configuration dynamique des colonnes selon le nombre de tours (1/32, 1/16, 1/8, 1/4, 1/2, Finales)
         col_cur = 6
-        if len(rondes) >= 5:
-            # 1/16 de finale + 1/8 de finale + 1/4 + 1/2 + Finales (n > 16)
+        if len(rondes) >= 6:
+            # 1/32 de finale + 1/16 + 1/8 + 1/4 + 1/2 + Finales (33 <= n <= 64)
+            col_32 = col_cur
+            col_c_pre = col_cur + 2
+            col_cur += 3
+
+            col_16 = col_cur
+            col_c0 = col_cur + 2
+            col_cur += 3
+
+            col_18 = col_cur
+            col_c1 = col_cur + 2
+            col_cur += 3
+
+            col_qf = col_cur
+            col_c2 = col_cur + 2
+            col_cur += 3
+
+            col_sf = col_cur
+            col_c3 = col_cur + 2
+            col_cur += 3
+
+            col_fn = col_cur
+            col_pod = col_cur + 2
+
+            stage_cols = [col_32, col_16, col_18, col_qf, col_sf]
+            conn_col_qf_sf = col_c2
+            conn_col_sf_fn = col_c3
+        elif len(rondes) == 5:
+            # 1/16 de finale + 1/8 de finale + 1/4 + 1/2 + Finales (17 <= n <= 32)
             col_16 = col_cur
             col_c0 = col_cur + 2
             col_cur += 3
@@ -1251,8 +1379,99 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         qualif_map = {}
         max_upper_row = 23
 
-        # 1. Traitement des tours préliminaires (1/16 et 1/8) si n > 16 ou 9 <= n <= 16
-        if len(rondes) >= 5:
+        # 1. Traitement des tours préliminaires (1/32, 1/16 et 1/8) si n > 16 ou 9 <= n <= 16
+        if len(rondes) >= 6:
+            # 1/32 de finale
+            ws.merge_cells(start_row=5, start_column=col_32, end_row=5, end_column=col_32+1)
+            c_h32 = ws.cell(row=5, column=col_32, value="1/32 DE FINALE")
+            c_h32.font, c_h32.fill, c_h32.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_dark, Alignment(horizontal="center", vertical="center")
+
+            r32_matches = rondes[0]
+            max_upper_row = max(max_upper_row, 6 + len(r32_matches) * 4)
+            for i, m in enumerate(r32_matches):
+                r_i = 6 + i * 4
+                ptr, ptb, c_r, c_b = draw_excel_match_card(ws, r_i, col_32, f"1/32 DE FINALE {i+1}", m[0], m[1], nom_poule, coords_matchs_tapis, bg_header=fill_gray_h)
+                k1 = f"Vainqueur 1/32 ({i+1}) [{cat_poids}]"
+                k2 = f"Vainqueur 1/32 ({i+1})"
+                w_info = {'c_r': c_r, 'c_b': c_b, 'ptr': ptr, 'ptb': ptb, 'nom': f"Vainqueur 1/32 ({i+1})"}
+                qualif_map[k1] = w_info
+                qualif_map[k2] = w_info
+
+            # 1/16 de finale
+            ws.merge_cells(start_row=5, start_column=col_16, end_row=5, end_column=col_16+1)
+            c_h16 = ws.cell(row=5, column=col_16, value="1/16 DE FINALE")
+            c_h16.font, c_h16.fill, c_h16.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_blue, Alignment(horizontal="center", vertical="center")
+
+            r16_matches = rondes[1]
+            max_upper_row = max(max_upper_row, 6 + len(r16_matches) * 4)
+            for i, m in enumerate(r16_matches):
+                r_i = 6 + i * 4
+                p1_nom = m[0]['Nom'] if isinstance(m[0], dict) else str(m[0])
+                p2_nom = m[1]['Nom'] if isinstance(m[1], dict) else str(m[1])
+                
+                if p1_nom in qualif_map:
+                    qi = qualif_map[p1_nom]
+                    p1_in = {'Nom': p1_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔴")}
+                else:
+                    p1_in = m[0]
+                    
+                if p2_nom in qualif_map:
+                    qi = qualif_map[p2_nom]
+                    p2_in = {'Nom': p2_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔵")}
+                else:
+                    p2_in = m[1]
+                    
+                ptr, ptb, c_r, c_b = draw_excel_match_card(ws, r_i, col_16, f"1/16 DE FINALE {i+1}", p1_in, p2_in, nom_poule, coords_matchs_tapis, bg_header=fill_gray_h)
+                
+                if p1_nom in qualif_map:
+                    link_tapis_slot(tapis_slots, nom_poule, p1_nom, ws, c_r)
+                if p2_nom in qualif_map:
+                    link_tapis_slot(tapis_slots, nom_poule, p2_nom, ws, c_b)
+                    
+                k1 = f"Vainqueur 1/16 ({i+1}) [{cat_poids}]"
+                k2 = f"Vainqueur 1/16 ({i+1})"
+                w_info = {'c_r': c_r, 'c_b': c_b, 'ptr': ptr, 'ptb': ptb, 'nom': f"Vainqueur 1/16 ({i+1})"}
+                qualif_map[k1] = w_info
+                qualif_map[k2] = w_info
+
+            # 1/8 de finale
+            ws.merge_cells(start_row=5, start_column=col_18, end_row=5, end_column=col_18+1)
+            c_h18 = ws.cell(row=5, column=col_18, value="1/8 DE FINALE")
+            c_h18.font, c_h18.fill, c_h18.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_blue, Alignment(horizontal="center", vertical="center")
+
+            r18_matches = rondes[2]
+            max_upper_row = max(max_upper_row, 6 + len(r18_matches) * 4)
+            for i, m in enumerate(r18_matches):
+                r_i = 6 + i * 4
+                p1_nom = m[0]['Nom'] if isinstance(m[0], dict) else str(m[0])
+                p2_nom = m[1]['Nom'] if isinstance(m[1], dict) else str(m[1])
+                
+                if p1_nom in qualif_map:
+                    qi = qualif_map[p1_nom]
+                    p1_in = {'Nom': p1_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔴")}
+                else:
+                    p1_in = m[0]
+                    
+                if p2_nom in qualif_map:
+                    qi = qualif_map[p2_nom]
+                    p2_in = {'Nom': p2_nom, 'formula': make_winner_formula(qi['c_r'], qi['c_b'], qi['ptr'], qi['ptb'], qi['nom'], "🔵")}
+                else:
+                    p2_in = m[1]
+                    
+                ptr, ptb, c_r, c_b = draw_excel_match_card(ws, r_i, col_18, f"1/8 DE FINALE {i+1}", p1_in, p2_in, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
+                
+                if p1_nom in qualif_map:
+                    link_tapis_slot(tapis_slots, nom_poule, p1_nom, ws, c_r)
+                if p2_nom in qualif_map:
+                    link_tapis_slot(tapis_slots, nom_poule, p2_nom, ws, c_b)
+                    
+                k1 = f"Vainqueur 1/8 ({i+1}) [{cat_poids}]"
+                k2 = f"Vainqueur 1/8 ({i+1})"
+                w_info = {'c_r': c_r, 'c_b': c_b, 'ptr': ptr, 'ptb': ptb, 'nom': f"Vainqueur 1/8 ({i+1})"}
+                qualif_map[k1] = w_info
+                qualif_map[k2] = w_info
+
+        elif len(rondes) == 5:
             ws.merge_cells(start_row=5, start_column=col_16, end_row=5, end_column=col_16+1)
             c_h16 = ws.cell(row=5, column=col_16, value="1/16 DE FINALE")
             c_h16.font, c_h16.fill, c_h16.alignment = Font(name="Arial", size=9, bold=True, color="FFFFFF"), fill_dark, Alignment(horizontal="center", vertical="center")
@@ -2935,7 +3154,32 @@ else:
                 total_r = len(rondes)
                 
                 if type_f == 'tableau':
-                    if total_r >= 5:
+                    if total_r >= 6:
+                        if r_idx == 0:
+                            return f"1/32 de Finale ({m_idx + 1})"
+                        elif r_idx == 1:
+                            return f"1/16 de Finale ({m_idx + 1})"
+                        elif r_idx == 2:
+                            return f"1/8 de Finale ({m_idx + 1})"
+                        elif r_idx == 3:
+                            return f"1/4 de Finale ({m_idx + 1})"
+                        elif r_idx == total_r - 2:
+                            if m_idx in (0, 1):
+                                return f"Demi-Finale {m_idx + 1}"
+                            else:
+                                return f"Repêchage 1/4 ({m_idx - 1})"
+                        elif r_idx == total_r - 1:
+                            if m_idx == 0:
+                                return "Grande Finale (Or / Argent)"
+                            elif m_idx == 1:
+                                return "Finale Bronze 1"
+                            elif m_idx == 2:
+                                return "Finale Bronze 2"
+                            else:
+                                return f"Finale {m_idx + 1}"
+                        else:
+                            return f"Tour {r_idx + 1}"
+                    elif total_r == 5:
                         if r_idx == 0:
                             return f"1/16 de Finale ({m_idx + 1})"
                         elif r_idx == 1:
