@@ -534,6 +534,350 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             'type_formule': 'tableau'
         }
 
+# --- GÉNÉRATEUR VISUEL DE TABLEAU À ÉLIMINATION DIRECTE & REPÊCHAGES U13 (DE GAUCHE À DROITE) ---
+def make_bracket_card(p1, p2, title='', badge=''):
+    nom1 = p1.get('Nom', 'Lutteur 1')
+    c1 = p1.get('Club', '')
+    club1_str = f" ({c1})" if c1 and c1 not in ['-', 'Comité Non Renseigné', ''] else ''
+    
+    nom2 = p2.get('Nom', 'Lutteur 2')
+    c2 = p2.get('Club', '')
+    club2_str = f" ({c2})" if c2 and c2 not in ['-', 'Comité Non Renseigné', ''] else ''
+
+    badge_html = f'<span style="background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: 700;">{badge}</span>' if badge else ''
+
+    is_bye1 = any(k in str(nom1).lower() for k in ['bye', 'exempt'])
+    is_bye2 = any(k in str(nom2).lower() for k in ['bye', 'exempt'])
+
+    dot1 = '#94A3B8' if is_bye1 else '#EF4135'
+    dot2 = '#94A3B8' if is_bye2 else '#0055A4'
+
+    return f'''
+    <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); width: 230px; margin: 6px 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: left;">
+        <div style="background: #F8FAFC; border-bottom: 1px solid #E2E8F0; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #475569; display: flex; justify-content: space-between; align-items: center;">
+            <span>{title}</span>
+            {badge_html}
+        </div>
+        <div style="padding: 5px 8px; display: flex; align-items: center; border-bottom: 1px solid #F1F5F9; background: {'#F8FAFC' if is_bye1 else '#FFFFFF'};">
+            <span style="width: 9px; height: 9px; border-radius: 50%; background: {dot1}; display: inline-block; margin-right: 6px; flex-shrink: 0;"></span>
+            <div style="flex: 1; overflow: hidden;">
+                <div style="font-size: 11px; font-weight: 700; color: {'#64748B' if is_bye1 else '#1E293B'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{nom1}</div>
+                <div style="font-size: 9px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{club1_str}</div>
+            </div>
+            <div style="font-size: 9px; font-weight: 700; background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 3px; padding: 1px 4px; color: #475569;">[ &nbsp; ]</div>
+        </div>
+        <div style="padding: 5px 8px; display: flex; align-items: center; background: {'#F8FAFC' if is_bye2 else '#FFFFFF'};">
+            <span style="width: 9px; height: 9px; border-radius: 50%; background: {dot2}; display: inline-block; margin-right: 6px; flex-shrink: 0;"></span>
+            <div style="flex: 1; overflow: hidden;">
+                <div style="font-size: 11px; font-weight: 700; color: {'#64748B' if is_bye2 else '#1E293B'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{nom2}</div>
+                <div style="font-size: 9px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{club2_str}</div>
+            </div>
+            <div style="font-size: 9px; font-weight: 700; background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 3px; padding: 1px 4px; color: #475569;">[ &nbsp; ]</div>
+        </div>
+    </div>
+    '''
+
+def render_svg_connectors(count, height, width=40):
+    lines = []
+    pairs = count // 2
+    step = height / count
+    for p in range(pairs):
+        y_top = (p * 2 + 0.5) * step
+        y_bot = (p * 2 + 1.5) * step
+        y_mid = (p + 0.5) * (height / pairs)
+        path = f"M 0 {y_top:.1f} H {width//2} V {y_bot:.1f} H 0 M {width//2} {y_mid:.1f} H {width}"
+        lines.append(f'<path d="{path}" fill="none" stroke="#94A3B8" stroke-width="2" />')
+    return f'<svg width="{width}" height="{height}" style="flex-shrink: 0; display: block;">{" ".join(lines)}</svg>'
+
+def generer_arbre_tableau_html(p_obj):
+    nom_poule = p_obj.get('nom', 'U13')
+    rondes = p_obj.get('rondes', [])
+    participants = p_obj.get('participants', [])
+    type_formule = p_obj.get('type_formule', '')
+    n = len(participants)
+
+    if type_formule == 'poules_croisees':
+        sf1, sf2 = rondes[3][0], rondes[3][1]
+        f_or, f_b = rondes[4][0], rondes[4][1]
+        
+        c_sf1 = make_bracket_card(sf1[0], sf1[1], 'DEMI-FINALE 1', '1er A vs 2ème B')
+        c_sf2 = make_bracket_card(sf2[0], sf2[1], 'DEMI-FINALE 2', '1er B vs 2ème A')
+        c_for = make_bracket_card(f_or[0], f_or[1], 'FINALE OR / ARGENT', '🥇 Or / 🥈 Argent')
+        c_fb = make_bracket_card(f_b[0], f_b[1], 'FINALE BRONZE (3-4)', '🥉 Bronze unique')
+
+        h_col = 220
+        svg_conn = f'<svg width="40" height="{h_col}" style="display: block; flex-shrink: 0;"><path d="M 0 55 H 20 V 165 H 0 M 20 55 H 40 M 20 165 H 40" fill="none" stroke="#94A3B8" stroke-width="2" /></svg>'
+
+        return f'''
+        <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 18px; margin: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                <span style="background: #0055A4; color: white; padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 800; text-transform: uppercase;">
+                    🏆 Tableau Final Croisé U13 (6 Lutteurs)
+                </span>
+                <span style="font-size: 11px; color: #64748B; font-weight: 600;">Orientation : Gauche ➔ Droite (Demi-Finales ➔ Finales)</span>
+            </div>
+            
+            <div style="overflow-x: auto; padding-bottom: 10px;">
+                <div style="display: inline-flex; flex-direction: row; align-items: center; gap: 0;">
+                    <!-- Demi-Finales -->
+                    <div style="display: flex; flex-direction: column; width: 240px;">
+                        <div style="background: #0055A4; color: white; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 10px;">
+                            DEMI-FINALES CROISÉES
+                        </div>
+                        <div style="display: flex; flex-direction: column; justify-content: space-around; height: {h_col}px;">
+                            {c_sf1}
+                            {c_sf2}
+                        </div>
+                    </div>
+
+                    {svg_conn}
+
+                    <!-- Finales -->
+                    <div style="display: flex; flex-direction: column; width: 240px;">
+                        <div style="background: #0F172A; color: white; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 10px;">
+                            FINALES
+                        </div>
+                        <div style="display: flex; flex-direction: column; justify-content: space-around; height: {h_col}px;">
+                            {c_for}
+                            {c_fb}
+                        </div>
+                    </div>
+
+                    <!-- Podiums -->
+                    <div style="margin-left: 15px; display: flex; flex-direction: column; justify-content: space-around; height: {h_col}px;">
+                        <div style="background: #FEF3C7; border: 1.5px solid #F59E0B; border-radius: 8px; padding: 8px 12px; font-size: 11px;">
+                            <div style="font-weight: 800; color: #B45309;">🥇 OR : Vainqueur Finale</div>
+                            <div style="font-weight: 800; color: #475569; margin-top: 4px;">🥈 ARGENT : Perdant Finale</div>
+                        </div>
+                        <div style="background: #EFF6FF; border: 1.5px solid #3B82F6; border-radius: 8px; padding: 8px 12px; font-size: 11px;">
+                            <div style="font-weight: 800; color: #1D4ED8;">🥉 BRONZE (Unique) : Vainqueur 3-4</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        '''
+
+    elif type_formule == 'tableau':
+        f_or = rondes[-1][0]
+        f_b1 = rondes[-1][1] if len(rondes[-1]) > 1 else None
+        f_b2 = rondes[-1][2] if len(rondes[-1]) > 2 else None
+
+        sf1 = rondes[-2][0]
+        sf2 = rondes[-2][1]
+        rep1 = rondes[-2][2] if len(rondes[-2]) > 2 else None
+        rep2 = rondes[-2][3] if len(rondes[-2]) > 3 else None
+
+        main_columns = []
+        if len(rondes) == 3:
+            if n == 7:
+                q1, q2, q3 = rondes[0][0], rondes[0][1], rondes[0][2]
+                p_ex = participants[6]
+                q_matches = [
+                    (q1[0], q1[1], '1/4 DE FINALE 1'),
+                    (q2[0], q2[1], '1/4 DE FINALE 2'),
+                    (q3[0], q3[1], '1/4 DE FINALE 3'),
+                    (p_ex, {'Nom': 'EXEMPT (BYE)', 'Club': '-'}, '1/4 DE FINALE 4 (Exempt)')
+                ]
+            else:
+                q_matches = [(m[0], m[1], f'1/4 DE FINALE {i+1}') for i, m in enumerate(rondes[0])]
+            main_columns.append(('QUARTS DE FINALE', q_matches))
+
+        elif len(rondes) == 4:
+            prelim_m = [(m[0], m[1], f'PRÉLIMINAIRE {i+1}') for i, m in enumerate(rondes[0])]
+            q_matches = [(m[0], m[1], f'1/4 DE FINALE {i+1}') for i, m in enumerate(rondes[1])]
+            main_columns.append(('TOUR PRÉLIMINAIRE', prelim_m))
+            main_columns.append(('QUARTS DE FINALE', q_matches))
+
+        elif len(rondes) >= 5:
+            p16 = [(m[0], m[1], f'1/16 DE FINALE {i+1}') for i, m in enumerate(rondes[0])]
+            p18 = [(m[0], m[1], f'1/8 DE FINALE {i+1}') for i, m in enumerate(rondes[1])]
+            q_matches = [(m[0], m[1], f'1/4 DE FINALE {i+1}') for i, m in enumerate(rondes[2])]
+            main_columns.append(('1/16 DE FINALE', p16))
+            main_columns.append(('1/8 DE FINALE', p18))
+            main_columns.append(('QUARTS DE FINALE', q_matches))
+
+        main_columns.append(('DEMI-FINALES', [(sf1[0], sf1[1], 'DEMI-FINALE 1'), (sf2[0], sf2[1], 'DEMI-FINALE 2')]))
+        main_columns.append(('FINALE (OR / ARGENT)', [(f_or[0], f_or[1], 'GRANDE FINALE')]))
+
+        max_matches_in_col = max(len(col[1]) for col in main_columns)
+        base_h = max(max_matches_in_col * 110, 440)
+
+        main_cols_html = []
+        for c_idx, (col_title, matches_list) in enumerate(main_columns):
+            cards_html = []
+            for m in matches_list:
+                cards_html.append(make_bracket_card(m[0], m[1], m[2]))
+            
+            bg_h = '#0F172A' if 'FINALE' in col_title and 'DEMI' not in col_title else '#0055A4'
+
+            col_div = f'''
+            <div style="display: inline-flex; flex-direction: column; width: 240px; margin: 0 5px;">
+                <div style="background: {bg_h}; color: white; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 10px;">
+                    {col_title}
+                </div>
+                <div style="display: flex; flex-direction: column; justify-content: space-around; height: {base_h}px;">
+                    {''.join(cards_html)}
+                </div>
+            </div>
+            '''
+            main_cols_html.append(col_div)
+
+            if c_idx < len(main_columns) - 1:
+                next_count = len(main_columns[c_idx + 1][1])
+                curr_count = len(matches_list)
+                if curr_count == next_count * 2:
+                    svg_c = render_svg_connectors(curr_count, base_h, width=40)
+                else:
+                    lines = [f'<line x1="0" y1="{base_h * (i + 0.5) / curr_count:.1f}" x2="40" y2="{base_h * (i + 0.5) / curr_count:.1f}" stroke="#94A3B8" stroke-width="2" />' for i in range(curr_count)]
+                    svg_c = f'<svg width="40" height="{base_h}" style="flex-shrink: 0; display: block;">{" ".join(lines)}</svg>'
+                main_cols_html.append(svg_c)
+
+        podium_main = f'''
+        <div style="display: inline-flex; align-items: center; margin-left: 10px;">
+            <div style="background: #FFFDF5; border: 1.5px solid #F59E0B; border-radius: 8px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(245,158,11,0.15); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                <div style="font-size: 12px; font-weight: 800; color: #B45309; margin-bottom: 6px;">🥇 CHAMPION (OR)</div>
+                <div style="font-size: 11px; color: #1E293B;">Vainqueur Grande Finale</div>
+                <div style="border-top: 1px solid #FDE68A; margin: 6px 0;"></div>
+                <div style="font-size: 12px; font-weight: 800; color: #64748B; margin-bottom: 6px;">🥈 VICE-CHAMPION (ARGENT)</div>
+                <div style="font-size: 11px; color: #1E293B;">Finaliste Grande Finale</div>
+            </div>
+        </div>
+        '''
+        main_cols_html.append(podium_main)
+
+        rep_cards = []
+        if rep1: rep_cards.append(make_bracket_card(rep1[0], rep1[1], 'REPÊCHAGE 1 (1/4)', 'Perdants QF 1-2'))
+        if rep2: rep_cards.append(make_bracket_card(rep2[0], rep2[1], 'REPÊCHAGE 2 (1/4)', 'Perdants QF 3-4'))
+        elif n == 7: rep_cards.append('<div style="background: #F1F5F9; border: 1.5px dashed #CBD5E1; border-radius: 8px; padding: 12px; font-size: 11px; color: #64748B; text-align: center; width: 230px;">Exempt de 1er repêchage (Avance direct en Finale Bronze 2)</div>')
+
+        bronze_cards = []
+        if f_b1: bronze_cards.append(make_bracket_card(f_b1[0], f_b1[1], 'FINALE BRONZE 1', '🥉 Médaille de Bronze 1'))
+        if f_b2: bronze_cards.append(make_bracket_card(f_b2[0], f_b2[1], 'FINALE BRONZE 2', '🥉 Médaille de Bronze 2'))
+
+        h_rep = 220
+        svg_rep = f'''
+        <svg width="40" height="{h_rep}" style="flex-shrink: 0; display: block;">
+            <line x1="0" y1="55" x2="40" y2="55" stroke="#94A3B8" stroke-width="2" />
+            <line x1="0" y1="165" x2="40" y2="165" stroke="#94A3B8" stroke-width="2" />
+        </svg>
+        '''
+
+        rep_html = f'''
+        <div style="margin-top: 24px; padding-top: 18px; border-top: 2px dashed #CBD5E1;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                <span style="background: #0284C7; color: white; padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 800; text-transform: uppercase;">
+                    🔄 Repêchages & Attribution du Bronze (2 Troisièmes Places)
+                </span>
+                <span style="font-size: 11px; color: #64748B; font-weight: 600;">Perdants des 1/4 ➔ Repêchages ➔ Finales Bronze contre Perdants des 1/2</span>
+            </div>
+
+            <div style="overflow-x: auto; padding-bottom: 10px;">
+                <div style="display: inline-flex; flex-direction: row; align-items: center; gap: 0;">
+                    <div style="display: flex; flex-direction: column; width: 240px; margin: 0 5px;">
+                        <div style="background: #0284C7; color: white; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 10px;">
+                            REPÊCHAGES (1/4)
+                        </div>
+                        <div style="display: flex; flex-direction: column; justify-content: space-around; height: {h_rep}px;">
+                            {''.join(rep_cards)}
+                        </div>
+                    </div>
+
+                    {svg_rep}
+
+                    <div style="display: flex; flex-direction: column; width: 240px; margin: 0 5px;">
+                        <div style="background: #B45309; color: white; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 10px;">
+                            MATCHS POUR LE BRONZE
+                        </div>
+                        <div style="display: flex; flex-direction: column; justify-content: space-around; height: {h_rep}px;">
+                            {''.join(bronze_cards)}
+                        </div>
+                    </div>
+
+                    <div style="margin-left: 15px; display: flex; flex-direction: column; justify-content: space-around; height: {h_rep}px;">
+                        <div style="background: #EFF6FF; border: 1.5px solid #3B82F6; border-radius: 8px; padding: 8px 12px; font-size: 11px;">
+                            <div style="font-weight: 800; color: #1D4ED8;">🥉 3ème PLACE (Bronze 1)</div>
+                            <div style="color: #1E293B; margin-top: 2px;">Vainqueur Finale Bronze 1</div>
+                        </div>
+                        <div style="background: #EFF6FF; border: 1.5px solid #3B82F6; border-radius: 8px; padding: 8px 12px; font-size: 11px;">
+                            <div style="font-weight: 800; color: #1D4ED8;">🥉 3ème PLACE (Bronze 2)</div>
+                            <div style="color: #1E293B; margin-top: 2px;">Vainqueur Finale Bronze 2</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        '''
+
+        return f'''
+        <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 18px; margin: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                <span style="background: #0055A4; color: white; padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 800; text-transform: uppercase;">
+                    🏆 Tableau Principal à Élimination Directe — {nom_poule}
+                </span>
+                <span style="font-size: 11px; color: #64748B; font-weight: 600;">Orientation : Gauche ➔ Droite (Éliminatoires ➔ Quarts ➔ Demi-Finales ➔ Finale)</span>
+            </div>
+
+            <div style="overflow-x: auto; padding-bottom: 10px;">
+                <div style="display: inline-flex; flex-direction: row; align-items: center; gap: 0;">
+                    {''.join(main_cols_html)}
+                </div>
+            </div>
+
+            {rep_html}
+        </div>
+        '''
+    return ''
+
+def generer_document_bracket_imprimable(nom_poule, nom_comp, bracket_html):
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Tableau U13 - {nom_poule} - {nom_comp}</title>
+    <style>
+        @page {{
+            size: landscape;
+            margin: 8mm;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background: white;
+            color: #1E293B;
+        }}
+        .print-btn {{
+            background-color: #0055A4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }}
+        @media print {{
+            .print-btn {{
+                display: none !important;
+            }}
+            body {{
+                padding: 0;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimer ce Tableau (A4 Paysage)</button>
+    <div style="margin-bottom: 10px;">
+        <h2 style="color: #0055A4; margin: 0 0 4px 0; font-size: 20px;">🏆 {nom_comp.upper()}</h2>
+        <div style="font-size: 12px; color: #64748B; font-weight: bold;">FFLDA — TABLEAU OFFICIEL À ÉLIMINATION DIRECTE & REPÊCHAGES</div>
+    </div>
+    {bracket_html}
+</body>
+</html>"""
+
 def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
     """
     Évite d'avoir un lutteur seul dans une poule de 1 tout en respectant 
@@ -2218,11 +2562,21 @@ else:
                         with c_pb:
                             st.markdown("**Poule B**")
                             st.table(pd.DataFrame(p_obj['poule_b'])[['Nom', 'Club', 'Poids']])
-                        st.markdown("##### 🏆 Phase Finale Croisée :")
-                        st.info("• **Demi-finale 1** : 1er Poule A vs 2ème Poule B\n\n• **Demi-finale 2** : 1er Poule B vs 2ème Poule A\n\n• **Finale Or/Argent (1-2)** : Vainqueur DF1 vs Vainqueur DF2\n\n• **Finale Bronze (3-4)** : Perdant DF1 vs Perdant DF2 (1 seul 3ème)")
+                        
+                        st.markdown("##### 🤼 Tableau Visuel de la Phase Finale (Gauche ➔ Droite) :")
+                        bracket_html = generer_arbre_tableau_html(p_obj)
+                        st.markdown(bracket_html, unsafe_allow_html=True)
+                        doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
+                        nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
+                        bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
+
                     elif p_obj and p_obj.get('type_formule') == 'tableau':
-                        st.markdown("##### 🤼 Formule Tableau à Élimination Directe & Repêchages des 1/4 :")
-                        st.info("• **1/4 de finale** : Matchs éliminatoires (les perdants avant les 1/4 sont éliminés).\n\n• **Demi-finales** : Les 4 vainqueurs des 1/4 s'affrontent pour les places 1 et 2.\n\n• **Repêchages** : Les 4 perdants des 1/4 se rencontrent puis affrontent les perdants des 1/2.\n\n• **2 Médailles de Bronze** attribuées (2 troisièmes).")
+                        st.markdown("##### 🤼 Tableau Visuel Officiel FFLDA (Gauche ➔ Droite) :")
+                        bracket_html = generer_arbre_tableau_html(p_obj)
+                        st.markdown(bracket_html, unsafe_allow_html=True)
+                        doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
+                        nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
+                        bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
 
             st.markdown("---")
             
