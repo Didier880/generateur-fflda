@@ -339,71 +339,193 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
     else:
         # Cas 3 : Plus de 6 lutteurs (Tableau avec repêchage des 1/4 - 2 médailles de bronze)
         rondes = []
-        if n <= 8:
-            pts = list(participants)
-            while len(pts) < 8:
-                pts.append({"Nom": "BYE", "Club": "-"})
+        if n == 7:
+            # 7 lutteurs : 3 quarts de finale, 1 exempt direct en demi-finale
+            q1 = (participants[0], participants[1])
+            q2 = (participants[2], participants[3])
+            q3 = (participants[4], participants[5])
+            p_exempt = participants[6]
+            rondes.append([q1, q2, q3])
             
-            qf_matches = []
-            for i in range(4):
-                p1 = pts[i * 2]
-                p2 = pts[i * 2 + 1]
-                if p1["Nom"] != "BYE" and p2["Nom"] != "BYE":
-                    qf_matches.append((p1, p2))
-            rondes.append(qf_matches)
-        else:
+            sf1 = (
+                {"Nom": f"Vainqueur 1/4 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/4 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            sf2 = (
+                {"Nom": f"Vainqueur 1/4 (3) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": p_exempt['Nom'], "Club": p_exempt.get('Club', ''), "Comité": p_exempt.get('Comité', '-')}
+            )
+            rep1 = (
+                {"Nom": f"Perdant 1/4 (1) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/4 (2) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+            )
+            rondes.append([sf1, sf2, rep1])
+            
+            f_or = (
+                {"Nom": f"Vainqueur 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b1 = (
+                {"Nom": f"Vainqueur Repêchage 1 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b2 = (
+                {"Nom": f"Perdant 1/4 (3) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            rondes.append([f_or, f_b1, f_b2])
+
+        elif n <= 16:
+            # 8 <= n <= 16 : Qualification pour 8 quarts-de-finalistes
             nb_prelim = n - 8
+            nb_byes = 16 - n
+            
+            byes = participants[:nb_byes]
+            prelim_pts = participants[nb_byes:]
+            
             prelim_matches = []
-            pts_prelim = participants[-2 * nb_prelim:]
-            pts_direct_qf = participants[:-2 * nb_prelim]
+            prelim_winners = []
             for i in range(nb_prelim):
-                prelim_matches.append((pts_prelim[i * 2], pts_prelim[i * 2 + 1]))
+                p1 = prelim_pts[i * 2]
+                p2 = prelim_pts[i * 2 + 1]
+                prelim_matches.append((p1, p2))
+                prelim_winners.append({
+                    "Nom": f"Vainqueur Prél. {i+1} [{cat_poids}]",
+                    "Club": "Qualifié",
+                    "Comité": "-"
+                })
+                
+            if prelim_matches:
+                rondes.append(prelim_matches)
+                
+            slots_qf = [None] * 8
+            order_prelim_slots = [7, 3, 5, 1, 6, 2, 4, 0]
+            for w_idx, slot_idx in enumerate(order_prelim_slots[:nb_prelim]):
+                slots_qf[slot_idx] = prelim_winners[w_idx]
+                
+            bye_idx = 0
+            for s_idx in range(8):
+                if slots_qf[s_idx] is None:
+                    slots_qf[s_idx] = byes[bye_idx]
+                    bye_idx += 1
+                    
+            qf_matches = [
+                (slots_qf[0], slots_qf[1]),
+                (slots_qf[2], slots_qf[3]),
+                (slots_qf[4], slots_qf[5]),
+                (slots_qf[6], slots_qf[7])
+            ]
+            rondes.append(qf_matches)
+            
+            sf1 = (
+                {"Nom": f"Vainqueur 1/4 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/4 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            sf2 = (
+                {"Nom": f"Vainqueur 1/4 (3) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/4 (4) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            rep1 = (
+                {"Nom": f"Perdant 1/4 (1) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/4 (2) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+            )
+            rep2 = (
+                {"Nom": f"Perdant 1/4 (3) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/4 (4) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+            )
+            rondes.append([sf1, sf2, rep1, rep2])
+            
+            f_or = (
+                {"Nom": f"Vainqueur 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b1 = (
+                {"Nom": f"Vainqueur Repêchage 1 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b2 = (
+                {"Nom": f"Vainqueur Repêchage 2 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            rondes.append([f_or, f_b1, f_b2])
+
+        else:
+            # n > 16 (ex: jusqu'à 32)
+            nb_prelim = n - 16
+            nb_byes = max(0, 32 - n)
+            byes_16 = participants[:nb_byes]
+            prelim_pts = participants[nb_byes:]
+            
+            prelim_matches = []
+            prelim_winners = []
+            for i in range(nb_prelim):
+                p1 = prelim_pts[i * 2] if i * 2 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+1}", "Club": "-"}
+                p2 = prelim_pts[i * 2 + 1] if i * 2 + 1 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+2}", "Club": "-"}
+                prelim_matches.append((p1, p2))
+                prelim_winners.append({
+                    "Nom": f"Vainqueur 1/16 ({i+1}) [{cat_poids}]",
+                    "Club": "Qualifié",
+                    "Comité": "-"
+                })
             rondes.append(prelim_matches)
             
-            qf_matches = []
-            for i in range(4):
-                nom_p1 = pts_direct_qf[i]['Nom'] if i < len(pts_direct_qf) else f"Vainqueur Prél. {i+1} [{cat_poids}]"
-                club_p1 = pts_direct_qf[i].get('Club', '') if i < len(pts_direct_qf) else "Qualifié"
-                p1_obj = {"Nom": nom_p1, "Club": club_p1, "Comité": "-"}
-                
-                nom_p2 = f"Vainqueur Prél. {i+1} [{cat_poids}]" if (i >= len(pts_direct_qf) or 4 + i >= len(pts_direct_qf)) else pts_direct_qf[4 + i]['Nom']
-                club_p2 = "Qualifié" if (i >= len(pts_direct_qf) or 4 + i >= len(pts_direct_qf)) else pts_direct_qf[4 + i].get('Club', '')
-                p2_obj = {"Nom": nom_p2, "Club": club_p2, "Comité": "-"}
-                qf_matches.append((p1_obj, p2_obj))
+            slots_16 = (byes_16 + prelim_winners)[:16]
+            while len(slots_16) < 16:
+                slots_16.append({"Nom": f"Qualifié 1/8 ({len(slots_16)+1})", "Club": "Qualifié", "Comité": "-"})
+            
+            matches_18 = []
+            winners_18 = []
+            for i in range(8):
+                p1 = slots_16[i * 2]
+                p2 = slots_16[i * 2 + 1]
+                matches_18.append((p1, p2))
+                winners_18.append({
+                    "Nom": f"Vainqueur 1/8 ({i+1}) [{cat_poids}]",
+                    "Club": "Qualifié",
+                    "Comité": "-"
+                })
+            rondes.append(matches_18)
+            
+            qf_matches = [
+                (winners_18[0], winners_18[1]),
+                (winners_18[2], winners_18[3]),
+                (winners_18[4], winners_18[5]),
+                (winners_18[6], winners_18[7])
+            ]
             rondes.append(qf_matches)
+            
+            sf1 = (
+                {"Nom": f"Vainqueur 1/4 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/4 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            sf2 = (
+                {"Nom": f"Vainqueur 1/4 (3) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/4 (4) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            rep1 = (
+                {"Nom": f"Perdant 1/4 (1) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/4 (2) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+            )
+            rep2 = (
+                {"Nom": f"Perdant 1/4 (3) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/4 (4) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+            )
+            rondes.append([sf1, sf2, rep1, rep2])
+            
+            f_or = (
+                {"Nom": f"Vainqueur 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+                {"Nom": f"Vainqueur 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b1 = (
+                {"Nom": f"Vainqueur Repêchage 1 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            f_b2 = (
+                {"Nom": f"Vainqueur Repêchage 2 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+                {"Nom": f"Perdant 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+            )
+            rondes.append([f_or, f_b1, f_b2])
 
-        sf1 = (
-            {"Nom": f"Vainqueur 1/4 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
-            {"Nom": f"Vainqueur 1/4 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
-        )
-        sf2 = (
-            {"Nom": f"Vainqueur 1/4 (3) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
-            {"Nom": f"Vainqueur 1/4 (4) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
-        )
-        rep1 = (
-            {"Nom": f"Perdant 1/4 (1) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
-            {"Nom": f"Perdant 1/4 (2) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
-        )
-        rep2 = (
-            {"Nom": f"Perdant 1/4 (3) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
-            {"Nom": f"Perdant 1/4 (4) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
-        )
-        rondes.append([sf1, sf2, rep1, rep2])
-        
-        f_or = (
-            {"Nom": f"Vainqueur 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
-            {"Nom": f"Vainqueur 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
-        )
-        f_b1 = (
-            {"Nom": f"Vainqueur Repêchage 1 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
-            {"Nom": f"Perdant 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
-        )
-        f_b2 = (
-            {"Nom": f"Vainqueur Repêchage 2 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
-            {"Nom": f"Perdant 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
-        )
-        rondes.append([f_or, f_b1, f_b2])
-        
         nom = f"{age} | {style_grp}{suffixe_niveau} | {cat_poids} (Tableau élimination & repêchages)"
         return {
             'nom': nom,
@@ -2631,4 +2753,6 @@ else:
 
             st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U7_U9_U11_U13.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
+            import traceback
             st.error(f"Erreur lors de l'analyse du fichier : {e}")
+            st.code(traceback.format_exc())
