@@ -1017,7 +1017,7 @@ def make_loser_formula(c_r, c_b, pt_r, pt_b, placeholder_name, target_corner="�
         f'"{default_text}")))'
     )
 
-def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, coords_map=None, bg_header=None):
+def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, coords_map=None, bg_header=None, end_col=None):
     b_thin = Side(style='thin', color='CBD5E1')
     b_style = Border(left=b_thin, right=b_thin, top=b_thin, bottom=b_thin)
     font_match_h = Font(name="Arial", size=9, bold=True, color="FFFFFF")
@@ -1029,17 +1029,42 @@ def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, co
     fill_blue_card = PatternFill("solid", fgColor="EFF6FF")
     fill_gray_box = PatternFill("solid", fgColor="F8FAFC")
 
-    col1 = start_col
-    col2 = start_col + 1
-    
-    # En-tête du match
-    ws.merge_cells(start_row=start_row, start_column=col1, end_row=start_row, end_column=col2)
-    c_h = ws.cell(row=start_row, column=col1, value=title)
-    c_h.font = font_match_h
-    c_h.fill = fill_header
-    c_h.alignment = Alignment(horizontal="center", vertical="center")
-    c_h.border = b_style
-    ws.cell(row=start_row, column=col2).border = b_style
+    if end_col is not None and end_col > start_col + 1:
+        col1 = start_col
+        col2 = end_col
+        # En-tête du match sur toute la largeur (col1..col2)
+        ws.merge_cells(start_row=start_row, start_column=col1, end_row=start_row, end_column=col2)
+        c_h = ws.cell(row=start_row, column=col1, value=title)
+        c_h.font = font_match_h
+        c_h.fill = fill_header
+        c_h.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Combattant Rouge (fusionné de col1 à col2-1)
+        ws.merge_cells(start_row=start_row+1, start_column=col1, end_row=start_row+1, end_column=col2-1)
+        # Combattant Bleu (fusionné de col1 à col2-1)
+        ws.merge_cells(start_row=start_row+2, start_column=col1, end_row=start_row+2, end_column=col2-1)
+        
+        for r_k in range(start_row, start_row + 3):
+            for c_k in range(col1, col2 + 1):
+                ws.cell(row=r_k, column=c_k).border = b_style
+                if r_k == start_row:
+                    ws.cell(row=r_k, column=c_k).fill = fill_header
+                elif r_k == start_row + 1 and c_k < col2:
+                    ws.cell(row=r_k, column=c_k).fill = fill_red_card
+                elif r_k == start_row + 2 and c_k < col2:
+                    ws.cell(row=r_k, column=c_k).fill = fill_blue_card
+    else:
+        col1 = start_col
+        col2 = start_col + 1
+        
+        # En-tête du match
+        ws.merge_cells(start_row=start_row, start_column=col1, end_row=start_row, end_column=col2)
+        c_h = ws.cell(row=start_row, column=col1, value=title)
+        c_h.font = font_match_h
+        c_h.fill = fill_header
+        c_h.alignment = Alignment(horizontal="center", vertical="center")
+        c_h.border = b_style
+        ws.cell(row=start_row, column=col2).border = b_style
     
     # Combattant Rouge
     nom1 = p1.get('Nom', '') if isinstance(p1, dict) else str(p1)
@@ -1798,7 +1823,7 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
         for idx, p in enumerate(participants, 1):
             lignes_lutteurs[p['Nom']] = row_cur
             
-            c_clt = ws.cell(row=row_cur, column=1, value=f"=RANK(H{row_cur}, H{start_row+2}:H{start_row+1+len(participants)})")
+            c_clt = ws.cell(row=row_cur, column=1, value=f'=IF(SUM(H${start_row+2}:H${start_row+1+len(participants)})=0, "", RANK(H{row_cur}, H${start_row+2}:H${start_row+1+len(participants)}) + COUNTIF(H${start_row+2}:H{row_cur}, H{row_cur}) - 1)')
             c_clt.alignment, c_clt.border = Alignment(horizontal="center", vertical="center"), b_style
             c_clt.font = Font(name="Arial", size=10, bold=True, color="0055A4")
             
@@ -1858,7 +1883,7 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
             for m_idx, m in enumerate(ronde):
                 grp_tag = "Poule A" if m_idx == 0 else "Poule B"
                 title_m = f"T{tour_idx+1} ({grp_tag})"
-                pt_r, pt_b, _, _ = draw_excel_match_card(ws, r_matches, 1, title_m, m[0], m[1], nom_poule, coords_matchs_tapis)
+                pt_r, pt_b, _, _ = draw_excel_match_card(ws, r_matches, 1, title_m, m[0], m[1], nom_poule, coords_matchs_tapis, end_col=8)
                 
                 p1_nom = m[0]['Nom']
                 p2_nom = m[1]['Nom']
@@ -1895,10 +1920,10 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     # Qualifications dynamiques depuis les rangs des poules A et B
     # Poule A est en rangs 6 à 8 (Col A = Rang, Col C = Nom)
     # Poule B est en rangs 12 à 14 (Col A = Rang, Col C = Nom)
-    form_1er_a = '=IF(ISNA(MATCH(1, A$6:A$8, 0)), "🔴 1er Poule A", "🔴 " & INDEX(C$6:C$8, MATCH(1, A$6:A$8, 0)))'
-    form_2e_b  = '=IF(ISNA(MATCH(2, A$12:A$14, 0)), "🔵 2ème Poule B", "🔵 " & INDEX(C$12:C$14, MATCH(2, A$12:A$14, 0)))'
-    form_1er_b = '=IF(ISNA(MATCH(1, A$12:A$14, 0)), "🔴 1er Poule B", "🔴 " & INDEX(C$12:C$14, MATCH(1, A$12:A$14, 0)))'
-    form_2e_a  = '=IF(ISNA(MATCH(2, A$6:A$8, 0)), "🔵 2ème Poule A", "🔵 " & INDEX(C$6:C$8, MATCH(2, A$6:A$8, 0)))'
+    form_1er_a = '=IF(OR(SUM(H$6:H$8)=0, ISNA(MATCH(1, A$6:A$8, 0))), "🔴 1er Poule A", "🔴 " & INDEX(C$6:C$8, MATCH(1, A$6:A$8, 0)) & IF(INDEX(D$6:D$8, MATCH(1, A$6:A$8, 0))<>"", " (" & INDEX(D$6:D$8, MATCH(1, A$6:A$8, 0)) & ")", ""))'
+    form_2e_b  = '=IF(OR(SUM(H$12:H$14)=0, ISNA(MATCH(2, A$12:A$14, 0))), "🔵 2ème Poule B", "🔵 " & INDEX(C$12:C$14, MATCH(2, A$12:A$14, 0)) & IF(INDEX(D$12:D$14, MATCH(2, A$12:A$14, 0))<>"", " (" & INDEX(D$12:D$14, MATCH(2, A$12:A$14, 0)) & ")", ""))'
+    form_1er_b = '=IF(OR(SUM(H$12:H$14)=0, ISNA(MATCH(1, A$12:A$14, 0))), "🔴 1er Poule B", "🔴 " & INDEX(C$12:C$14, MATCH(1, A$12:A$14, 0)) & IF(INDEX(D$12:D$14, MATCH(1, A$12:A$14, 0))<>"", " (" & INDEX(D$12:D$14, MATCH(1, A$12:A$14, 0)) & ")", ""))'
+    form_2e_a  = '=IF(OR(SUM(H$6:H$8)=0, ISNA(MATCH(2, A$6:A$8, 0))), "🔵 2ème Poule A", "🔵 " & INDEX(C$6:C$8, MATCH(2, A$6:A$8, 0)) & IF(INDEX(D$6:D$8, MATCH(2, A$6:A$8, 0))<>"", " (" & INDEX(D$6:D$8, MATCH(2, A$6:A$8, 0)) & ")", ""))'
 
     p_sf1_1 = {'Nom': sf1[0]['Nom'], 'formula': form_1er_a}
     p_sf1_2 = {'Nom': sf1[1]['Nom'], 'formula': form_2e_b}
@@ -4213,7 +4238,7 @@ else:
                             col_pts_lettre = openpyxl.utils.get_column_letter(6 + nb_tours)
                             plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
                             
-                            cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f"=RANK({col_pts_lettre}{row_cursor}, {plage_totaux})")
+                            cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f'=IF(SUM({plage_totaux})=0, "", RANK({col_pts_lettre}{row_cursor}, {plage_totaux}))')
                             cell_clt.border = b_style
                             cell_clt.alignment = Alignment(horizontal="center", vertical="center")
                             cell_clt.font = Font(bold=True, color="0055A4")
