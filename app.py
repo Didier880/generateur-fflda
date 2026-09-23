@@ -1007,18 +1007,14 @@ def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, co
             bp1 = re.sub(r'\s*\[.*?\]', '', str(m_info.get('p1', ''))).strip()
             if nom1 == m_info['p1'] or (b1 and b1 == bp1) or (b1 and b1 in bp1) or (bp1 and bp1 in b1):
                 ptr_c = m_info['ptr_cell']
-                tot_c = m_info.get('tot_r_cell', ptr_c)
                 ptb_c = m_info['ptb_cell']
-                tot_b_c = m_info.get('tot_b_cell', ptb_c)
-                c_pt_r.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, IF('{s_name}'!{tot_c}<>\"\", '{s_name}'!{tot_c}, \"\"))"
-                c_pt_b.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, IF('{s_name}'!{tot_b_c}<>\"\", '{s_name}'!{tot_b_c}, \"\"))"
+                c_pt_r.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, \"\")"
+                c_pt_b.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, \"\")"
             else:
                 ptr_c = m_info['ptb_cell']
-                tot_c = m_info.get('tot_b_cell', ptr_c)
                 ptb_c = m_info['ptr_cell']
-                tot_b_c = m_info.get('tot_r_cell', ptb_c)
-                c_pt_r.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, IF('{s_name}'!{tot_c}<>\"\", '{s_name}'!{tot_c}, \"\"))"
-                c_pt_b.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, IF('{s_name}'!{tot_b_c}<>\"\", '{s_name}'!{tot_b_c}, \"\"))"
+                c_pt_r.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, \"\")"
+                c_pt_b.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, \"\")"
 
     return c_pt_r, c_pt_b, c_r, c_b
 
@@ -2907,6 +2903,94 @@ else:
                 ref_usage_count[arb_choisi['Nom_Complet']] = ref_usage_count.get(arb_choisi['Nom_Complet'], 0) + 1
                 return arb_choisi['Nom_Complet']
 
+            def nommer_tour_match(poule_obj, r_idx, m_idx, m=None):
+                if not poule_obj:
+                    return f"Tour {r_idx + 1}"
+                type_f = poule_obj.get('type_formule', 'poule')
+                rondes = poule_obj.get('rondes', [])
+                total_r = len(rondes)
+                
+                if type_f == 'tableau':
+                    if total_r >= 5:
+                        if r_idx == 0:
+                            return f"1/16 de Finale ({m_idx + 1})"
+                        elif r_idx == 1:
+                            return f"1/8 de Finale ({m_idx + 1})"
+                        elif r_idx == 2:
+                            return f"1/4 de Finale ({m_idx + 1})"
+                        elif r_idx == total_r - 2:
+                            if m_idx in (0, 1):
+                                return f"Demi-Finale {m_idx + 1}"
+                            else:
+                                return f"Repêchage 1/4 ({m_idx - 1})"
+                        elif r_idx == total_r - 1:
+                            if m_idx == 0:
+                                return "Grande Finale (Or / Argent)"
+                            elif m_idx == 1:
+                                return "Finale Bronze 1"
+                            elif m_idx == 2:
+                                return "Finale Bronze 2"
+                            else:
+                                return f"Finale {m_idx + 1}"
+                        else:
+                            return f"Tour {r_idx + 1}"
+                    elif total_r == 4:
+                        if r_idx == 0:
+                            return f"Tour Préliminaire 1/8 ({m_idx + 1})"
+                        elif r_idx == 1:
+                            return f"1/4 de Finale ({m_idx + 1})"
+                        elif r_idx == 2:
+                            if m_idx in (0, 1):
+                                return f"Demi-Finale {m_idx + 1}"
+                            else:
+                                return f"Repêchage 1/4 ({m_idx - 1})"
+                        elif r_idx == 3:
+                            if m_idx == 0:
+                                return "Grande Finale (Or / Argent)"
+                            elif m_idx == 1:
+                                return "Finale Bronze 1"
+                            elif m_idx == 2:
+                                return "Finale Bronze 2"
+                            else:
+                                return f"Finale {m_idx + 1}"
+                        else:
+                            return f"Tour {r_idx + 1}"
+                    elif total_r == 3:
+                        if r_idx == 0:
+                            return f"1/4 de Finale ({m_idx + 1})"
+                        elif r_idx == 1:
+                            if m_idx in (0, 1):
+                                return f"Demi-Finale {m_idx + 1}"
+                            else:
+                                return f"Repêchage 1/4 ({m_idx - 1})"
+                        elif r_idx == 2:
+                            if m_idx == 0:
+                                return "Grande Finale (Or / Argent)"
+                            elif m_idx == 1:
+                                return "Finale Bronze 1"
+                            elif m_idx == 2:
+                                return "Finale Bronze 2"
+                            else:
+                                return f"Finale {m_idx + 1}"
+                        else:
+                            return f"Tour {r_idx + 1}"
+                    else:
+                        return f"Tour {r_idx + 1}"
+                        
+                elif type_f == 'poules_croisees':
+                    if r_idx == 4:
+                        if m_idx == 0:
+                            return "Grande Finale (Or / Argent)"
+                        else:
+                            return "Finale 3-4 (Bronze unique)"
+                    elif r_idx == 3:
+                        return f"Demi-Finale Croisée {m_idx + 1}"
+                    else:
+                        return f"Poule - Tour {r_idx + 1}"
+                        
+                else:
+                    return f"Tour {r_idx + 1}"
+
             def ordonnancer_phase(poules_phase, heure_debut_phase, duree_combat, meme_tapis=True):
                 global total_matchs_calcules
                 if not poules_phase:
@@ -2932,16 +3016,18 @@ else:
                         for r in range(max_rondes):
                             for p in poules_t:
                                 if r < len(p['rondes']):
-                                    for m in p['rondes'][r]:
+                                    for m_idx, m in enumerate(p['rondes'][r]):
                                         matchs_tapis.append({
                                             'poule': p['nom'],
+                                            'poule_obj': p,
                                             'p1': m[0]['Nom'],
                                             'p1_club': m[0].get('Club', ''),
                                             'p1_comite': m[0].get('Comité', m[0].get('Comite', 'Comité Non Renseigné')),
                                             'p2': m[1]['Nom'],
                                             'p2_club': m[1].get('Club', ''),
                                             'p2_comite': m[1].get('Comité', m[1].get('Comite', 'Comité Non Renseigné')),
-                                            'tour': r + 1
+                                            'tour': r + 1,
+                                            'nom_tour': nommer_tour_match(p, r, m_idx, m)
                                         })
 
                         while matchs_tapis:
@@ -2995,6 +3081,7 @@ else:
                                 "Club 2": m['p2_club'],
                                 "Comité 2": m['p2_comite'],
                                 "Tour": m['tour'],
+                                "Nom_Tour": m.get('nom_tour', f"Tour {m['tour']}"),
                                 "Arbitre": arb_nom
                             })
                             
@@ -3013,16 +3100,18 @@ else:
                     for r in range(max_rondes):
                         for p in poules_phase:
                             if r < len(p['rondes']):
-                                for m in p['rondes'][r]:
+                                for m_idx, m in enumerate(p['rondes'][r]):
                                     matchs_a_jouer.append({
                                         'poule': p['nom'],
+                                        'poule_obj': p,
                                         'p1': m[0]['Nom'],
                                         'p1_club': m[0].get('Club', ''),
                                         'p1_comite': m[0].get('Comité', m[0].get('Comite', 'Comité Non Renseigné')),
                                         'p2': m[1]['Nom'],
                                         'p2_club': m[1].get('Club', ''),
                                         'p2_comite': m[1].get('Comité', m[1].get('Comite', 'Comité Non Renseigné')),
-                                        'tour': r + 1
+                                        'tour': r + 1,
+                                        'nom_tour': nommer_tour_match(p, r, m_idx, m)
                                     })
                     
                     while matchs_a_jouer:
@@ -3077,6 +3166,7 @@ else:
                             "Club 2": m['p2_club'],
                             "Comité 2": m['p2_comite'],
                             "Tour": m['tour'],
+                            "Nom_Tour": m.get('nom_tour', f"Tour {m['tour']}"),
                             "Arbitre": arb_nom
                         })
                         
@@ -3219,7 +3309,9 @@ else:
                         elif m["Type"] == "VIDE": ligne[col] = ""
                         else:
                             arb_str = f" (🛡️ {m['Arbitre']})" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}{arb_str}"
+                            t_nom = m.get('Nom_Tour') or (f"Tour {m['Tour']}" if m.get('Tour') else "")
+                            tour_str = f" [🎯 {t_nom}]" if t_nom else ""
+                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}]{tour_str} - {m['Combattant 1']} vs {m['Combattant 2']}{arb_str}"
                     else: ligne[col] = ""
                 grille_ui.append(ligne)
             
@@ -3231,9 +3323,9 @@ else:
                 m_count_doc = 0
                 for m in planning_tapis[t]:
                     if m["Type"] == "PAUSE":
-                        lignes_tapis_doc.append({"N°": "-", "Heure": m["Heure"], "Catégorie": "⏸️ PAUSE", "Lutteur Rouge": "-", "Pt Clt (R)": "", "Lutteur Bleu": "-", "Pt Clt (B)": "", "Arbitre": ""})
+                        lignes_tapis_doc.append({"N°": "-", "Heure": m["Heure"], "Catégorie": "⏸️ PAUSE", "Tour": "-", "Lutteur Rouge": "-", "Pt Clt (R)": "", "Lutteur Bleu": "-", "Pt Clt (B)": "", "Arbitre": ""})
                     elif m["Type"] == "ATTENTE":
-                        lignes_tapis_doc.append({"N°": "-", "Heure": m["Heure"], "Catégorie": f"⏳ {m['Texte']}", "Lutteur Rouge": "-", "Pt Clt (R)": "", "Lutteur Bleu": "-", "Pt Clt (B)": "", "Arbitre": ""})
+                        lignes_tapis_doc.append({"N°": "-", "Heure": m["Heure"], "Catégorie": f"⏳ {m['Texte']}", "Tour": "-", "Lutteur Rouge": "-", "Pt Clt (R)": "", "Lutteur Bleu": "-", "Pt Clt (B)": "", "Arbitre": ""})
                     elif m["Type"] == "MATCH":
                         m_count_doc += 1
                         c1_t = f"{m['Combattant 1']}"
@@ -3244,6 +3336,7 @@ else:
                             "N°": f"M{m_count_doc}",
                             "Heure": f"{m['Heure']}",
                             "Catégorie": m['Cat'],
+                            "Tour": m.get('Nom_Tour') or (f"Tour {m.get('Tour')}" if m.get('Tour') else "-"),
                             "Lutteur Rouge": c1_t,
                             "Pt Clt (R)": "[   ]",
                             "Lutteur Bleu": c2_t,
@@ -3357,7 +3450,9 @@ else:
                         elif m["Type"] == "MATCH":
                             m_count_st += 1
                             arb_info_st = f" | 🛡️ Arbitre : {m['Arbitre']}" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Catégorie : `{m['Cat']}`{arb_info_st}")
+                            t_nom = m.get('Nom_Tour') or (f"Tour {m['Tour']}" if m.get('Tour') else "")
+                            tour_st = f" | 🎯 Tour : **{t_nom}**" if t_nom else ""
+                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Catégorie : `{m['Cat']}`{tour_st}{arb_info_st}")
                             
                             c1_cl = f" ({m.get('Club 1', '')})" if m.get('Club 1') else ""
                             c1_co = f" - {m.get('Comité 1', '')}" if (m.get('Comité 1') and m.get('Comité 1') != 'Comité Non Renseigné') else ""
@@ -3454,7 +3549,9 @@ else:
                             elif m["Type"] == "VIDE": ligne[col] = ""
                             else:
                                 arb_str = f"\n🛡️ Arbitre : {m['Arbitre']}" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                                ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]\n{m['Combattant 1']} VS {m['Combattant 2']}{arb_str}"
+                                t_nom = m.get('Nom_Tour') or (f"Tour {m['Tour']}" if m.get('Tour') else "")
+                                tour_str = f"\n🎯 Tour : {t_nom}" if t_nom else ""
+                                ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]{tour_str}\n{m['Combattant 1']} VS {m['Combattant 2']}{arb_str}"
                         else: ligne[col] = ""
                     grille.append(ligne)
                 pd.DataFrame(grille).to_excel(writer, sheet_name="Grille de Passage", index=False, startrow=1)
@@ -3494,7 +3591,7 @@ else:
                     sub_mat.font = Font(name="Arial", size=10, italic=True, bold=True, color="0055A4")
                     sub_mat.alignment = Alignment(horizontal="center", vertical="center")
 
-                    ws_mat.column_dimensions['A'].width = 8
+                    ws_mat.column_dimensions['A'].width = 16
                     ws_mat.column_dimensions['B'].width = 6
                     ws_mat.column_dimensions['C'].width = 25
                     ws_mat.column_dimensions['D'].width = 18
@@ -3522,14 +3619,20 @@ else:
                         elif item["Type"] == "MATCH":
                             m_count_t += 1
                             ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr, end_column=9)
-                            arb_txt = f" | 🛡️ Arbitre : {item['Arbitre']}" if item.get('Arbitre') and item['Arbitre'] != "Non attribué" else ""
-                            hdr_text = f"MATCH N° {m_count_t}  |  🕘 {item['Heure']} ({item['Duree']} min)  |  Catégorie : {item['Cat']}{arb_txt}"
+                            arb_txt = f"  |  🛡️ Arbitre : {item['Arbitre']}" if item.get('Arbitre') and item['Arbitre'] != "Non attribué" else ""
+                            tour_label = item.get('Nom_Tour') or (f"Tour {item['Tour']}" if item.get('Tour') else "")
+                            tour_txt = f"  |  🎯 Tour : {tour_label}" if tour_label else ""
+                            hdr_text = f"MATCH N° {m_count_t}  |  🕘 {item['Heure']} ({item['Duree']} min)  |  Catégorie : {item['Cat']}{tour_txt}{arb_txt}"
                             h_cell = ws_mat.cell(row=r_curr, column=1, value=hdr_text)
                             h_cell.fill, h_cell.font, h_cell.alignment = bleu, Font(bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
-                            ws_mat.row_dimensions[r_curr].height = 22
+                            ws_mat.row_dimensions[r_curr].height = 24
                             r_curr += 1
 
-                            ws_mat.cell(row=r_curr, column=2, value="N°").alignment = Alignment(horizontal="center", vertical="center")
+                            c_tour_h = ws_mat.cell(row=r_curr, column=1, value="TOUR / PHASE")
+                            c_tour_h.fill, c_tour_h.font, c_tour_h.alignment, c_tour_h.border = gris_clair, Font(bold=True, size=8), Alignment(horizontal="center", vertical="center"), b_style
+
+                            c_num_h = ws_mat.cell(row=r_curr, column=2, value="N°")
+                            c_num_h.alignment, c_num_h.border, c_num_h.fill = Alignment(horizontal="center", vertical="center"), b_style, gris_clair
                             
                             c_rouge_h = ws_mat.cell(row=r_curr, column=3, value="LUTTEUR ROUGE")
                             c_rouge_h.fill, c_rouge_h.font, c_rouge_h.alignment, c_rouge_h.border = rouge_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
@@ -3551,9 +3654,20 @@ else:
                             
                             r_curr += 1
                             
+                            c_tour_v = ws_mat.cell(row=r_curr, column=1, value=tour_label)
+                            c_tour_v.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                            c_tour_v.font = Font(bold=True, size=9, color="0055A4")
+                            c_tour_v.border = b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr+2, end_column=1)
+                            ws_mat.cell(row=r_curr+1, column=1).border = b_style
+                            ws_mat.cell(row=r_curr+2, column=1).border = b_style
+
                             ws_mat.cell(row=r_curr, column=2, value=m_count_t).alignment = Alignment(horizontal="center", vertical="center")
                             ws_mat.cell(row=r_curr, column=2).font = Font(bold=True, color="E53935", size=12)
                             ws_mat.cell(row=r_curr, column=2).border = b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=2, end_row=r_curr+2, end_column=2)
+                            ws_mat.cell(row=r_curr+1, column=2).border = b_style
+                            ws_mat.cell(row=r_curr+2, column=2).border = b_style
                             
                             c1_str = f"{item['Combattant 1']}"
                             if item.get('Club 1'): c1_str += f" ({item['Club 1']})"
