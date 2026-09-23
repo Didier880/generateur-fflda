@@ -25,12 +25,12 @@ with st.sidebar:
     st.markdown("---")
     
     # --- NOM DE LA COMPÉTITION ---
-    nom_competition = st.text_input("🏆 Nom de la compétition", value="Tournoi Officiel FFLDA - U9/U11")
+    nom_competition = st.text_input("🏆 Nom de la compétition", value="Tournoi Officiel FFLDA - U7/U9/U11/U13")
     
     with st.expander("⚙️ 1. Logistique & Pesées", expanded=True):
         nb_tapis = st.number_input("Nombre de tapis", min_value=1, max_value=10, value=3)
-        type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U9 puis U11)"], index=1)
-        label_pesee_1 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
+        type_pesee = st.radio("Format des pesées", ["1 Pesée (Générale)", "2 Pesées (U7/U9 puis U11/U13)"], index=1)
+        label_pesee_1 = "1ère pesée" if "1" in type_pesee else "Pesée U7/U9"
         heure_pesee_u9 = st.time_input(label_pesee_1, value=time(9, 0))
         duree_pesee = st.selectbox("Durée allouée à la pesée + échauffement (min)", [30, 45, 60, 90], index=1)
         
@@ -39,15 +39,17 @@ with st.sidebar:
         duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2) if activer_pause else 0
     
     with st.expander("🤼 3. Règles Sportives & Temps", expanded=False):
-        mixte_active = st.checkbox("Catégories Mixtes (U9/U11 ensemble)", value=True)
+        mixte_active = st.checkbox("Catégories Mixtes (U7/U9/U11/U13 ensemble)", value=True)
         poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
         separer_clubs = st.checkbox("Éviter les lutteurs d'un même club dans la même poule (dans la mesure du possible)", value=True)
         eviter_arbitre_meme_club = st.checkbox("Éviter les matchs entre arbitres et lutteurs du même club", value=True)
         meme_tapis_poule = st.checkbox("Maintenir chaque poule / lutteur sur un même tapis", value=True)
-        tolerance_poids = st.number_input("Tolérance d'écart de poids (%)", min_value=10, max_value=15, value=10, step=1)
+        tolerance_poids = st.number_input("Tolérance d'écart de poids (%) [U7, U9, U11]", min_value=10, max_value=15, value=10, step=1)
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
+        duree_u7 = st.number_input("Temps total U7 (min)", value=3)
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
         duree_u11 = st.number_input("Temps total U11 (min)", value=4)
+        duree_u13 = st.number_input("Temps total U13 (min)", value=5)
 
     # JavaScript pour le comportement d'accordéon à ouverture unique (ferme les autres au clic)
     components.html("""
@@ -233,6 +235,182 @@ def generer_rondes_fflda(participants_in):
             rondes.append(matchs_ronde)
             participants.insert(1, participants.pop())
         return rondes
+
+def attribuer_categorie_poids_u13(poids_val):
+    try:
+        p = float(poids_val)
+    except (ValueError, TypeError):
+        p = 0.0
+    if p <= 30.0: return "30 kg"
+    elif p <= 33.0: return "33 kg"
+    elif p <= 36.0: return "36 kg"
+    elif p <= 39.0: return "39 kg"
+    elif p <= 42.0: return "42 kg"
+    elif p <= 46.0: return "46 kg"
+    elif p <= 50.0: return "50 kg"
+    elif p <= 55.0: return "55 kg"
+    elif p <= 60.0: return "60 kg"
+    else: return "+60 kg"
+
+ORDRE_POIDS_U13 = ["30 kg", "33 kg", "36 kg", "39 kg", "42 kg", "46 kg", "50 kg", "55 kg", "60 kg", "+60 kg"]
+
+def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participants, separer_clubs=True):
+    n = len(participants)
+    if n == 0:
+        return None
+    elif n == 1:
+        nom = f"{age} | {style_grp}{suffixe_niveau} | {cat_poids} (1 seul inscrit)"
+        return {
+            'nom': nom, 
+            'participants': list(participants), 
+            'rondes': [], 
+            'type_formule': 'seul'
+        }
+    elif n < 6:
+        # Cas 1 : Poule nordique unique (2 à 5 lutteurs)
+        nom = f"{age} | {style_grp}{suffixe_niveau} | {cat_poids} (Poule unique)"
+        return {
+            'nom': nom, 
+            'participants': list(participants), 
+            'rondes': generer_rondes_fflda(participants), 
+            'type_formule': 'poule'
+        }
+    elif n == 6:
+        # Cas 2 : Exactement 6 lutteurs (2 poules de 3 + Phase finale croisée)
+        if separer_clubs:
+            clubs_vu = {}
+            poule_a, poule_b = [], []
+            for p in sorted(participants, key=lambda x: x.get('Club', '')):
+                c = p.get('Club', '')
+                if clubs_vu.get(c, 0) % 2 == 0:
+                    if len(poule_a) < 3: poule_a.append(p)
+                    else: poule_b.append(p)
+                else:
+                    if len(poule_b) < 3: poule_b.append(p)
+                    else: poule_a.append(p)
+                clubs_vu[c] = clubs_vu.get(c, 0) + 1
+        else:
+            poule_a = [participants[0], participants[2], participants[4]]
+            poule_b = [participants[1], participants[3], participants[5]]
+        
+        while len(poule_a) < 3 and len(poule_b) > 3:
+            poule_a.append(poule_b.pop())
+        while len(poule_b) < 3 and len(poule_a) > 3:
+            poule_b.append(poule_a.pop())
+
+        rondes_a = generer_rondes_fflda(poule_a)
+        rondes_b = generer_rondes_fflda(poule_b)
+        
+        r1 = (rondes_a[0] if len(rondes_a) > 0 else []) + (rondes_b[0] if len(rondes_b) > 0 else [])
+        r2 = (rondes_a[1] if len(rondes_a) > 1 else []) + (rondes_b[1] if len(rondes_b) > 1 else [])
+        r3 = (rondes_a[2] if len(rondes_a) > 2 else []) + (rondes_b[2] if len(rondes_b) > 2 else [])
+        
+        # Tour 4 : Demi-finales croisées
+        sf1 = (
+            {"Nom": f"1er Poule A ({cat_poids})", "Club": "Qualifié A", "Comité": "-"},
+            {"Nom": f"2ème Poule B ({cat_poids})", "Club": "Qualifié B", "Comité": "-"}
+        )
+        sf2 = (
+            {"Nom": f"1er Poule B ({cat_poids})", "Club": "Qualifié B", "Comité": "-"},
+            {"Nom": f"2ème Poule A ({cat_poids})", "Club": "Qualifié A", "Comité": "-"}
+        )
+        r4 = [sf1, sf2]
+        
+        # Tour 5 : Finales (Or/Argent et Bronze unique)
+        f_or = (
+            {"Nom": f"Vainqueur 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+            {"Nom": f"Vainqueur 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+        )
+        f_bronze = (
+            {"Nom": f"Perdant 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+            {"Nom": f"Perdant 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+        )
+        r5 = [f_or, f_bronze]
+        
+        nom = f"{age} | {style_grp}{suffixe_niveau} | {cat_poids} (2 Poules + Finales)"
+        return {
+            'nom': nom, 
+            'participants': list(participants), 
+            'rondes': [r1, r2, r3, r4, r5], 
+            'type_formule': 'poules_croisees',
+            'poule_a': poule_a,
+            'poule_b': poule_b
+        }
+    else:
+        # Cas 3 : Plus de 6 lutteurs (Tableau avec repêchage des 1/4 - 2 médailles de bronze)
+        rondes = []
+        if n <= 8:
+            pts = list(participants)
+            while len(pts) < 8:
+                pts.append({"Nom": "BYE", "Club": "-"})
+            
+            qf_matches = []
+            for i in range(4):
+                p1 = pts[i * 2]
+                p2 = pts[i * 2 + 1]
+                if p1["Nom"] != "BYE" and p2["Nom"] != "BYE":
+                    qf_matches.append((p1, p2))
+            rondes.append(qf_matches)
+        else:
+            nb_prelim = n - 8
+            prelim_matches = []
+            pts_prelim = participants[-2 * nb_prelim:]
+            pts_direct_qf = participants[:-2 * nb_prelim]
+            for i in range(nb_prelim):
+                prelim_matches.append((pts_prelim[i * 2], pts_prelim[i * 2 + 1]))
+            rondes.append(prelim_matches)
+            
+            qf_matches = []
+            for i in range(4):
+                nom_p1 = pts_direct_qf[i]['Nom'] if i < len(pts_direct_qf) else f"Vainqueur Prél. {i+1} [{cat_poids}]"
+                club_p1 = pts_direct_qf[i].get('Club', '') if i < len(pts_direct_qf) else "Qualifié"
+                p1_obj = {"Nom": nom_p1, "Club": club_p1, "Comité": "-"}
+                
+                nom_p2 = f"Vainqueur Prél. {i+1} [{cat_poids}]" if (i >= len(pts_direct_qf) or 4 + i >= len(pts_direct_qf)) else pts_direct_qf[4 + i]['Nom']
+                club_p2 = "Qualifié" if (i >= len(pts_direct_qf) or 4 + i >= len(pts_direct_qf)) else pts_direct_qf[4 + i].get('Club', '')
+                p2_obj = {"Nom": nom_p2, "Club": club_p2, "Comité": "-"}
+                qf_matches.append((p1_obj, p2_obj))
+            rondes.append(qf_matches)
+
+        sf1 = (
+            {"Nom": f"Vainqueur 1/4 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+            {"Nom": f"Vainqueur 1/4 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+        )
+        sf2 = (
+            {"Nom": f"Vainqueur 1/4 (3) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+            {"Nom": f"Vainqueur 1/4 (4) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+        )
+        rep1 = (
+            {"Nom": f"Perdant 1/4 (1) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+            {"Nom": f"Perdant 1/4 (2) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+        )
+        rep2 = (
+            {"Nom": f"Perdant 1/4 (3) [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+            {"Nom": f"Perdant 1/4 (4) [{cat_poids}]", "Club": "Repêché", "Comité": "-"}
+        )
+        rondes.append([sf1, sf2, rep1, rep2])
+        
+        f_or = (
+            {"Nom": f"Vainqueur 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"},
+            {"Nom": f"Vainqueur 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+        )
+        f_b1 = (
+            {"Nom": f"Vainqueur Repêchage 1 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+            {"Nom": f"Perdant 1/2 (2) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+        )
+        f_b2 = (
+            {"Nom": f"Vainqueur Repêchage 2 [{cat_poids}]", "Club": "Repêché", "Comité": "-"},
+            {"Nom": f"Perdant 1/2 (1) [{cat_poids}]", "Club": "Qualifié", "Comité": "-"}
+        )
+        rondes.append([f_or, f_b1, f_b2])
+        
+        nom = f"{age} | {style_grp}{suffixe_niveau} | {cat_poids} (Tableau élimination & repêchages)"
+        return {
+            'nom': nom,
+            'participants': list(participants),
+            'rondes': rondes,
+            'type_formule': 'tableau'
+        }
 
 def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
     """
@@ -786,7 +964,7 @@ if mode_app.startswith("2"):
             
             tous_les_resultats = []
             onglets_poules = [f for f in wb_res.sheetnames if not any(x in f for x in ["Résumé", "Grille", "Classement Général"])]
-            onglets_poules.sort(key=lambda x: (0 if "U9" in x.upper() else 1, x))
+            onglets_poules.sort(key=lambda x: (0 if "U7" in x.upper() else (1 if "U9" in x.upper() else (2 if "U11" in x.upper() else 3)), x))
             
             for nom_feuille in onglets_poules:
                 ws = wb_res[nom_feuille]
@@ -926,7 +1104,7 @@ if mode_app.startswith("2"):
 
             # --- GÉNÉRATION DU DOCUMENT HTML PAYSAGE POUR IMPRESSION DES BILANS ---
             tab_bilan_1, tab_bilan_2, tab_bilan_3 = st.tabs([
-                "🏆 Classements Individuels (U9 / U11)", 
+                "🏆 Classements Individuels (U7 / U9 / U11 / U13)", 
                 "🛡️ Classement Général des Clubs",
                 "🏛️ Classement des Comités Régionaux"
             ])
@@ -1186,9 +1364,24 @@ else:
             if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
                 df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
+            def normaliser_age(val):
+                if val is None or pd.isna(val):
+                    return ''
+                val_str = str(val).strip().upper().replace(' ', '').replace('-', '')
+                if 'U7' in val_str or val_str == '7' or val_str.startswith('7'):
+                    return 'U7'
+                elif 'U9' in val_str or val_str == '9' or val_str.startswith('9'):
+                    return 'U9'
+                elif 'U11' in val_str or val_str == '11' or val_str.startswith('11'):
+                    return 'U11'
+                elif 'U13' in val_str or val_str == '13' or val_str.startswith('13'):
+                    return 'U13'
+                return str(val).strip().upper()
+
             df_inscr_total = df_raw.copy()
             if "Age" in df_inscr_total.columns:
-                df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U9', 'U11'])]
+                df_inscr_total['Age'] = df_inscr_total['Age'].apply(normaliser_age)
+                df_inscr_total = df_inscr_total[df_inscr_total['Age'].isin(['U7', 'U9', 'U11', 'U13'])]
             
             total_inscrits_global = len(df_inscr_total)
 
@@ -1274,7 +1467,7 @@ else:
             total_non_peses = total_inscrits_global - total_participants_peses
 
             if df_inscr.empty:
-                st.error("❌ Aucun lutteur U9 ou U11 avec un poids valide et un style de compétition n'a été trouvé dans le fichier.")
+                st.error("❌ Aucun lutteur U7, U9, U11 ou U13 avec un poids valide et un style de compétition n'a été trouvé dans le fichier.")
                 st.stop()
             
             # Définition des groupes de styles selon le réglage de mixité
@@ -1293,13 +1486,14 @@ else:
 
             df_inscr['Style_Groupe'] = df_inscr['Style_Norm'].apply(attribuer_style_groupe)
             
-            poules_u9, poules_u11 = [], []
+            poules_u7, poules_u9, poules_u11, poules_u13 = [], [], [], []
             multiplicateur_poids = 1 + (tolerance_poids / 100.0)
             
-            for age in ['U9', 'U11']:
+            # --- GÉNÉRATION U7, U9, U11 (Poules morphologiques à tolérance de poids) ---
+            for age in ['U7', 'U9', 'U11']:
                 df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num')
-                max_size = 4 if age == 'U9' else 5
-                counter_gr = 1  # Numérotation continue des groupes pour la catégorie d'âge (ex: Gr. 1 à 14)
+                max_size = 4 if age in ['U7', 'U9'] else 5
+                counter_gr = 1  # Numérotation continue des groupes pour la catégorie d'âge (ex: Poule 1 à 14)
                 
                 for (style_grp, niveau), groupe in df_age.groupby(['Style_Groupe', 'Niveau']):
                     participants = groupe.to_dict('records')
@@ -1316,12 +1510,12 @@ else:
                                 poule_courante.append(p)
                             else:
                                 nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
-                                poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
+                                poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante), 'type_formule': 'poule'}
                                 poules_groupe.append(poule_obj)
                                 poule_courante = [p]
                     if poule_courante:
                         nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
-                        poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante)}
+                        poule_obj = {'nom': nom_groupe, 'participants': list(poule_courante), 'rondes': generer_rondes_fflda(poule_courante), 'type_formule': 'poule'}
                         poules_groupe.append(poule_obj)
                     
                     if separer_clubs:
@@ -1340,22 +1534,45 @@ else:
                         p_max = parts[-1]['Poids_Num']
                         p_obj['nom'] = f"{age} | {style_grp}{suffixe_niveau} | Poule {counter_gr} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
                         p_obj['rondes'] = generer_rondes_fflda(parts)
+                        p_obj['type_formule'] = 'poule'
                         counter_gr += 1
                     
-                    if age == 'U9': poules_u9.extend(poules_groupe)
+                    if age == 'U7': poules_u7.extend(poules_groupe)
+                    elif age == 'U9': poules_u9.extend(poules_groupe)
                     else: poules_u11.extend(poules_groupe)
 
-            participants_par_poule = {p['nom']: p['participants'] for p in poules_u9 + poules_u11}
-            rondes_par_categorie = {p['nom']: p['rondes'] for p in poules_u9 + poules_u11}
+            # --- GÉNÉRATION U13 (Catégories de poids fixes : 30, 33, 36, 39, 42, 46, 50, 55, 60, +60 kg) ---
+            df_u13_total = df_inscr[df_inscr['Age'] == 'U13'].copy()
+            if not df_u13_total.empty:
+                df_u13_total['Cat_Poids'] = df_u13_total['Poids_Num'].apply(attribuer_categorie_poids_u13)
+                for (style_grp, niveau), groupe_style in df_u13_total.groupby(['Style_Groupe', 'Niveau']):
+                    suffixe_niveau = f" | {niveau}" if niveau != "" else ""
+                    for cat_poids in ORDRE_POIDS_U13:
+                        groupe_cat = groupe_style[groupe_style['Cat_Poids'] == cat_poids]
+                        if groupe_cat.empty:
+                            continue
+                        participants_cat = groupe_cat.to_dict('records')
+                        comp_obj = generer_competition_u13('U13', style_grp, suffixe_niveau, cat_poids, participants_cat, separer_clubs)
+                        if comp_obj:
+                            poules_u13.append(comp_obj)
 
+            tous_les_groupes = poules_u7 + poules_u9 + poules_u11 + poules_u13
+            participants_par_poule = {p['nom']: p['participants'] for p in tous_les_groupes}
+            rondes_par_categorie = {p['nom']: p['rondes'] for p in tous_les_groupes}
+            poule_obj_map = {p['nom']: p for p in tous_les_groupes}
+
+            tapis_poules_u7 = {i: [] for i in range(nb_tapis)}
             tapis_poules_u9 = {i: [] for i in range(nb_tapis)}
             tapis_poules_u11 = {i: [] for i in range(nb_tapis)}
+            tapis_poules_u13 = {i: [] for i in range(nb_tapis)}
             
+            for i, p in enumerate(poules_u7): tapis_poules_u7[i % nb_tapis].append(p)
             for i, p in enumerate(poules_u9): tapis_poules_u9[i % nb_tapis].append(p)
             for i, p in enumerate(poules_u11): tapis_poules_u11[i % nb_tapis].append(p)
+            for i, p in enumerate(poules_u13): tapis_poules_u13[i % nb_tapis].append(p)
 
             dt_pesee_u9 = datetime.combine(datetime.today(), heure_pesee_u9)
-            dt_debut_u9 = dt_pesee_u9 + timedelta(minutes=duree_pesee)
+            dt_debut_u7 = dt_pesee_u9 + timedelta(minutes=duree_pesee)
             total_matchs_calcules = 0
 
             ref_usage_count = {}
@@ -1573,77 +1790,106 @@ else:
 
                 return tapis_heure, planning
 
-            # PHASE 1 : Tous les U9
-            tapis_heure_u9, planning_u9 = ordonnancer_phase(poules_u9, dt_debut_u9, duree_u9, meme_tapis_poule)
-            fin_u9_globale = max(tapis_heure_u9) if poules_u9 else dt_debut_u9
+            # PHASE 1a : Tous les U7
+            tapis_heure_u7, planning_u7 = ordonnancer_phase(poules_u7, dt_debut_u7, duree_u7, meme_tapis_poule)
+            fin_u7_globale = max(tapis_heure_u7) if poules_u7 else dt_debut_u7
 
-            # PAUSE / PESÉE U11
-            dt_pesee_u11 = None
+            # PHASE 1b : Tous les U9
+            tapis_heure_u9, planning_u9 = ordonnancer_phase(poules_u9, fin_u7_globale, duree_u9, meme_tapis_poule)
+            fin_u9_globale = max(tapis_heure_u9) if poules_u9 else fin_u7_globale
+
+            planning_phase1 = {t: planning_u7[t] + planning_u9[t] for t in range(nb_tapis)}
+
+            # PAUSE / PESÉE 2 (U11 / U13)
+            dt_pesee_2 = None
             if "2" in type_pesee:
-                dt_pesee_u11 = fin_u9_globale + timedelta(minutes=duree_pause)
-                dt_debut_u11_theorique = dt_pesee_u11 + timedelta(minutes=duree_pesee)
+                dt_pesee_2 = fin_u9_globale + timedelta(minutes=duree_pause)
+                dt_debut_p2_theorique = dt_pesee_2 + timedelta(minutes=duree_pesee)
             else:
-                dt_debut_u11_theorique = fin_u9_globale
+                dt_debut_p2_theorique = fin_u9_globale
 
-            # Égalisation du nombre de lignes en U9 pour aligner horizontalement la PAUSE
-            max_u9_lignes = max(len(planning_u9[t]) for t in range(nb_tapis)) if planning_u9 else 0
+            # Égalisation du nombre de lignes en Phase 1 (U7 + U9) pour aligner horizontalement la PAUSE
+            max_phase1_lignes = max(len(planning_phase1[t]) for t in range(nb_tapis)) if planning_phase1 else 0
             for t in range(nb_tapis):
-                while len(planning_u9[t]) < max_u9_lignes:
-                    planning_u9[t].append({"Type": "VIDE"})
+                while len(planning_phase1[t]) < max_phase1_lignes:
+                    planning_phase1[t].append({"Type": "VIDE"})
 
+            tapis_heure_p1 = [fin_u9_globale for _ in range(nb_tapis)]
             if activer_pause and duree_pause > 0:
                 for t in range(nb_tapis):
-                    planning_u9[t].append({"Type": "PAUSE", "Heure": fin_u9_globale.strftime("%H:%M")})
-                    tapis_heure_u9[t] = fin_u9_globale + timedelta(minutes=duree_pause)
-            else:
-                for t in range(nb_tapis):
-                    tapis_heure_u9[t] = fin_u9_globale
+                    planning_phase1[t].append({"Type": "PAUSE", "Heure": fin_u9_globale.strftime("%H:%M")})
+                    tapis_heure_p1[t] = fin_u9_globale + timedelta(minutes=duree_pause)
 
-            debut_u11_reel = max(tapis_heure_u9)
-            if dt_debut_u11_theorique and debut_u11_reel < dt_debut_u11_theorique:
-                debut_u11_reel = dt_debut_u11_theorique
+            debut_p2_reel = max(tapis_heure_p1)
+            if dt_debut_p2_theorique and debut_p2_reel < dt_debut_p2_theorique:
+                debut_p2_reel = dt_debut_p2_theorique
 
             for t in range(nb_tapis):
-                if poules_u11 and tapis_heure_u9[t] < debut_u11_reel:
-                    attente = int((debut_u11_reel - tapis_heure_u9[t]).total_seconds() // 60)
+                if (poules_u11 or poules_u13) and tapis_heure_p1[t] < debut_p2_reel:
+                    attente = int((debut_p2_reel - tapis_heure_p1[t]).total_seconds() // 60)
                     if attente > 0:
-                        planning_u9[t].append({
+                        planning_phase1[t].append({
                             "Type": "ATTENTE", 
-                            "Heure": tapis_heure_u9[t].strftime("%H:%M"), 
-                            "Texte": f"Pesée + échauffement U11"
+                            "Heure": tapis_heure_p1[t].strftime("%H:%M"), 
+                            "Texte": f"Pesée + échauffement U11/U13"
                         })
 
-            # PHASE 2 : Tous les U11
+            # PHASE 2a : Tous les U11
             if poules_u11:
-                tapis_heure_u11, planning_u11 = ordonnancer_phase(poules_u11, debut_u11_reel, duree_u11, meme_tapis_poule)
-                planning_tapis = {t: planning_u9[t] + planning_u11[t] for t in range(nb_tapis)}
-                fin_estimee = max(tapis_heure_u11)
+                tapis_heure_u11, planning_u11 = ordonnancer_phase(poules_u11, debut_p2_reel, duree_u11, meme_tapis_poule)
+                fin_u11_globale = max(tapis_heure_u11)
             else:
-                planning_tapis = planning_u9
-                fin_estimee = fin_u9_globale
+                tapis_heure_u11 = [debut_p2_reel for _ in range(nb_tapis)]
+                planning_u11 = {t: [] for t in range(nb_tapis)}
+                fin_u11_globale = debut_p2_reel
 
-            texte_pesee_u9 = "1ère pesée" if "1" in type_pesee else "Pesée U9"
+            # PHASE 2b : Tous les U13
+            if poules_u13:
+                tapis_heure_u13, planning_u13 = ordonnancer_phase(poules_u13, fin_u11_globale, duree_u13, meme_tapis_poule)
+                fin_estimee = max(tapis_heure_u13)
+            else:
+                planning_u13 = {t: [] for t in range(nb_tapis)}
+                fin_estimee = fin_u11_globale
+
+            planning_tapis = {t: planning_phase1[t] + planning_u11[t] + planning_u13[t] for t in range(nb_tapis)}
+
+            texte_pesee_1 = "1ère pesée" if "1" in type_pesee else "Pesée U7/U9"
             valeur_pause = f"{duree_pause} min" if (activer_pause and duree_pause > 0) else "0 min"
 
-            str_comp_u9 = f"{dt_debut_u9.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"
-            str_comp_u11 = f"{debut_u11_reel.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
+            str_comp_u7 = f"{dt_debut_u7.strftime('%H:%M')} - {fin_u7_globale.strftime('%H:%M')}"
+            str_comp_u9 = f"{fin_u7_globale.strftime('%H:%M')} - {fin_u9_globale.strftime('%H:%M')}"
+            str_comp_u11 = f"{debut_p2_reel.strftime('%H:%M')} - {fin_u11_globale.strftime('%H:%M')}"
+            str_comp_u13 = f"{fin_u11_globale.strftime('%H:%M')} - {fin_estimee.strftime('%H:%M')}"
 
             st.success("✨ Fichier analysé avec succès ! Tournoi généré.")
             
             # --- PRÉPARATION DES DONNÉES DU RÉSUMÉ ---
             lignes_accueil = [
-                {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                {"Étape de la journée": texte_pesee_1, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+            ]
+            if poules_u7:
+                lignes_accueil.append({"Étape de la journée": "Compétition U7", "Horaire / Valeur": str_comp_u7})
+                lignes_accueil.append({"Étape de la journée": "Poules U7 générées", "Horaire / Valeur": f"{len(poules_u7)} poules"})
+            lignes_accueil.extend([
                 {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
                 {"Étape de la journée": "Poules U9 générées", "Horaire / Valeur": f"{len(poules_u9)} poules"},
                 {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
-            ]
-            if "2" in type_pesee and dt_pesee_u11:
-                lignes_accueil.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+            ])
+            if "2" in type_pesee and dt_pesee_2:
+                lignes_accueil.append({"Étape de la journée": "2ème pesée (U11/U13)", "Horaire / Valeur": dt_pesee_2.strftime('%H:%M')})
 
             lignes_accueil.extend([
                 {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
                 {"Étape de la journée": "Poules U11 générées", "Horaire / Valeur": f"{len(poules_u11)} poules"},
-                {"Étape de la journée": "Total Poules (U9 + U11)", "Horaire / Valeur": f"{len(poules_u9) + len(poules_u11)} poules"},
+            ])
+            if poules_u13:
+                lignes_accueil.extend([
+                    {"Étape de la journée": "Compétition U13", "Horaire / Valeur": str_comp_u13},
+                    {"Étape de la journée": "Poules & Tableaux U13", "Horaire / Valeur": f"{len(poules_u13)} catégories"},
+                ])
+            total_poules_calc = len(poules_u7) + len(poules_u9) + len(poules_u11) + len(poules_u13)
+            lignes_accueil.extend([
+                {"Étape de la journée": "Total Groupes (U7 + U9 + U11 + U13)", "Horaire / Valeur": f"{total_poules_calc} groupes"},
                 {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')}
             ])
 
@@ -1728,20 +1974,22 @@ else:
             st.markdown("---")
 
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
-            noms_onglets = ["📊 Résumé & Stats", "📅 Grille Globale", "🛡️ Équipes d'Arbitrage"] + [f"🥋 Grille Tapis {t + 1}" for t in range(nb_tapis)] + [f"Poule : {p[:15]}" for p in participants_par_poule.keys()]
+            noms_onglets = ["📊 Résumé & Stats", "📅 Grille Globale", "🛡️ Équipes d'Arbitrage"] + [f"🥋 Grille Tapis {t + 1}" for t in range(nb_tapis)] + [f"Groupe : {p[:18]}" for p in participants_par_poule.keys()]
             onglets_ui = st.tabs(noms_onglets)
             
             with onglets_ui[0]:
                 st.subheader("📊 Résumé prévisionnel de la journée")
                 st.table(pd.DataFrame(lignes_accueil))
                 
-                col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
+                col_m1, col_m2, col_m3, col_m4, col_m5, col_m6, col_m7, col_m8 = st.columns(8)
                 col_m1.metric("Participants (pesés)", total_participants_peses)
                 col_m2.metric("Absents / Non pesés", total_non_peses)
-                col_m3.metric("Poules U9", len(poules_u9))
-                col_m4.metric("Poules U11", len(poules_u11))
-                col_m5.metric("Matchs générés", total_matchs_calcules)
-                col_m6.metric("Arbitres engagés", len(liste_arbitres))
+                col_m3.metric("Poules U7", len(poules_u7))
+                col_m4.metric("Poules U9", len(poules_u9))
+                col_m5.metric("Poules U11", len(poules_u11))
+                col_m6.metric("Groupes U13", len(poules_u13))
+                col_m7.metric("Matchs générés", total_matchs_calcules)
+                col_m8.metric("Arbitres engagés", len(liste_arbitres))
 
                 if liste_arbitres:
                     st.markdown("#### 🛡️ Désignation des Équipes d'Arbitrage par Tapis")
@@ -1834,9 +2082,25 @@ else:
             start_idx_poules = 3 + nb_tapis
             for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=start_idx_poules):
                 with onglets_ui[idx]:
-                    st.subheader(f"Feuille de Poule : {nom_poule}")
+                    st.subheader(f"Feuille : {nom_poule}")
                     df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
                     st.table(df_poule_vue)
+
+                    p_obj = poule_obj_map.get(nom_poule)
+                    if p_obj and p_obj.get('type_formule') == 'poules_croisees':
+                        st.markdown("##### 🥋 Répartition en 2 Poules de 3 :")
+                        c_pa, c_pb = st.columns(2)
+                        with c_pa:
+                            st.markdown("**Poule A**")
+                            st.table(pd.DataFrame(p_obj['poule_a'])[['Nom', 'Club', 'Poids']])
+                        with c_pb:
+                            st.markdown("**Poule B**")
+                            st.table(pd.DataFrame(p_obj['poule_b'])[['Nom', 'Club', 'Poids']])
+                        st.markdown("##### 🏆 Phase Finale Croisée :")
+                        st.info("• **Demi-finale 1** : 1er Poule A vs 2ème Poule B\n\n• **Demi-finale 2** : 1er Poule B vs 2ème Poule A\n\n• **Finale Or/Argent (1-2)** : Vainqueur DF1 vs Vainqueur DF2\n\n• **Finale Bronze (3-4)** : Perdant DF1 vs Perdant DF2 (1 seul 3ème)")
+                    elif p_obj and p_obj.get('type_formule') == 'tableau':
+                        st.markdown("##### 🤼 Formule Tableau à Élimination Directe & Repêchages des 1/4 :")
+                        st.info("• **1/4 de finale** : Matchs éliminatoires (les perdants avant les 1/4 sont éliminés).\n\n• **Demi-finales** : Les 4 vainqueurs des 1/4 s'affrontent pour les places 1 et 2.\n\n• **Repêchages** : Les 4 perdants des 1/4 se rencontrent puis affrontent les perdants des 1/2.\n\n• **2 Médailles de Bronze** attribuées (2 troisièmes).")
 
             st.markdown("---")
             
@@ -1845,17 +2109,24 @@ else:
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 
                 resume_data = [
-                    {"Étape de la journée": texte_pesee_u9, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                    {"Étape de la journée": texte_pesee_1, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                ]
+                if poules_u7:
+                    resume_data.append({"Étape de la journée": "Compétition U7", "Horaire / Valeur": str_comp_u7})
+                    resume_data.append({"Étape de la journée": "Poules U7 générées", "Horaire / Valeur": f"{len(poules_u7)} poules"})
+                resume_data.extend([
                     {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
                     {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
-                ]
-                if "2" in type_pesee and dt_pesee_u11:
-                    resume_data.append({"Étape de la journée": "2ème pesée", "Horaire / Valeur": dt_pesee_u11.strftime('%H:%M')})
+                ])
+                if "2" in type_pesee and dt_pesee_2:
+                    resume_data.append({"Étape de la journée": "2ème pesée (U11/U13)", "Horaire / Valeur": dt_pesee_2.strftime('%H:%M')})
                 
                 resume_data.extend([
                     {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
-                    {"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')}
                 ])
+                if poules_u13:
+                    resume_data.append({"Étape de la journée": "Compétition U13", "Horaire / Valeur": str_comp_u13})
+                resume_data.append({"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')})
                 pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
                 
                 max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
@@ -2150,8 +2421,15 @@ else:
                 gris_clair = PatternFill("solid", fgColor="F2F2F2")
                 entete_noir = PatternFill("solid", fgColor="000000")
 
+                feuilles_creees = set()
                 for nom_poule, liste_p in participants_par_poule.items():
-                    nom_onglet_court = abreger_nom_onglet(nom_poule)
+                    nom_base = abreger_nom_onglet(nom_poule)
+                    nom_onglet_court = nom_base
+                    suffix_i = 1
+                    while nom_onglet_court.lower() in feuilles_creees or nom_onglet_court in writer.book.sheetnames:
+                        nom_onglet_court = f"{nom_base[:28]}_{suffix_i}"
+                        suffix_i += 1
+                    feuilles_creees.add(nom_onglet_court.lower())
                     ws_poule = writer.book.create_sheet(nom_onglet_court)
                     
                     ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
@@ -2351,6 +2629,6 @@ else:
                         
                         row_cursor += 1
 
-            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U9_U11.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U7_U9_U11_U13.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
             st.error(f"Erreur lors de l'analyse du fichier : {e}")
