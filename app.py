@@ -6,7 +6,7 @@ import urllib.request
 import re
 import streamlit.components.v1 as components
 import openpyxl
-from openpyxl.styles import Alignment, PatternFill, Font, Border, Side, Protection
+from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 from openpyxl.worksheet.pagebreak import Break
 
 # --- CONFIGURATION DE LA PAGE ---
@@ -646,18 +646,6 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
         alignment=1
     )
 
-    def nettoyer_txt_reportlab(val):
-        if pd.isna(val):
-            return ""
-        txt = str(val)
-        txt = re.sub(r':red\[(.*?)\]', r'<b>\1</b>', txt)
-        txt = re.sub(r'<font color=[^>]*>(.*?)</font>', r'<b>\1</b>', txt, flags=re.IGNORECASE)
-        txt = re.sub(r'<span\s+style=[\'"][^\'"]*[\'"]>(.*?)</span>', r'<b>\1</b>', txt, flags=re.IGNORECASE)
-        txt = re.sub(r'</?span[^>]*>', '', txt, flags=re.IGNORECASE)
-        txt = re.sub(r'</?font[^>]*>', '', txt, flags=re.IGNORECASE)
-        txt = txt.replace('\n', '<br/>')
-        return txt
-
     story = []
     page_width = landscape(A4)[0] - 40  # 841.89 - 40 = 801.89 pt
 
@@ -667,7 +655,7 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
         
         story.append(Paragraph(f"🏆 {nom_comp.upper()}", title_style))
         story.append(Paragraph(f"<b>{titre}</b> — Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}", subtitle_style))
-        story.append(Paragraph(f"<b>{nettoyer_txt_reportlab(sec_title)}</b>", sec_banner_style))
+        story.append(Paragraph(f"<b>{sec_title}</b>", sec_banner_style))
         story.append(Spacer(1, 8))
         
         if isinstance(content, pd.DataFrame):
@@ -675,13 +663,14 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
             if df.empty:
                 continue
             
-            headers = [Paragraph(nettoyer_txt_reportlab(col), cell_head_style) for col in df.columns]
+            headers = [Paragraph(str(col), cell_head_style) for col in df.columns]
             data = [headers]
             
             for _, row in df.iterrows():
                 r_cells = []
                 for val in row:
-                    r_cells.append(Paragraph(nettoyer_txt_reportlab(val), cell_body_style))
+                    txt = str(val).replace('\n', '<br/>') if pd.notna(val) else ''
+                    r_cells.append(Paragraph(txt, cell_body_style))
                 data.append(r_cells)
             
             nb_cols = len(df.columns)
@@ -700,7 +689,7 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
             ]))
             story.append(KeepTogether(t))
         else:
-            story.append(Paragraph(nettoyer_txt_reportlab(content), cell_body_style))
+            story.append(Paragraph(str(content), cell_body_style))
 
     doc.build(story)
     return buffer.getvalue()
@@ -1682,8 +1671,8 @@ else:
                         elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}] {m['Texte']}"
                         elif m["Type"] == "VIDE": ligne[col] = ""
                         else:
-                            arb_str = f" (🛡️ <b>{m['Arbitre']}</b>)" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [<b>{m['Cat']}</b>] - <b>{m['Combattant 1']}</b> vs <b>{m['Combattant 2']}</b>{arb_str}"
+                            arb_str = f" (🛡️ {m['Arbitre']})" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
+                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{m['Cat']}] - {m['Combattant 1']} vs {m['Combattant 2']}{arb_str}"
                     else: ligne[col] = ""
                 grille_ui.append(ligne)
             
@@ -1707,12 +1696,12 @@ else:
                         lignes_tapis_doc.append({
                             "N°": f"M{m_count_doc}",
                             "Heure": f"{m['Heure']}",
-                            "Catégorie": f'<b>{m["Cat"]}</b>',
-                            "Lutteur Rouge": f'<b>{c1_t}</b>',
+                            "Catégorie": m['Cat'],
+                            "Lutteur Rouge": c1_t,
                             "Pt Clt (R)": "[   ]",
-                            "Lutteur Bleu": f'<b>{c2_t}</b>',
+                            "Lutteur Bleu": c2_t,
                             "Pt Clt (B)": "[   ]",
-                            "Arbitre": f'<b>{m.get("Arbitre", "")}</b>'
+                            "Arbitre": m.get("Arbitre", "")
                         })
                 sections_tournoi_complet.append((f"🥋 Grille de Passage & Scores - Tapis {t + 1}", pd.DataFrame(lignes_tapis_doc)))
 
@@ -1818,8 +1807,8 @@ else:
                             st.info(f"[{m['Heure']}] {m['Texte']}")
                         elif m["Type"] == "MATCH":
                             m_count_st += 1
-                            arb_info_st = f" | 🛡️ Arbitre : **{m['Arbitre']}**" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Poule : **{m['Cat']}**{arb_info_st}")
+                            arb_info_st = f" | 🛡️ Arbitre : {m['Arbitre']}" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
+                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Catégorie : `{m['Cat']}`{arb_info_st}")
                             
                             c1_cl = f" ({m.get('Club 1', '')})" if m.get('Club 1') else ""
                             c1_co = f" - {m.get('Comité 1', '')}" if (m.get('Comité 1') and m.get('Comité 1') != 'Comité Non Renseigné') else ""
@@ -1829,12 +1818,12 @@ else:
                             df_m_ui = pd.DataFrame([
                                 {
                                     "N°": m_count_st,
-                                    "LUTTEUR ROUGE": f"🔴 **{m['Combattant 1']}**{c1_cl}{c1_co}",
+                                    "LUTTEUR ROUGE": f"🔴 {m['Combattant 1']}{c1_cl}{c1_co}",
                                     "Pt Clt (Rouge)": "[   ]",
                                     "Points Techniques (Actions Rouge)": "[                                 ]",
                                     "Total Score (Rouge)": "[   ]",
                                     "VS": "VS",
-                                    "LUTTEUR BLEU": f"🔵 **{m['Combattant 2']}**{c2_cl}{c2_co}",
+                                    "LUTTEUR BLEU": f"🔵 {m['Combattant 2']}{c2_cl}{c2_co}",
                                     "Pt Clt (Bleu)": "[   ]",
                                     "Points Techniques (Actions Bleu)": "[                                 ]",
                                     "Total Score (Bleu)": "[   ]"
@@ -1952,7 +1941,7 @@ else:
                             arb_txt = f" | 🛡️ Arbitre : {item['Arbitre']}" if item.get('Arbitre') and item['Arbitre'] != "Non attribué" else ""
                             hdr_text = f"MATCH N° {m_count_t}  |  🕘 {item['Heure']} ({item['Duree']} min)  |  Catégorie : {item['Cat']}{arb_txt}"
                             h_cell = ws_mat.cell(row=r_curr, column=1, value=hdr_text)
-                            h_cell.fill, h_cell.font, h_cell.alignment, h_cell.border = gris_clair, Font(bold=True, size=12), Alignment(horizontal="center", vertical="center"), b_style
+                            h_cell.fill, h_cell.font, h_cell.alignment = bleu, Font(bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
                             ws_mat.row_dimensions[r_curr].height = 22
                             r_curr += 1
 
@@ -1979,7 +1968,7 @@ else:
                             r_curr += 1
                             
                             ws_mat.cell(row=r_curr, column=2, value=m_count_t).alignment = Alignment(horizontal="center", vertical="center")
-                            ws_mat.cell(row=r_curr, column=2).font = Font(bold=True, size=13)
+                            ws_mat.cell(row=r_curr, column=2).font = Font(bold=True, color="E53935", size=12)
                             ws_mat.cell(row=r_curr, column=2).border = b_style
                             
                             c1_str = f"{item['Combattant 1']}"
@@ -1988,7 +1977,6 @@ else:
                             
                             c_r_info = ws_mat.cell(row=r_curr, column=3, value=c1_str)
                             c_r_info.border = b_style
-                            c_r_info.font = Font(bold=True, size=12)
                             c_r_info.alignment = Alignment(vertical="center")
                             ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
                             ws_mat.cell(row=r_curr, column=4).border = b_style
@@ -1996,7 +1984,6 @@ else:
                             box_ptr = ws_mat.cell(row=r_curr, column=5)
                             box_ptr.border, box_ptr.fill = b_style, gris_clair
                             box_ptr.alignment = Alignment(horizontal="center", vertical="center")
-                            box_ptr.protection = Protection(locked=False)
                             
                             c_vs_mid = ws_mat.cell(row=r_curr, column=6, value="-")
                             c_vs_mid.alignment = Alignment(horizontal="center", vertical="center")
@@ -2008,7 +1995,6 @@ else:
                             
                             c_b_info = ws_mat.cell(row=r_curr, column=7, value=c2_str)
                             c_b_info.border = b_style
-                            c_b_info.font = Font(bold=True, size=12)
                             c_b_info.alignment = Alignment(vertical="center")
                             ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
                             ws_mat.cell(row=r_curr, column=8).border = b_style
@@ -2016,7 +2002,6 @@ else:
                             box_ptb = ws_mat.cell(row=r_curr, column=9)
                             box_ptb.border, box_ptb.fill = b_style, gris_clair
                             box_ptb.alignment = Alignment(horizontal="center", vertical="center")
-                            box_ptb.protection = Protection(locked=False)
                             
                             r_curr += 1
                             
@@ -2033,27 +2018,17 @@ else:
                             ws_mat.row_dimensions[r_curr].height = 25
                             c_act_r = ws_mat.cell(row=r_curr, column=3)
                             c_act_r.border = b_style
-                            c_act_r.protection = Protection(locked=False)
-                            c_act_r_2 = ws_mat.cell(row=r_curr, column=4)
-                            c_act_r_2.border = b_style
-                            c_act_r_2.protection = Protection(locked=False)
+                            ws_mat.cell(row=r_curr, column=4).border = b_style
                             ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
                             
-                            c_tot_r = ws_mat.cell(row=r_curr, column=5)
-                            c_tot_r.border = b_style
-                            c_tot_r.protection = Protection(locked=False)
+                            ws_mat.cell(row=r_curr, column=5).border = b_style
                             
                             c_act_b = ws_mat.cell(row=r_curr, column=7)
                             c_act_b.border = b_style
-                            c_act_b.protection = Protection(locked=False)
-                            c_act_b_2 = ws_mat.cell(row=r_curr, column=8)
-                            c_act_b_2.border = b_style
-                            c_act_b_2.protection = Protection(locked=False)
+                            ws_mat.cell(row=r_curr, column=8).border = b_style
                             ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
                             
-                            c_tot_b = ws_mat.cell(row=r_curr, column=9)
-                            c_tot_b.border = b_style
-                            c_tot_b.protection = Protection(locked=False)
+                            ws_mat.cell(row=r_curr, column=9).border = b_style
 
                             # Enregistrement des coordonnées des cases Pt Clt, Actions et Total Score sur la Grille Tapis X
                             coords_matchs_tapis[(item['Cat'], item['Combattant 1'], item['Combattant 2'])] = {
@@ -2068,9 +2043,7 @@ else:
                                 'p2': item['Combattant 2']
                             }
                             
-                            r_curr += 2
-                    
-                    ws_mat.protection.sheet = True 
+                            r_curr += 2 
                 
                 for ws_name in writer.book.sheetnames:
                     ws_sheet = writer.book[ws_name]
@@ -2129,7 +2102,7 @@ else:
                             elif any(k in str(cell.value) for k in ["Attente", "Pesée", "échauffement", "Repos"]): cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
                             else:
                                 cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
-                                cell.font = Font(bold=True, size=12)
+                                cell.font = Font(size=12)
 
                 df_excel_arb = None
                 if liste_arbitres:
@@ -2180,7 +2153,6 @@ else:
                 for nom_poule, liste_p in participants_par_poule.items():
                     nom_onglet_court = abreger_nom_onglet(nom_poule)
                     ws_poule = writer.book.create_sheet(nom_onglet_court)
-                    ws_poule.protection.sheet = True  # Verrouiller l'onglet de poule en lecture seule dans Excel
                     
                     ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
                     ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite (Calculés depuis les onglets Grille Tapis)").font = Font(italic=True, size=9)
