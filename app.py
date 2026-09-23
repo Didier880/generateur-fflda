@@ -879,6 +879,26 @@ def generer_document_bracket_imprimable(nom_poule, nom_comp, bracket_html):
 </body>
 </html>"""
 
+def make_winner_formula(c_r, c_b, pt_r, pt_b, placeholder_name, target_corner="🔴"):
+    other_corner = "🔵" if target_corner == "🔴" else "🔴"
+    default_text = f"{target_corner} {placeholder_name}"
+    return (
+        f'=IF(OR({pt_r.coordinate}="", {pt_b.coordinate}=""), "{default_text}", '
+        f'IF({pt_r.coordinate}>{pt_b.coordinate}, SUBSTITUTE({c_r.coordinate}, "{other_corner} ", "{target_corner} "), '
+        f'IF({pt_b.coordinate}>{pt_r.coordinate}, SUBSTITUTE({c_b.coordinate}, "{other_corner} ", "{target_corner} "), '
+        f'"{default_text}")))'
+    )
+
+def make_loser_formula(c_r, c_b, pt_r, pt_b, placeholder_name, target_corner="🔴"):
+    other_corner = "🔵" if target_corner == "🔴" else "🔴"
+    default_text = f"{target_corner} {placeholder_name}"
+    return (
+        f'=IF(OR({pt_r.coordinate}="", {pt_b.coordinate}=""), "{default_text}", '
+        f'IF({pt_r.coordinate}>{pt_b.coordinate}, SUBSTITUTE({c_b.coordinate}, "{other_corner} ", "{target_corner} "), '
+        f'IF({pt_b.coordinate}>{pt_r.coordinate}, SUBSTITUTE({c_r.coordinate}, "{other_corner} ", "{target_corner} "), '
+        f'"{default_text}")))'
+    )
+
 def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, coords_map=None, bg_header=None):
     b_thin = Side(style='thin', color='CBD5E1')
     b_style = Border(left=b_thin, right=b_thin, top=b_thin, bottom=b_thin)
@@ -907,7 +927,11 @@ def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, co
     nom1 = p1.get('Nom', '') if isinstance(p1, dict) else str(p1)
     club1 = p1.get('Club', '') if isinstance(p1, dict) else ''
     text_r = f"🔴 {nom1}" + (f" ({club1})" if club1 and club1 != '-' else "")
-    c_r = ws.cell(row=start_row+1, column=col1, value=text_r)
+    c_r = ws.cell(row=start_row+1, column=col1)
+    if isinstance(p1, dict) and 'formula' in p1:
+        c_r.value = p1['formula']
+    else:
+        c_r.value = text_r
     c_r.font = font_p_bold
     c_r.fill = fill_red_card
     c_r.alignment = Alignment(horizontal="left", vertical="center", indent=1)
@@ -923,7 +947,11 @@ def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, co
     nom2 = p2.get('Nom', '') if isinstance(p2, dict) else str(p2)
     club2 = p2.get('Club', '') if isinstance(p2, dict) else ''
     text_b = f"🔵 {nom2}" + (f" ({club2})" if club2 and club2 != '-' else "")
-    c_b = ws.cell(row=start_row+2, column=col1, value=text_b)
+    c_b = ws.cell(row=start_row+2, column=col1)
+    if isinstance(p2, dict) and 'formula' in p2:
+        c_b.value = p2['formula']
+    else:
+        c_b.value = text_b
     c_b.font = font_p_bold
     c_b.fill = fill_blue_card
     c_b.alignment = Alignment(horizontal="left", vertical="center", indent=1)
@@ -942,13 +970,13 @@ def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, co
         if m_info:
             s_name = m_info['sheet']
             if nom1 == m_info['p1']:
-                c_pt_r.value = f"='{s_name}'!{m_info['ptr_cell']}"
-                c_pt_b.value = f"='{s_name}'!{m_info['ptb_cell']}"
+                c_pt_r.value = f"=IF('{s_name}'!{m_info['ptr_cell']}=\"\", \"\", '{s_name}'!{m_info['ptr_cell']})"
+                c_pt_b.value = f"=IF('{s_name}'!{m_info['ptb_cell']}=\"\", \"\", '{s_name}'!{m_info['ptb_cell']})"
             else:
-                c_pt_r.value = f"='{s_name}'!{m_info['ptb_cell']}"
-                c_pt_b.value = f"='{s_name}'!{m_info['ptr_cell']}"
+                c_pt_r.value = f"=IF('{s_name}'!{m_info['ptb_cell']}=\"\", \"\", '{s_name}'!{m_info['ptb_cell']})"
+                c_pt_b.value = f"=IF('{s_name}'!{m_info['ptr_cell']}=\"\", \"\", '{s_name}'!{m_info['ptr_cell']})"
 
-    return c_pt_r, c_pt_b
+    return c_pt_r, c_pt_b, c_r, c_b
 
 
 def draw_excel_vertical_connector(ws, start_row, end_row, col):
@@ -957,11 +985,15 @@ def draw_excel_vertical_connector(ws, start_row, end_row, col):
         cell.border = Border(right=Side(style='medium', color='94A3B8'))
 
 
-def draw_excel_podium_card(ws, start_row, start_col, title, subtitle, fill_bg, font_color="000000"):
+def draw_excel_podium_card(ws, start_row, start_col, title, subtitle, fill_bg, font_color="000000", formula_val=None):
     b_thin = Side(style='thin', color='CBD5E1')
     b_style = Border(left=b_thin, right=b_thin, top=b_thin, bottom=b_thin)
     ws.merge_cells(start_row=start_row, start_column=start_col, end_row=start_row+1, end_column=start_col+1)
-    c = ws.cell(row=start_row, column=start_col, value=f"{title}\n{subtitle}")
+    c = ws.cell(row=start_row, column=start_col)
+    if formula_val:
+        c.value = formula_val
+    else:
+        c.value = f"{title}\n{subtitle}"
     c.font = Font(name="Arial", size=10, bold=True, color=font_color)
     c.fill = fill_bg
     c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -1053,8 +1085,8 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         ws.column_dimensions['K'].width = 3
         ws.column_dimensions['L'].width = 23
         ws.column_dimensions['M'].width = 6
-        ws.column_dimensions['N'].width = 11
-        ws.column_dimensions['O'].width = 11
+        ws.column_dimensions['N'].width = 12
+        ws.column_dimensions['O'].width = 12
 
         ws.merge_cells(start_row=4, start_column=col_qf, end_row=4, end_column=col_pod+1)
         c_bann = ws.cell(row=4, column=col_qf, value="🏆 TABLEAU PRINCIPAL D'ÉLIMINATION DIRECTE (OR / ARGENT)")
@@ -1067,10 +1099,10 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         q3 = rondes[0][2]
         q4 = rondes[0][3] if len(rondes[0]) > 3 else (liste_p[6], {'Nom': 'EXEMPT (BYE)', 'Club': '-'})
 
-        draw_excel_match_card(ws, 6, col_qf, "1/4 DE FINALE 1", q1[0], q1[1], nom_poule, coords_matchs_tapis)
-        draw_excel_match_card(ws, 11, col_qf, "1/4 DE FINALE 2", q2[0], q2[1], nom_poule, coords_matchs_tapis)
-        draw_excel_match_card(ws, 16, col_qf, "1/4 DE FINALE 3", q3[0], q3[1], nom_poule, coords_matchs_tapis)
-        draw_excel_match_card(ws, 21, col_qf, "1/4 DE FINALE 4", q4[0], q4[1], nom_poule, coords_matchs_tapis)
+        qf1_ptr, qf1_ptb, qf1_r, qf1_b = draw_excel_match_card(ws, 6, col_qf, "1/4 DE FINALE 1", q1[0], q1[1], nom_poule, coords_matchs_tapis)
+        qf2_ptr, qf2_ptb, qf2_r, qf2_b = draw_excel_match_card(ws, 11, col_qf, "1/4 DE FINALE 2", q2[0], q2[1], nom_poule, coords_matchs_tapis)
+        qf3_ptr, qf3_ptb, qf3_r, qf3_b = draw_excel_match_card(ws, 16, col_qf, "1/4 DE FINALE 3", q3[0], q3[1], nom_poule, coords_matchs_tapis)
+        qf4_ptr, qf4_ptb, qf4_r, qf4_b = draw_excel_match_card(ws, 21, col_qf, "1/4 DE FINALE 4", q4[0], q4[1], nom_poule, coords_matchs_tapis)
 
         draw_excel_vertical_connector(ws, 7, 12, col_c1)
         ws.cell(row=10, column=col_c1).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
@@ -1078,17 +1110,33 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         draw_excel_vertical_connector(ws, 17, 22, col_c1)
         ws.cell(row=20, column=col_c1).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
 
-        draw_excel_match_card(ws, 8, col_sf, "DEMI-FINALE 1", sf1[0], sf1[1], nom_poule, coords_matchs_tapis, bg_header=fill_sky)
-        draw_excel_match_card(ws, 18, col_sf, "DEMI-FINALE 2", sf2[0], sf2[1], nom_poule, coords_matchs_tapis, bg_header=fill_sky)
+        # Demi-finales dynamiques (avancement automatique des vainqueurs de 1/4)
+        sf1_p1 = {'Nom': sf1[0]['Nom'], 'formula': make_winner_formula(qf1_r, qf1_b, qf1_ptr, qf1_ptb, "Vainqueur 1/4 (1)", "🔴")}
+        sf1_p2 = {'Nom': sf1[1]['Nom'], 'formula': make_winner_formula(qf2_r, qf2_b, qf2_ptr, qf2_ptb, "Vainqueur 1/4 (2)", "🔵")}
+        sf1_ptr, sf1_ptb, sf1_r, sf1_b = draw_excel_match_card(ws, 8, col_sf, "DEMI-FINALE 1", sf1_p1, sf1_p2, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
+
+        sf2_p1 = {'Nom': sf2[0]['Nom'], 'formula': make_winner_formula(qf3_r, qf3_b, qf3_ptr, qf3_ptb, "Vainqueur 1/4 (3)", "🔴")}
+        if n == 7:
+            sf2_p2 = sf2[1]
+        else:
+            sf2_p2 = {'Nom': sf2[1]['Nom'], 'formula': make_winner_formula(qf4_r, qf4_b, qf4_ptr, qf4_ptb, "Vainqueur 1/4 (4)", "🔵")}
+        sf2_ptr, sf2_ptb, sf2_r, sf2_b = draw_excel_match_card(ws, 18, col_sf, "DEMI-FINALE 2", sf2_p1, sf2_p2, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
 
         draw_excel_vertical_connector(ws, 10, 19, col_c2)
         ws.cell(row=14, column=col_c2).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
 
-        draw_excel_match_card(ws, 13, col_fn, "GRANDE FINALE (OR)", f_or[0], f_or[1], nom_poule, coords_matchs_tapis, bg_header=fill_dark)
+        # Grande Finale dynamique (avancement automatique des vainqueurs de 1/2)
+        fn_p1 = {'Nom': f_or[0]['Nom'], 'formula': make_winner_formula(sf1_r, sf1_b, sf1_ptr, sf1_ptb, "Vainqueur 1/2 (1)", "🔴")}
+        fn_p2 = {'Nom': f_or[1]['Nom'], 'formula': make_winner_formula(sf2_r, sf2_b, sf2_ptr, sf2_ptb, "Vainqueur 1/2 (2)", "🔵")}
+        fn_ptr, fn_ptb, fn_r, fn_b = draw_excel_match_card(ws, 13, col_fn, "GRANDE FINALE (OR)", fn_p1, fn_p2, nom_poule, coords_matchs_tapis, bg_header=fill_dark)
 
-        draw_excel_podium_card(ws, 12, col_pod, "🥇 CHAMPION (OR)", "Vainqueur Grande Finale", fill_gold, font_color="B45309")
-        draw_excel_podium_card(ws, 15, col_pod, "🥈 VICE-CHAMPION (ARGENT)", "Perdant Grande Finale", fill_silver, font_color="475569")
+        # Podiums Or & Argent dynamiques
+        form_gold = f'=IF(OR({fn_ptr.coordinate}="", {fn_ptb.coordinate}=""), "🥇 CHAMPION (OR)\nVainqueur Grande Finale", "🥇 CHAMPION (OR)\n" & SUBSTITUTE(SUBSTITUTE(IF({fn_ptr.coordinate}>{fn_ptb.coordinate}, {fn_r.coordinate}, IF({fn_ptb.coordinate}>{fn_ptr.coordinate}, {fn_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        form_silver = f'=IF(OR({fn_ptr.coordinate}="", {fn_ptb.coordinate}=""), "🥈 VICE-CHAMPION (ARGENT)\nPerdant Grande Finale", "🥈 VICE-CHAMPION (ARGENT)\n" & SUBSTITUTE(SUBSTITUTE(IF({fn_ptr.coordinate}>{fn_ptb.coordinate}, {fn_b.coordinate}, IF({fn_ptb.coordinate}>{fn_ptr.coordinate}, {fn_r.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        draw_excel_podium_card(ws, 12, col_pod, "🥇 CHAMPION (OR)", "Vainqueur Grande Finale", fill_gold, font_color="B45309", formula_val=form_gold)
+        draw_excel_podium_card(ws, 15, col_pod, "🥈 VICE-CHAMPION (ARGENT)", "Perdant Grande Finale", fill_silver, font_color="475569", formula_val=form_silver)
 
+        # Repêchages & Bronze (Row 26+)
         row_rep = 26
         ws.merge_cells(start_row=row_rep, start_column=col_qf, end_row=row_rep, end_column=col_pod+1)
         c_rep_h = ws.cell(row=row_rep, column=col_qf, value="🔄 TABLEAU DE REPÊCHAGE & MATCHS POUR LE BRONZE (2 Troisièmes Places)")
@@ -1101,10 +1149,15 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         c_rep_sub.font = font_sub
         c_rep_sub.alignment = Alignment(horizontal="left", vertical="center")
 
-        if rep1:
-            draw_excel_match_card(ws, row_rep+3, col_qf, "REPÊCHAGE 1/4 (1)", rep1[0], rep1[1], nom_poule, coords_matchs_tapis, bg_header=fill_sky)
-        if rep2:
-            draw_excel_match_card(ws, row_rep+8, col_qf, "REPÊCHAGE 1/4 (2)", rep2[0], rep2[1], nom_poule, coords_matchs_tapis, bg_header=fill_sky)
+        # Repêchage 1 (Perdant QF 1 vs Perdant QF 2)
+        rep1_p1 = {'Nom': rep1[0]['Nom'], 'formula': make_loser_formula(qf1_r, qf1_b, qf1_ptr, qf1_ptb, "Perdant 1/4 (1)", "🔴")}
+        rep1_p2 = {'Nom': rep1[1]['Nom'], 'formula': make_loser_formula(qf2_r, qf2_b, qf2_ptr, qf2_ptb, "Perdant 1/4 (2)", "🔵")}
+        rep1_ptr, rep1_ptb, rep1_r, rep1_b = draw_excel_match_card(ws, row_rep+3, col_qf, "REPÊCHAGE 1/4 (1)", rep1_p1, rep1_p2, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
+
+        if n >= 8:
+            rep2_p1 = {'Nom': rep2[0]['Nom'], 'formula': make_loser_formula(qf3_r, qf3_b, qf3_ptr, qf3_ptb, "Perdant 1/4 (3)", "🔴")}
+            rep2_p2 = {'Nom': rep2[1]['Nom'], 'formula': make_loser_formula(qf4_r, qf4_b, qf4_ptr, qf4_ptb, "Perdant 1/4 (4)", "🔵")}
+            rep2_ptr, rep2_ptb, rep2_r, rep2_b = draw_excel_match_card(ws, row_rep+8, col_qf, "REPÊCHAGE 1/4 (2)", rep2_p1, rep2_p2, nom_poule, coords_matchs_tapis, bg_header=fill_sky)
         elif n == 7:
             ws.merge_cells(start_row=row_rep+8, start_column=col_qf, end_row=row_rep+10, end_column=col_qf+1)
             c_ex = ws.cell(row=row_rep+8, column=col_qf, value="Exempt de repêchage 1\n(Avance direct en Finale Bronze 2)")
@@ -1117,13 +1170,24 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         ws.cell(row=row_rep+4, column=col_c1).border = Border(bottom=Side(style='medium', color='94A3B8'))
         ws.cell(row=row_rep+9, column=col_c1).border = Border(bottom=Side(style='medium', color='94A3B8'))
 
-        if f_b1:
-            draw_excel_match_card(ws, row_rep+3, col_sf, "FINALE BRONZE 1", f_b1[0], f_b1[1], nom_poule, coords_matchs_tapis, bg_header=fill_amber)
-            draw_excel_podium_card(ws, row_rep+3, col_pod, "🥉 3ème PLACE (Bronze 1)", "Vainqueur Finale Bronze 1", fill_bronze, font_color="9A3412")
+        # Finale Bronze 1 (Vainqueur Repêchage 1 vs Perdant Demi-Finale 2)
+        fb1_p1 = {'Nom': f_b1[0]['Nom'], 'formula': make_winner_formula(rep1_r, rep1_b, rep1_ptr, rep1_ptb, "Vainqueur Repêchage 1", "🔴")}
+        fb1_p2 = {'Nom': f_b1[1]['Nom'], 'formula': make_loser_formula(sf2_r, sf2_b, sf2_ptr, sf2_ptb, "Perdant 1/2 (2)", "🔵")}
+        b1_ptr, b1_ptb, b1_r, b1_b = draw_excel_match_card(ws, row_rep+3, col_sf, "FINALE BRONZE 1", fb1_p1, fb1_p2, nom_poule, coords_matchs_tapis, bg_header=fill_amber)
 
-        if f_b2:
-            draw_excel_match_card(ws, row_rep+8, col_sf, "FINALE BRONZE 2", f_b2[0], f_b2[1], nom_poule, coords_matchs_tapis, bg_header=fill_amber)
-            draw_excel_podium_card(ws, row_rep+8, col_pod, "🥉 3ème PLACE (Bronze 2)", "Vainqueur Finale Bronze 2", fill_bronze, font_color="9A3412")
+        form_b1 = f'=IF(OR({b1_ptr.coordinate}="", {b1_ptb.coordinate}=""), "🥉 3ème PLACE (Bronze 1)\nVainqueur Finale Bronze 1", "🥉 3ème PLACE (Bronze 1)\n" & SUBSTITUTE(SUBSTITUTE(IF({b1_ptr.coordinate}>{b1_ptb.coordinate}, {b1_r.coordinate}, IF({b1_ptb.coordinate}>{b1_ptr.coordinate}, {b1_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        draw_excel_podium_card(ws, row_rep+3, col_pod, "🥉 3ème PLACE (Bronze 1)", "Vainqueur Finale Bronze 1", fill_bronze, font_color="9A3412", formula_val=form_b1)
+
+        # Finale Bronze 2 (Vainqueur Repêchage 2 ou Perdant QF 3 vs Perdant Demi-Finale 1)
+        if n == 7:
+            fb2_p1 = {'Nom': f_b2[0]['Nom'], 'formula': make_loser_formula(qf3_r, qf3_b, qf3_ptr, qf3_ptb, "Perdant 1/4 (3)", "🔴")}
+        else:
+            fb2_p1 = {'Nom': f_b2[0]['Nom'], 'formula': make_winner_formula(rep2_r, rep2_b, rep2_ptr, rep2_ptb, "Vainqueur Repêchage 2", "🔴")}
+        fb2_p2 = {'Nom': f_b2[1]['Nom'], 'formula': make_loser_formula(sf1_r, sf1_b, sf1_ptr, sf1_ptb, "Perdant 1/2 (1)", "🔵")}
+        b2_ptr, b2_ptb, b2_r, b2_b = draw_excel_match_card(ws, row_rep+8, col_sf, "FINALE BRONZE 2", fb2_p1, fb2_p2, nom_poule, coords_matchs_tapis, bg_header=fill_amber)
+
+        form_b2 = f'=IF(OR({b2_ptr.coordinate}="", {b2_ptb.coordinate}=""), "🥉 3ème PLACE (Bronze 2)\nVainqueur Finale Bronze 2", "🥉 3ème PLACE (Bronze 2)\n" & SUBSTITUTE(SUBSTITUTE(IF({b2_ptr.coordinate}>{b2_ptb.coordinate}, {b2_r.coordinate}, IF({b2_ptb.coordinate}>{b2_ptr.coordinate}, {b2_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        draw_excel_podium_card(ws, row_rep+8, col_pod, "🥉 3ème PLACE (Bronze 2)", "Vainqueur Finale Bronze 2", fill_bronze, font_color="9A3412", formula_val=form_b2)
 
     else:
         col_cur = 6
@@ -1156,8 +1220,8 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
             col_cur += 3
 
         col_pod = col_cur
-        ws.column_dimensions[get_column_letter(col_pod)].width = 11
-        ws.column_dimensions[get_column_letter(col_pod+1)].width = 11
+        ws.column_dimensions[get_column_letter(col_pod)].width = 12
+        ws.column_dimensions[get_column_letter(col_pod+1)].width = 12
         draw_excel_podium_card(ws, 6, col_pod, "🥇 CHAMPION (OR)", "Vainqueur Finale", fill_gold, font_color="B45309")
         draw_excel_podium_card(ws, 9, col_pod, "🥈 VICE-CHAMPION", "Finaliste", fill_silver, font_color="475569")
         draw_excel_podium_card(ws, 12, col_pod, "🥉 3ème PLACE (1)", "Bronze 1", fill_bronze, font_color="9A3412")
@@ -1262,7 +1326,7 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
             for m_idx, m in enumerate(ronde):
                 grp_tag = "Poule A" if m_idx == 0 else "Poule B"
                 title_m = f"T{tour_idx+1} ({grp_tag})"
-                pt_r, pt_b = draw_excel_match_card(ws, r_matches, 1, title_m, m[0], m[1], nom_poule, coords_matchs_tapis)
+                pt_r, pt_b, _, _ = draw_excel_match_card(ws, r_matches, 1, title_m, m[0], m[1], nom_poule, coords_matchs_tapis)
                 
                 p1_nom = m[0]['Nom']
                 p2_nom = m[1]['Nom']
@@ -1284,8 +1348,8 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     ws.column_dimensions['L'].width = 3
     ws.column_dimensions['M'].width = 23
     ws.column_dimensions['N'].width = 6
-    ws.column_dimensions['O'].width = 11
-    ws.column_dimensions['P'].width = 11
+    ws.column_dimensions['O'].width = 12
+    ws.column_dimensions['P'].width = 12
 
     ws.merge_cells(start_row=4, start_column=col_sf, end_row=4, end_column=col_pod+1)
     c_fin_h = ws.cell(row=4, column=col_sf, value="🏆 PHASE 2 : PHASE FINALE CROISÉE (Gauche ➔ Droite)")
@@ -1296,19 +1360,43 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     f_or = rondes[4][0]
     f_b = rondes[4][1]
 
-    draw_excel_match_card(ws, 6, col_sf, "DEMI-FINALE 1 (1er A vs 2ème B)", sf1[0], sf1[1], nom_poule, coords_matchs_tapis, bg_header=fill_blue)
-    draw_excel_match_card(ws, 12, col_sf, "DEMI-FINALE 2 (1er B vs 2ème A)", sf2[0], sf2[1], nom_poule, coords_matchs_tapis, bg_header=fill_blue)
+    # Qualifications dynamiques depuis les rangs des poules A et B
+    # Poule A est en rangs 6 à 8 (Col A = Rang, Col C = Nom)
+    # Poule B est en rangs 12 à 14 (Col A = Rang, Col C = Nom)
+    form_1er_a = '=IF(ISNA(MATCH(1, A$6:A$8, 0)), "🔴 1er Poule A", "🔴 " & INDEX(C$6:C$8, MATCH(1, A$6:A$8, 0)))'
+    form_2e_b  = '=IF(ISNA(MATCH(2, A$12:A$14, 0)), "🔵 2ème Poule B", "🔵 " & INDEX(C$12:C$14, MATCH(2, A$12:A$14, 0)))'
+    form_1er_b = '=IF(ISNA(MATCH(1, A$12:A$14, 0)), "🔴 1er Poule B", "🔴 " & INDEX(C$12:C$14, MATCH(1, A$12:A$14, 0)))'
+    form_2e_a  = '=IF(ISNA(MATCH(2, A$6:A$8, 0)), "🔵 2ème Poule A", "🔵 " & INDEX(C$6:C$8, MATCH(2, A$6:A$8, 0)))'
+
+    p_sf1_1 = {'Nom': sf1[0]['Nom'], 'formula': form_1er_a}
+    p_sf1_2 = {'Nom': sf1[1]['Nom'], 'formula': form_2e_b}
+    sf1_ptr, sf1_ptb, sf1_r, sf1_b = draw_excel_match_card(ws, 6, col_sf, "DEMI-FINALE 1 (1er A vs 2ème B)", p_sf1_1, p_sf1_2, nom_poule, coords_matchs_tapis, bg_header=fill_blue)
+
+    p_sf2_1 = {'Nom': sf2[0]['Nom'], 'formula': form_1er_b}
+    p_sf2_2 = {'Nom': sf2[1]['Nom'], 'formula': form_2e_a}
+    sf2_ptr, sf2_ptb, sf2_r, sf2_b = draw_excel_match_card(ws, 12, col_sf, "DEMI-FINALE 2 (1er B vs 2ème A)", p_sf2_1, p_sf2_2, nom_poule, coords_matchs_tapis, bg_header=fill_blue)
 
     draw_excel_vertical_connector(ws, 7, 13, col_c)
     ws.cell(row=8, column=col_c).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
     ws.cell(row=14, column=col_c).border = Border(right=Side(style='medium', color='94A3B8'), bottom=Side(style='medium', color='94A3B8'))
 
-    draw_excel_match_card(ws, 7, col_fn, "FINALE 1-2 (OR / ARGENT)", f_or[0], f_or[1], nom_poule, coords_matchs_tapis, bg_header=fill_dark)
-    draw_excel_match_card(ws, 13, col_fn, "FINALE 3-4 (BRONZE UNIQUE)", f_b[0], f_b[1], nom_poule, coords_matchs_tapis, bg_header=fill_amber)
+    # Finales dynamiques
+    f_or_p1 = {'Nom': f_or[0]['Nom'], 'formula': make_winner_formula(sf1_r, sf1_b, sf1_ptr, sf1_ptb, "Vainqueur SF1", "🔴")}
+    f_or_p2 = {'Nom': f_or[1]['Nom'], 'formula': make_winner_formula(sf2_r, sf2_b, sf2_ptr, sf2_ptb, "Vainqueur SF2", "🔵")}
+    for_ptr, for_ptb, for_r, for_b = draw_excel_match_card(ws, 7, col_fn, "FINALE 1-2 (OR / ARGENT)", f_or_p1, f_or_p2, nom_poule, coords_matchs_tapis, bg_header=fill_dark)
 
-    draw_excel_podium_card(ws, 6, col_pod, "🥇 OR", "Vainqueur Finale 1-2", fill_gold, font_color="B45309")
-    draw_excel_podium_card(ws, 9, col_pod, "🥈 ARGENT", "Perdant Finale 1-2", fill_silver, font_color="475569")
-    draw_excel_podium_card(ws, 13, col_pod, "🥉 BRONZE (Unique)", "Vainqueur Finale 3-4", fill_bronze, font_color="9A3412")
+    f_b_p1 = {'Nom': f_b[0]['Nom'], 'formula': make_loser_formula(sf1_r, sf1_b, sf1_ptr, sf1_ptb, "Perdant SF1", "🔴")}
+    f_b_p2 = {'Nom': f_b[1]['Nom'], 'formula': make_loser_formula(sf2_r, sf2_b, sf2_ptr, sf2_ptb, "Perdant SF2", "🔵")}
+    fb_ptr, fb_ptb, fb_r, fb_b = draw_excel_match_card(ws, 13, col_fn, "FINALE 3-4 (BRONZE UNIQUE)", f_b_p1, f_b_p2, nom_poule, coords_matchs_tapis, bg_header=fill_amber)
+
+    # Podiums dynamiques
+    form_or = f'=IF(OR({for_ptr.coordinate}="", {for_ptb.coordinate}=""), "🥇 OR\nVainqueur Finale 1-2", "🥇 OR\n" & SUBSTITUTE(SUBSTITUTE(IF({for_ptr.coordinate}>{for_ptb.coordinate}, {for_r.coordinate}, IF({for_ptb.coordinate}>{for_ptr.coordinate}, {for_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+    form_arg = f'=IF(OR({for_ptr.coordinate}="", {for_ptb.coordinate}=""), "🥈 ARGENT\nPerdant Finale 1-2", "🥈 ARGENT\n" & SUBSTITUTE(SUBSTITUTE(IF({for_ptr.coordinate}>{for_ptb.coordinate}, {for_b.coordinate}, IF({for_ptb.coordinate}>{for_ptr.coordinate}, {for_r.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+    form_brz = f'=IF(OR({fb_ptr.coordinate}="", {fb_ptb.coordinate}=""), "🥉 BRONZE (Unique)\nVainqueur Finale 3-4", "🥉 BRONZE\n" & SUBSTITUTE(SUBSTITUTE(IF({fb_ptr.coordinate}>{fb_ptb.coordinate}, {fb_r.coordinate}, IF({fb_ptb.coordinate}>{fb_ptr.coordinate}, {fb_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+
+    draw_excel_podium_card(ws, 6, col_pod, "🥇 OR", "Vainqueur Finale 1-2", fill_gold, font_color="B45309", formula_val=form_or)
+    draw_excel_podium_card(ws, 9, col_pod, "🥈 ARGENT", "Perdant Finale 1-2", fill_silver, font_color="475569", formula_val=form_arg)
+    draw_excel_podium_card(ws, 13, col_pod, "🥉 BRONZE (Unique)", "Vainqueur Finale 3-4", fill_bronze, font_color="9A3412", formula_val=form_brz)
 
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
