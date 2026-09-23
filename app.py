@@ -880,26 +880,40 @@ def generer_document_bracket_imprimable(nom_poule, nom_comp, bracket_html):
 </html>"""
 
 def make_winner_formula(c_r, c_b, pt_r, pt_b, placeholder_name, target_corner="🔴"):
-    other_corner = "🔵" if target_corner == "🔴" else "🔴"
     default_text = f"{target_corner} {placeholder_name}"
-    r_val = f"IF({pt_r.coordinate}=\"\", 0, {pt_r.coordinate}+0)"
-    b_val = f"IF({pt_b.coordinate}=\"\", 0, {pt_b.coordinate}+0)"
+    r_val = f"IF({pt_r.coordinate}=\"\", 0, {pt_r.coordinate})"
+    b_val = f"IF({pt_b.coordinate}=\"\", 0, {pt_b.coordinate})"
+    
+    if target_corner == "🔴":
+        win_r = c_r.coordinate
+        win_b = f'SUBSTITUTE({c_b.coordinate}, "🔵 ", "🔴 ")'
+    else:
+        win_r = f'SUBSTITUTE({c_r.coordinate}, "🔴 ", "🔵 ")'
+        win_b = c_b.coordinate
+        
     return (
-        f'=IF(AND({r_val}=0, {b_val}=0), "{default_text}", '
-        f'IF({r_val}>{b_val}, SUBSTITUTE({c_r.coordinate}, "{other_corner} ", "{target_corner} "), '
-        f'IF({b_val}>{r_val}, SUBSTITUTE({c_b.coordinate}, "{other_corner} ", "{target_corner} "), '
+        f'=IF({r_val}+{b_val}=0, "{default_text}", '
+        f'IF({r_val}>{b_val}, {win_r}, '
+        f'IF({b_val}>{r_val}, {win_b}, '
         f'"{default_text}")))'
     )
 
 def make_loser_formula(c_r, c_b, pt_r, pt_b, placeholder_name, target_corner="🔴"):
-    other_corner = "🔵" if target_corner == "🔴" else "🔴"
     default_text = f"{target_corner} {placeholder_name}"
-    r_val = f"IF({pt_r.coordinate}=\"\", 0, {pt_r.coordinate}+0)"
-    b_val = f"IF({pt_b.coordinate}=\"\", 0, {pt_b.coordinate}+0)"
+    r_val = f"IF({pt_r.coordinate}=\"\", 0, {pt_r.coordinate})"
+    b_val = f"IF({pt_b.coordinate}=\"\", 0, {pt_b.coordinate})"
+    
+    if target_corner == "🔴":
+        lose_r = f'SUBSTITUTE({c_b.coordinate}, "🔵 ", "🔴 ")'
+        lose_b = c_r.coordinate
+    else:
+        lose_r = c_b.coordinate
+        lose_b = f'SUBSTITUTE({c_r.coordinate}, "🔴 ", "🔵 ")'
+        
     return (
-        f'=IF(AND({r_val}=0, {b_val}=0), "{default_text}", '
-        f'IF({r_val}>{b_val}, SUBSTITUTE({c_b.coordinate}, "{other_corner} ", "{target_corner} "), '
-        f'IF({b_val}>{r_val}, SUBSTITUTE({c_r.coordinate}, "{other_corner} ", "{target_corner} "), '
+        f'=IF({r_val}+{b_val}=0, "{default_text}", '
+        f'IF({r_val}>{b_val}, {lose_r}, '
+        f'IF({b_val}>{r_val}, {lose_b}, '
         f'"{default_text}")))'
     )
 
@@ -1024,9 +1038,14 @@ def link_tapis_slot(tapis_slots, cat, p_nom, ws_bracket, bracket_cell):
         for k, sl in tapis_slots.items():
             if isinstance(k, tuple):
                 c, nom = k
-                if nom == p_nom and (cat in c or c in cat):
+                if (nom == p_nom or p_nom in nom or nom in p_nom) and (cat in c or c in cat):
                     slot = sl
                     break
+    if not slot:
+        for k, sl in tapis_slots.items():
+            if isinstance(k, str) and (k == p_nom or p_nom in k or k in p_nom):
+                slot = sl
+                break
     if slot:
         ws_m, cell_coord = slot
         ws_m[cell_coord].value = f'=SUBSTITUTE(SUBSTITUTE(\'{ws_bracket.title}\'!{bracket_cell.coordinate}, "🔴 ", ""), "🔵 ", "")'
@@ -1098,8 +1117,8 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
     rep1 = rondes[-2][2] if len(rondes[-2]) > 2 else None
     rep2 = rondes[-2][3] if len(rondes[-2]) > 3 else None
 
-    if len(rondes) == 3:
-        # N = 7 ou 8
+    if 7 <= n <= 16 and len(rondes) >= 3:
+        # N = 7 à 16 (Quarts, Demis, Finales et Repêchages)
         col_qf = 6
         col_c1 = 8
         col_sf = 9
@@ -1124,10 +1143,11 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         c_bann.fill = fill_blue
         c_bann.alignment = Alignment(horizontal="center", vertical="center")
 
-        q1 = rondes[0][0]
-        q2 = rondes[0][1]
-        q3 = rondes[0][2]
-        q4 = rondes[0][3] if len(rondes[0]) > 3 else (liste_p[6], {'Nom': 'EXEMPT (BYE)', 'Club': '-'})
+        q_matches = rondes[-3]
+        q1 = q_matches[0]
+        q2 = q_matches[1]
+        q3 = q_matches[2]
+        q4 = q_matches[3] if len(q_matches) > 3 else (liste_p[6], {'Nom': 'EXEMPT (BYE)', 'Club': '-'})
 
         qf1_ptr, qf1_ptb, qf1_r, qf1_b = draw_excel_match_card(ws, 6, col_qf, "1/4 DE FINALE 1", q1[0], q1[1], nom_poule, coords_matchs_tapis)
         qf2_ptr, qf2_ptb, qf2_r, qf2_b = draw_excel_match_card(ws, 11, col_qf, "1/4 DE FINALE 2", q2[0], q2[1], nom_poule, coords_matchs_tapis)
@@ -1161,10 +1181,10 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         fn_ptr, fn_ptb, fn_r, fn_b = draw_excel_match_card(ws, 13, col_fn, "GRANDE FINALE (OR)", fn_p1, fn_p2, nom_poule, coords_matchs_tapis, bg_header=fill_dark)
 
         # Podiums Or & Argent dynamiques
-        r_fn = f"IF({fn_ptr.coordinate}=\"\",0,{fn_ptr.coordinate}+0)"
-        b_fn = f"IF({fn_ptb.coordinate}=\"\",0,{fn_ptb.coordinate}+0)"
-        form_gold = f'=IF(AND({r_fn}=0, {b_fn}=0), "🥇 CHAMPION (OR)\nVainqueur Grande Finale", "🥇 CHAMPION (OR)\n" & SUBSTITUTE(SUBSTITUTE(IF({r_fn}>{b_fn}, {fn_r.coordinate}, IF({b_fn}>{r_fn}, {fn_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
-        form_silver = f'=IF(AND({r_fn}=0, {b_fn}=0), "🥈 VICE-CHAMPION (ARGENT)\nPerdant Grande Finale", "🥈 VICE-CHAMPION (ARGENT)\n" & SUBSTITUTE(SUBSTITUTE(IF({r_fn}>{b_fn}, {fn_b.coordinate}, IF({b_fn}>{r_fn}, {fn_r.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        r_fn = f"IF({fn_ptr.coordinate}=\"\",0,{fn_ptr.coordinate})"
+        b_fn = f"IF({fn_ptb.coordinate}=\"\",0,{fn_ptb.coordinate})"
+        form_gold = f'=IF({r_fn}+{b_fn}=0, "🥇 CHAMPION (OR)" & CHAR(10) & "Vainqueur Grande Finale", "🥇 CHAMPION (OR)" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_fn}>{b_fn}, {fn_r.coordinate}, IF({b_fn}>{r_fn}, {fn_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        form_silver = f'=IF({r_fn}+{b_fn}=0, "🥈 VICE-CHAMPION (ARGENT)" & CHAR(10) & "Perdant Grande Finale", "🥈 VICE-CHAMPION (ARGENT)" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_fn}>{b_fn}, {fn_b.coordinate}, IF({b_fn}>{r_fn}, {fn_r.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
         draw_excel_podium_card(ws, 12, col_pod, "🥇 CHAMPION (OR)", "Vainqueur Grande Finale", fill_gold, font_color="B45309", formula_val=form_gold)
         draw_excel_podium_card(ws, 15, col_pod, "🥈 VICE-CHAMPION (ARGENT)", "Perdant Grande Finale", fill_silver, font_color="475569", formula_val=form_silver)
 
@@ -1207,9 +1227,9 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         fb1_p2 = {'Nom': f_b1[1]['Nom'], 'formula': make_loser_formula(sf2_r, sf2_b, sf2_ptr, sf2_ptb, "Perdant 1/2 (2)", "🔵")}
         b1_ptr, b1_ptb, b1_r, b1_b = draw_excel_match_card(ws, row_rep+3, col_sf, "FINALE BRONZE 1", fb1_p1, fb1_p2, nom_poule, coords_matchs_tapis, bg_header=fill_amber)
 
-        r_b1 = f"IF({b1_ptr.coordinate}=\"\",0,{b1_ptr.coordinate}+0)"
-        b_b1 = f"IF({b1_ptb.coordinate}=\"\",0,{b1_ptb.coordinate}+0)"
-        form_b1 = f'=IF(AND({r_b1}=0, {b_b1}=0), "🥉 3ème PLACE (Bronze 1)\nVainqueur Finale Bronze 1", "🥉 3ème PLACE (Bronze 1)\n" & SUBSTITUTE(SUBSTITUTE(IF({r_b1}>{b_b1}, {b1_r.coordinate}, IF({b_b1}>{r_b1}, {b1_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        r_b1 = f"IF({b1_ptr.coordinate}=\"\",0,{b1_ptr.coordinate})"
+        b_b1 = f"IF({b1_ptb.coordinate}=\"\",0,{b1_ptb.coordinate})"
+        form_b1 = f'=IF({r_b1}+{b_b1}=0, "🥉 3ème PLACE (Bronze 1)" & CHAR(10) & "Vainqueur Finale Bronze 1", "🥉 3ème PLACE (Bronze 1)" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_b1}>{b_b1}, {b1_r.coordinate}, IF({b_b1}>{r_b1}, {b1_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
         draw_excel_podium_card(ws, row_rep+3, col_pod, "🥉 3ème PLACE (Bronze 1)", "Vainqueur Finale Bronze 1", fill_bronze, font_color="9A3412", formula_val=form_b1)
 
         # Finale Bronze 2 (Vainqueur Repêchage 2 ou Perdant QF 3 vs Perdant Demi-Finale 1)
@@ -1220,9 +1240,9 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         fb2_p2 = {'Nom': f_b2[1]['Nom'], 'formula': make_loser_formula(sf1_r, sf1_b, sf1_ptr, sf1_ptb, "Perdant 1/2 (1)", "🔵")}
         b2_ptr, b2_ptb, b2_r, b2_b = draw_excel_match_card(ws, row_rep+8, col_sf, "FINALE BRONZE 2", fb2_p1, fb2_p2, nom_poule, coords_matchs_tapis, bg_header=fill_amber)
 
-        r_b2 = f"IF({b2_ptr.coordinate}=\"\",0,{b2_ptr.coordinate}+0)"
-        b_b2 = f"IF({b2_ptb.coordinate}=\"\",0,{b2_ptb.coordinate}+0)"
-        form_b2 = f'=IF(AND({r_b2}=0, {b_b2}=0), "🥉 3ème PLACE (Bronze 2)\nVainqueur Finale Bronze 2", "🥉 3ème PLACE (Bronze 2)\n" & SUBSTITUTE(SUBSTITUTE(IF({r_b2}>{b_b2}, {b2_r.coordinate}, IF({b_b2}>{r_b2}, {b2_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+        r_b2 = f"IF({b2_ptr.coordinate}=\"\",0,{b2_ptr.coordinate})"
+        b_b2 = f"IF({b2_ptb.coordinate}=\"\",0,{b2_ptb.coordinate})"
+        form_b2 = f'=IF({r_b2}+{b_b2}=0, "🥉 3ème PLACE (Bronze 2)" & CHAR(10) & "Vainqueur Finale Bronze 2", "🥉 3ème PLACE (Bronze 2)" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_b2}>{b_b2}, {b2_r.coordinate}, IF({b_b2}>{r_b2}, {b2_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
         draw_excel_podium_card(ws, row_rep+8, col_pod, "🥉 3ème PLACE (Bronze 2)", "Vainqueur Finale Bronze 2", fill_bronze, font_color="9A3412", formula_val=form_b2)
 
         # Liaison dynamique vers les cartes de match sur les Grilles Tapis
@@ -1450,13 +1470,13 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     fb_ptr, fb_ptb, fb_r, fb_b = draw_excel_match_card(ws, 13, col_fn, "FINALE 3-4 (BRONZE UNIQUE)", f_b_p1, f_b_p2, nom_poule, coords_matchs_tapis, bg_header=fill_amber)
 
     # Podiums dynamiques
-    r_for = f"IF({for_ptr.coordinate}=\"\",0,{for_ptr.coordinate}+0)"
-    b_for = f"IF({for_ptb.coordinate}=\"\",0,{for_ptb.coordinate}+0)"
-    r_fb = f"IF({fb_ptr.coordinate}=\"\",0,{fb_ptr.coordinate}+0)"
-    b_fb = f"IF({fb_ptb.coordinate}=\"\",0,{fb_ptb.coordinate}+0)"
-    form_or = f'=IF(AND({r_for}=0, {b_for}=0), "🥇 OR\nVainqueur Finale 1-2", "🥇 OR\n" & SUBSTITUTE(SUBSTITUTE(IF({r_for}>{b_for}, {for_r.coordinate}, IF({b_for}>{r_for}, {for_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
-    form_arg = f'=IF(AND({r_for}=0, {b_for}=0), "🥈 ARGENT\nPerdant Finale 1-2", "🥈 ARGENT\n" & SUBSTITUTE(SUBSTITUTE(IF({r_for}>{b_for}, {for_b.coordinate}, IF({b_for}>{r_for}, {for_r.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
-    form_brz = f'=IF(AND({r_fb}=0, {b_fb}=0), "🥉 BRONZE (Unique)\nVainqueur Finale 3-4", "🥉 BRONZE\n" & SUBSTITUTE(SUBSTITUTE(IF({r_fb}>{b_fb}, {fb_r.coordinate}, IF({b_fb}>{r_fb}, {fb_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+    r_for = f"IF({for_ptr.coordinate}=\"\",0,{for_ptr.coordinate})"
+    b_for = f"IF({for_ptb.coordinate}=\"\",0,{for_ptb.coordinate})"
+    r_fb = f"IF({fb_ptr.coordinate}=\"\",0,{fb_ptr.coordinate})"
+    b_fb = f"IF({fb_ptb.coordinate}=\"\",0,{fb_ptb.coordinate})"
+    form_or = f'=IF({r_for}+{b_for}=0, "🥇 OR" & CHAR(10) & "Vainqueur Finale 1-2", "🥇 OR" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_for}>{b_for}, {for_r.coordinate}, IF({b_for}>{r_for}, {for_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+    form_arg = f'=IF({r_for}+{b_for}=0, "🥈 ARGENT" & CHAR(10) & "Perdant Finale 1-2", "🥈 ARGENT" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_for}>{b_for}, {for_b.coordinate}, IF({b_for}>{r_for}, {for_r.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
+    form_brz = f'=IF({r_fb}+{b_fb}=0, "🥉 BRONZE (Unique)" & CHAR(10) & "Vainqueur Finale 3-4", "🥉 BRONZE" & CHAR(10) & SUBSTITUTE(SUBSTITUTE(IF({r_fb}>{b_fb}, {fb_r.coordinate}, IF({b_fb}>{r_fb}, {fb_b.coordinate}, "En attente")), "🔴 ", ""), "🔵 ", ""))'
 
     draw_excel_podium_card(ws, 6, col_pod, "🥇 OR", "Vainqueur Finale 1-2", fill_gold, font_color="B45309", formula_val=form_or)
     draw_excel_podium_card(ws, 9, col_pod, "🥈 ARGENT", "Perdant Finale 1-2", fill_silver, font_color="475569", formula_val=form_arg)
