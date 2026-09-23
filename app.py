@@ -1126,7 +1126,7 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         c_club = ws.cell(row=r, column=3, value=p.get('Club', ''))
         c_club.border = b_style
         
-        c_pds = ws.cell(row=r, column=4, value=f"{p.get('Poids', '')} kg")
+        c_pds = ws.cell(row=r, column=4, value=formater_poids(p.get('Poids', '')))
         c_pds.alignment, c_pds.border = Alignment(horizontal="center", vertical="center"), b_style
         
         if idx % 2 == 0:
@@ -1135,9 +1135,21 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
             c_club.fill = fill_zebra
             c_pds.fill = fill_zebra
 
+    max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
+    max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p if p.get('Club') and p.get('Club') != '-'] + [8])
+    col_nom_w = max(max_len_nom + 4, 24)
+    col_club_w = max(max_len_club + 4, 16)
+
+    max_len_match = max([
+        len(f"🔴 {p.get('Nom', '')}" + (f" ({p.get('Club', '')})" if p.get('Club') and p.get('Club') != '-' else ""))
+        for p in liste_p
+    ] + [22])
+    col_match_w = max(max_len_match + 3, 24)
+    col_pod_w = max(int(col_match_w * 0.55), 12)
+
     ws.column_dimensions['A'].width = 5
-    ws.column_dimensions['B'].width = 24
-    ws.column_dimensions['C'].width = 16
+    ws.column_dimensions['B'].width = col_nom_w
+    ws.column_dimensions['C'].width = col_club_w
     ws.column_dimensions['D'].width = 10
     ws.column_dimensions['E'].width = 3
 
@@ -1221,13 +1233,13 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
             conn_col_sf_fn = col_c2
 
         for sc in stage_cols:
-            ws.column_dimensions[get_column_letter(sc)].width = 23
+            ws.column_dimensions[get_column_letter(sc)].width = col_match_w
             ws.column_dimensions[get_column_letter(sc+1)].width = 6
             ws.column_dimensions[get_column_letter(sc+2)].width = 3
-        ws.column_dimensions[get_column_letter(col_fn)].width = 23
+        ws.column_dimensions[get_column_letter(col_fn)].width = col_match_w
         ws.column_dimensions[get_column_letter(col_fn+1)].width = 6
-        ws.column_dimensions[get_column_letter(col_pod)].width = 12
-        ws.column_dimensions[get_column_letter(col_pod+1)].width = 12
+        ws.column_dimensions[get_column_letter(col_pod)].width = col_pod_w
+        ws.column_dimensions[get_column_letter(col_pod+1)].width = col_pod_w
 
         # Bannière principale
         ws.merge_cells(start_row=4, start_column=6, end_row=4, end_column=col_pod+1)
@@ -1484,7 +1496,7 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
             col_match = col_cur
             col_conn = col_cur + 2
             
-            ws.column_dimensions[get_column_letter(col_match)].width = 23
+            ws.column_dimensions[get_column_letter(col_match)].width = col_match_w
             ws.column_dimensions[get_column_letter(col_match+1)].width = 6
             ws.column_dimensions[get_column_letter(col_conn)].width = 3
 
@@ -1509,8 +1521,8 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
             col_cur += 3
 
         col_pod = col_cur
-        ws.column_dimensions[get_column_letter(col_pod)].width = 12
-        ws.column_dimensions[get_column_letter(col_pod+1)].width = 12
+        ws.column_dimensions[get_column_letter(col_pod)].width = col_pod_w
+        ws.column_dimensions[get_column_letter(col_pod+1)].width = col_pod_w
         draw_excel_podium_card(ws, 6, col_pod, "🥇 CHAMPION (OR)", "Vainqueur Finale", fill_gold, font_color="B45309")
         draw_excel_podium_card(ws, 9, col_pod, "🥈 VICE-CHAMPION", "Finaliste", fill_silver, font_color="475569")
         draw_excel_podium_card(ws, 12, col_pod, "🥉 3ème PLACE (1)", "Bronze 1", fill_bronze, font_color="9A3412")
@@ -1592,10 +1604,22 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     render_sub_poule_table(ws, 4, "🥋 PHASE 1 : POULE A (3 Lutteurs)", poule_a, fill_blue)
     render_sub_poule_table(ws, 10, "🥋 PHASE 1 : POULE B (3 Lutteurs)", poule_b, fill_dark)
 
+    max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
+    max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p if p.get('Club') and p.get('Club') != '-'] + [8])
+    col_nom_w = max(max_len_nom + 4, 22)
+    col_club_w = max(max_len_club + 4, 16)
+
+    max_len_match = max([
+        len(f"🔴 {p.get('Nom', '')}" + (f" ({p.get('Club', '')})" if p.get('Club') and p.get('Club') != '-' else ""))
+        for p in liste_p
+    ] + [22])
+    col_match_w = max(max_len_match + 3, 23)
+    col_pod_w = max(int(col_match_w * 0.55), 12)
+
     ws.column_dimensions['A'].width = 5
     ws.column_dimensions['B'].width = 5
-    ws.column_dimensions['C'].width = 22
-    ws.column_dimensions['D'].width = 16
+    ws.column_dimensions['C'].width = col_nom_w
+    ws.column_dimensions['D'].width = col_club_w
     ws.column_dimensions['E'].width = 8
     ws.column_dimensions['F'].width = 8
     ws.column_dimensions['G'].width = 8
@@ -1632,13 +1656,13 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     col_fn = 13
     col_pod = 15
 
-    ws.column_dimensions['J'].width = 23
+    ws.column_dimensions['J'].width = col_match_w
     ws.column_dimensions['K'].width = 6
     ws.column_dimensions['L'].width = 3
-    ws.column_dimensions['M'].width = 23
+    ws.column_dimensions['M'].width = col_match_w
     ws.column_dimensions['N'].width = 6
-    ws.column_dimensions['O'].width = 12
-    ws.column_dimensions['P'].width = 12
+    ws.column_dimensions['O'].width = col_pod_w
+    ws.column_dimensions['P'].width = col_pod_w
 
     ws.merge_cells(start_row=4, start_column=col_sf, end_row=4, end_column=col_pod+1)
     c_fin_h = ws.cell(row=4, column=col_sf, value="🏆 PHASE 2 : PHASE FINALE CROISÉE (Gauche ➔ Droite)")
@@ -3591,14 +3615,20 @@ else:
                     sub_mat.font = Font(name="Arial", size=10, italic=True, bold=True, color="0055A4")
                     sub_mat.alignment = Alignment(horizontal="center", vertical="center")
 
+                    matches_on_tapis = [it for it in planning_tapis[t] if it.get("Type") == "MATCH"]
+                    max_nom_t = max([len(str(it.get('Lutteur1', ''))) for it in matches_on_tapis] + [len(str(it.get('Lutteur2', ''))) for it in matches_on_tapis] + [15])
+                    max_club_t = max([len(str(it.get('Club1', ''))) for it in matches_on_tapis] + [len(str(it.get('Club2', ''))) for it in matches_on_tapis] + [12])
+                    w_nom_t = max(max_nom_t + 4, 25)
+                    w_club_t = max(max_club_t + 4, 18)
+
                     ws_mat.column_dimensions['A'].width = 16
                     ws_mat.column_dimensions['B'].width = 6
-                    ws_mat.column_dimensions['C'].width = 25
-                    ws_mat.column_dimensions['D'].width = 18
+                    ws_mat.column_dimensions['C'].width = w_nom_t
+                    ws_mat.column_dimensions['D'].width = w_club_t
                     ws_mat.column_dimensions['E'].width = 10
                     ws_mat.column_dimensions['F'].width = 5
-                    ws_mat.column_dimensions['G'].width = 25
-                    ws_mat.column_dimensions['H'].width = 18
+                    ws_mat.column_dimensions['G'].width = w_nom_t
+                    ws_mat.column_dimensions['H'].width = w_club_t
                     ws_mat.column_dimensions['I'].width = 10
 
                     r_curr = 4
