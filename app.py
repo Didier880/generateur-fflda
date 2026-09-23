@@ -1683,7 +1683,8 @@ else:
                         elif m["Type"] == "VIDE": ligne[col] = ""
                         else:
                             arb_str = f" (🛡️ <b>{m['Arbitre']}</b>)" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [<b>{m['Cat']}</b>] - <b>{m['Combattant 1']}</b> vs <b>{m['Combattant 2']}</b>{arb_str}"
+                            cat_txt = re.sub(r'\b(Poule\s*\d+)\b', r'<b>\1</b>', m['Cat'])
+                            ligne[col] = f"[{m['Heure']}] ({m['Duree']}m) [{cat_txt}] - <b>{m['Combattant 1']}</b> vs <b>{m['Combattant 2']}</b>{arb_str}"
                     else: ligne[col] = ""
                 grille_ui.append(ligne)
             
@@ -1704,10 +1705,11 @@ else:
                         if m.get('Club 1'): c1_t += f" ({m['Club 1']})"
                         c2_t = f"{m['Combattant 2']}"
                         if m.get('Club 2'): c2_t += f" ({m['Club 2']})"
+                        cat_doc_txt = re.sub(r'\b(Poule\s*\d+)\b', r'<b>\1</b>', m['Cat'])
                         lignes_tapis_doc.append({
                             "N°": f"M{m_count_doc}",
                             "Heure": f"{m['Heure']}",
-                            "Catégorie": f'<b>{m["Cat"]}</b>',
+                            "Catégorie": cat_doc_txt,
                             "Lutteur Rouge": f'<b>{c1_t}</b>',
                             "Pt Clt (R)": "[   ]",
                             "Lutteur Bleu": f'<b>{c2_t}</b>',
@@ -1819,7 +1821,8 @@ else:
                         elif m["Type"] == "MATCH":
                             m_count_st += 1
                             arb_info_st = f" | 🛡️ Arbitre : **{m['Arbitre']}**" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Poule : **{m['Cat']}**{arb_info_st}")
+                            cat_st_txt = re.sub(r'\b(Poule\s*\d+)\b', r'**\1**', m['Cat'])
+                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | {cat_st_txt}{arb_info_st}")
                             
                             c1_cl = f" ({m.get('Club 1', '')})" if m.get('Club 1') else ""
                             c1_co = f" - {m.get('Comité 1', '')}" if (m.get('Comité 1') and m.get('Comité 1') != 'Comité Non Renseigné') else ""
