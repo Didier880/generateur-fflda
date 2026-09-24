@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, time
 import io
 import urllib.request
 import re
+import collections
 import streamlit.components.v1 as components
 import openpyxl
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
@@ -256,6 +257,111 @@ def attribuer_categorie_poids_u13(poids_val):
 
 ORDRE_POIDS_U13 = ["30 kg", "33 kg", "36 kg", "39 kg", "42 kg", "46 kg", "50 kg", "55 kg", "60 kg", "+60 kg"]
 
+def interleave_bracket_slots(list_a, list_b):
+    res = []
+    i, j = 0, 0
+    while i < len(list_a) or j < len(list_b):
+        if i < len(list_a):
+            res.append(list_a[i])
+            i += 1
+        if j < len(list_b):
+            res.append(list_b[j])
+            j += 1
+    return res
+
+def repartir_tableau_protection_clubs(participants, nb_byes, nb_prelim):
+    """
+    Répartit les participants entre exempts (byes) et tour préliminaire (prelim_pts)
+    selon la Règle FFLDA de Protection des clubs.
+    
+    1. Attribue les exemptions prioritairement de manière à ce qu'aucun club n'ait
+       plus de 'nb_prelim' lutteurs dans le tour préliminaire (évite obligatoirement
+       les affrontements fratricides au tour préliminaire).
+    2. Répartit équitablement les exempts entre les clubs qui ont plusieurs inscrits.
+    3. Garantit que dans tous les matchs préliminaires (p1, p2), p1['Club'] != p2['Club'].
+    """
+    clubs = collections.defaultdict(list)
+    for p in participants:
+        c = p.get('Club', '').strip()
+        if not c or c in ['-', 'Comité Non Renseigné', 'Sans club']:
+            clubs[f"_indiv_{id(p)}"].append(p)
+        else:
+            clubs[c].append(p)
+            
+    sorted_clubs = sorted(clubs.values(), key=len, reverse=True)
+    
+    byes_list = []
+    prelim_list = []
+    
+    if nb_byes == 0:
+        prelim_list = list(participants)
+    else:
+        club_byes_count = {i: 0 for i in range(len(sorted_clubs))}
+        total_byes_assigned = 0
+        
+        # Pass 1 : Surplus > nb_prelim vers les byes
+        for i, c_members in enumerate(sorted_clubs):
+            surplus = len(c_members) - nb_prelim
+            if surplus > 0:
+                take = min(surplus, nb_byes - total_byes_assigned)
+                club_byes_count[i] += take
+                total_byes_assigned += take
+                
+        # Pass 2 : Byes attribués en priorité aux clubs multi-membres (>= 2)
+        while total_byes_assigned < nb_byes:
+            progress = False
+            for i, c_members in enumerate(sorted_clubs):
+                if total_byes_assigned >= nb_byes:
+                    break
+                if len(c_members) >= 2 and club_byes_count[i] < len(c_members):
+                    club_byes_count[i] += 1
+                    total_byes_assigned += 1
+                    progress = True
+            if not progress:
+                # Clubs à 1 membre
+                for i, c_members in enumerate(sorted_clubs):
+                    if total_byes_assigned >= nb_byes:
+                        break
+                    if club_byes_count[i] < len(c_members):
+                        club_byes_count[i] += 1
+                        total_byes_assigned += 1
+                        progress = True
+            if not progress:
+                break
+                
+        for i, c_members in enumerate(sorted_clubs):
+            n_b = club_byes_count[i]
+            byes_list.extend(c_members[:n_b])
+            prelim_list.extend(c_members[n_b:])
+            
+    prelim_matches = []
+    if nb_prelim > 0:
+        club_groups = collections.defaultdict(list)
+        for p in prelim_list:
+            c = p.get('Club', '').strip()
+            club_groups[c].append(p)
+        sorted_prelim_clubs = sorted(club_groups.values(), key=len, reverse=True)
+        flattened = [p for grp in sorted_prelim_clubs for p in grp]
+        
+        M = nb_prelim
+        half1 = flattened[:M]
+        half2 = flattened[M:]
+        
+        pairs = []
+        for i in range(M):
+            p1 = half1[i]
+            p2 = half2[i]
+            if p1.get('Club') and p1.get('Club') == p2.get('Club') and p1.get('Club') not in ['-', '']:
+                for j in range(M):
+                    if j != i and half2[j].get('Club') != p1.get('Club') and half2[i].get('Club') != half1[j].get('Club'):
+                        half2[i], half2[j] = half2[j], half2[i]
+                        p2 = half2[i]
+                        break
+            pairs.append((p1, p2))
+        prelim_matches = pairs
+
+    return byes_list, prelim_matches
+
 def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participants, separer_clubs=True):
     n = len(participants)
     if n == 0:
@@ -349,10 +455,64 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
         rondes = []
         if n == 7:
             # 7 lutteurs : 3 quarts de finale, 1 exempt direct en demi-finale
-            q1 = (participants[0], participants[1])
-            q2 = (participants[2], participants[3])
-            q3 = (participants[4], participants[5])
-            p_exempt = participants[6]
+            if separer_clubs:
+                clubs = collections.defaultdict(list)
+                for p in participants:
+                    c = p.get('Club', '').strip()
+                    if not c or c in ['-', 'Comité Non Renseigné', 'Sans club']:
+                        clubs[f"_indiv_{id(p)}"].append(p)
+                    else:
+                        clubs[c].append(p)
+                sorted_clubs = sorted(clubs.values(), key=len, reverse=True)
+                # Choix de l'exempt : le 1er membre du club le plus représenté (pour protéger ses coéquipiers)
+                p_exempt = sorted_clubs[0][0]
+                reste = []
+                first_skipped = False
+                for grp in sorted_clubs:
+                    for p in grp:
+                        if not first_skipped and p is p_exempt:
+                            first_skipped = True
+                        else:
+                            reste.append(p)
+                # Appariement des 6 autres sans fratricide
+                club_groups = collections.defaultdict(list)
+                for p in reste:
+                    c = p.get('Club', '').strip()
+                    club_groups[c].append(p)
+                sorted_reste_clubs = sorted(club_groups.values(), key=len, reverse=True)
+                flattened = [p for grp in sorted_reste_clubs for p in grp]
+                h1 = flattened[:3]
+                h2 = flattened[3:]
+                pairs = []
+                for i in range(3):
+                    p1 = h1[i]
+                    p2 = h2[i]
+                    if p1.get('Club') and p1.get('Club') == p2.get('Club') and p1.get('Club') not in ['-', '']:
+                        for j in range(3):
+                            if j != i and h2[j].get('Club') != p1.get('Club') and h2[i].get('Club') != h1[j].get('Club'):
+                                h2[i], h2[j] = h2[j], h2[i]
+                                p2 = h2[i]
+                                break
+                    pairs.append((p1, p2))
+                # Séparation Haut / Bas : q1 et q2 sont en Haut, q3 et p_exempt sont en Bas
+                # Si un match contient un coéquipier de p_exempt, il doit être en q1 ou q2 (Haut)
+                c_ex = p_exempt.get('Club', '').strip()
+                if c_ex and c_ex not in ['-', 'Comité Non Renseigné', 'Sans club']:
+                    for i in range(3):
+                        m = pairs[i]
+                        has_teammate = any(p.get('Club') == c_ex for p in m)
+                        if has_teammate and i == 2:
+                            for target_i in [0, 1]:
+                                if not any(p.get('Club') == c_ex for p in pairs[target_i]):
+                                    pairs[2], pairs[target_i] = pairs[target_i], pairs[2]
+                                    break
+                q1, q2, q3 = pairs[0], pairs[1], pairs[2]
+            else:
+                q1 = (participants[0], participants[1])
+                q2 = (participants[2], participants[3])
+                q3 = (participants[4], participants[5])
+                p_exempt = participants[6]
+
             rondes.append([q1, q2, q3])
             
             sf1 = (
@@ -388,20 +548,29 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             nb_prelim = n - 8
             nb_byes = 16 - n
             
-            byes = participants[:nb_byes]
-            prelim_pts = participants[nb_byes:]
-            
-            prelim_matches = []
-            prelim_winners = []
-            for i in range(nb_prelim):
-                p1 = prelim_pts[i * 2]
-                p2 = prelim_pts[i * 2 + 1]
-                prelim_matches.append((p1, p2))
-                prelim_winners.append({
-                    "Nom": f"Vainqueur Prél. {i+1} [{cat_poids}]",
-                    "Club": "Qualifié",
-                    "Comité": "-"
-                })
+            if separer_clubs:
+                byes, prelim_matches = repartir_tableau_protection_clubs(participants, nb_byes, nb_prelim)
+                prelim_winners = []
+                for i in range(nb_prelim):
+                    prelim_winners.append({
+                        "Nom": f"Vainqueur Prél. {i+1} [{cat_poids}]",
+                        "Club": "Qualifié",
+                        "Comité": "-"
+                    })
+            else:
+                byes = participants[:nb_byes]
+                prelim_pts = participants[nb_byes:]
+                prelim_matches = []
+                prelim_winners = []
+                for i in range(nb_prelim):
+                    p1 = prelim_pts[i * 2]
+                    p2 = prelim_pts[i * 2 + 1]
+                    prelim_matches.append((p1, p2))
+                    prelim_winners.append({
+                        "Nom": f"Vainqueur Prél. {i+1} [{cat_poids}]",
+                        "Club": "Qualifié",
+                        "Comité": "-"
+                    })
                 
             if prelim_matches:
                 rondes.append(prelim_matches)
@@ -411,12 +580,20 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             for w_idx, slot_idx in enumerate(order_prelim_slots[:nb_prelim]):
                 slots_qf[slot_idx] = prelim_winners[w_idx]
                 
-            bye_idx = 0
-            for s_idx in range(8):
-                if slots_qf[s_idx] is None:
-                    slots_qf[s_idx] = byes[bye_idx]
-                    bye_idx += 1
-                    
+            if separer_clubs:
+                order_upper = [s for s in [0, 2, 1, 3] if slots_qf[s] is None]
+                order_lower = [s for s in [4, 6, 5, 7] if slots_qf[s] is None]
+                interleaved_bye_slots = interleave_bracket_slots(order_upper, order_lower)
+                for b_idx, s_idx in enumerate(interleaved_bye_slots):
+                    if b_idx < len(byes):
+                        slots_qf[s_idx] = byes[b_idx]
+            else:
+                bye_idx = 0
+                for s_idx in range(8):
+                    if slots_qf[s_idx] is None:
+                        slots_qf[s_idx] = byes[bye_idx]
+                        bye_idx += 1
+                        
             qf_matches = [
                 (slots_qf[0], slots_qf[1]),
                 (slots_qf[2], slots_qf[3]),
@@ -461,25 +638,51 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             # 17 <= n <= 32 (Tableau de 32 : 1/16, 1/8, 1/4, 1/2, Finales & Repêchages)
             nb_prelim = n - 16
             nb_byes = max(0, 32 - n)
-            byes_16 = participants[:nb_byes]
-            prelim_pts = participants[nb_byes:]
             
-            prelim_matches = []
-            prelim_winners = []
-            for i in range(nb_prelim):
-                p1 = prelim_pts[i * 2] if i * 2 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+1}", "Club": "-"}
-                p2 = prelim_pts[i * 2 + 1] if i * 2 + 1 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+2}", "Club": "-"}
-                prelim_matches.append((p1, p2))
-                prelim_winners.append({
-                    "Nom": f"Vainqueur 1/16 ({i+1}) [{cat_poids}]",
-                    "Club": "Qualifié",
-                    "Comité": "-"
-                })
-            rondes.append(prelim_matches)
-            
-            slots_16 = (byes_16 + prelim_winners)[:16]
-            while len(slots_16) < 16:
-                slots_16.append({"Nom": f"Qualifié 1/8 ({len(slots_16)+1})", "Club": "Qualifié", "Comité": "-"})
+            if separer_clubs:
+                byes_16, prelim_matches = repartir_tableau_protection_clubs(participants, nb_byes, nb_prelim)
+                prelim_winners = []
+                for i in range(nb_prelim):
+                    prelim_winners.append({
+                        "Nom": f"Vainqueur 1/16 ({i+1}) [{cat_poids}]",
+                        "Club": "Qualifié",
+                        "Comité": "-"
+                    })
+                rondes.append(prelim_matches)
+                
+                slots_16 = [None] * 16
+                order_prelim_slots_16 = [15, 7, 11, 3, 13, 5, 9, 1, 14, 6, 10, 2, 12, 4, 8, 0]
+                for w_idx, slot_idx in enumerate(order_prelim_slots_16[:nb_prelim]):
+                    slots_16[slot_idx] = prelim_winners[w_idx]
+                    
+                order_upper = [s for s in [0, 4, 2, 6, 1, 5, 3, 7] if slots_16[s] is None]
+                order_lower = [s for s in [8, 12, 10, 14, 9, 13, 11, 15] if slots_16[s] is None]
+                interleaved_bye_slots = interleave_bracket_slots(order_upper, order_lower)
+                for b_idx, s_idx in enumerate(interleaved_bye_slots):
+                    if b_idx < len(byes_16):
+                        slots_16[s_idx] = byes_16[b_idx]
+                        
+                for s_idx in range(16):
+                    if slots_16[s_idx] is None:
+                        slots_16[s_idx] = {"Nom": f"Qualifié 1/8 ({s_idx+1})", "Club": "Qualifié", "Comité": "-"}
+            else:
+                byes_16 = participants[:nb_byes]
+                prelim_pts = participants[nb_byes:]
+                prelim_matches = []
+                prelim_winners = []
+                for i in range(nb_prelim):
+                    p1 = prelim_pts[i * 2] if i * 2 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+1}", "Club": "-"}
+                    p2 = prelim_pts[i * 2 + 1] if i * 2 + 1 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+2}", "Club": "-"}
+                    prelim_matches.append((p1, p2))
+                    prelim_winners.append({
+                        "Nom": f"Vainqueur 1/16 ({i+1}) [{cat_poids}]",
+                        "Club": "Qualifié",
+                        "Comité": "-"
+                    })
+                rondes.append(prelim_matches)
+                slots_16 = (byes_16 + prelim_winners)[:16]
+                while len(slots_16) < 16:
+                    slots_16.append({"Nom": f"Qualifié 1/8 ({len(slots_16)+1})", "Club": "Qualifié", "Comité": "-"})
             
             matches_18 = []
             winners_18 = []
@@ -538,25 +741,51 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             # 33 <= n <= 64 (Tableau de 64 : 1/32, 1/16, 1/8, 1/4, 1/2, Finales & Repêchages)
             nb_prelim = n - 32
             nb_byes = max(0, 64 - n)
-            byes_32 = participants[:nb_byes]
-            prelim_pts = participants[nb_byes:]
             
-            prelim_matches = []
-            prelim_winners = []
-            for i in range(nb_prelim):
-                p1 = prelim_pts[i * 2] if i * 2 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+1}", "Club": "-"}
-                p2 = prelim_pts[i * 2 + 1] if i * 2 + 1 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+2}", "Club": "-"}
-                prelim_matches.append((p1, p2))
-                prelim_winners.append({
-                    "Nom": f"Vainqueur 1/32 ({i+1}) [{cat_poids}]",
-                    "Club": "Qualifié",
-                    "Comité": "-"
-                })
-            rondes.append(prelim_matches)
-            
-            slots_32 = (byes_32 + prelim_winners)[:32]
-            while len(slots_32) < 32:
-                slots_32.append({"Nom": f"Qualifié 1/16 ({len(slots_32)+1})", "Club": "Qualifié", "Comité": "-"})
+            if separer_clubs:
+                byes_32, prelim_matches = repartir_tableau_protection_clubs(participants, nb_byes, nb_prelim)
+                prelim_winners = []
+                for i in range(nb_prelim):
+                    prelim_winners.append({
+                        "Nom": f"Vainqueur 1/32 ({i+1}) [{cat_poids}]",
+                        "Club": "Qualifié",
+                        "Comité": "-"
+                    })
+                rondes.append(prelim_matches)
+                
+                slots_32 = [None] * 32
+                order_prelim_slots_32 = [31, 15, 23, 7, 27, 11, 19, 3, 29, 13, 21, 5, 25, 9, 17, 1, 30, 14, 22, 6, 26, 10, 18, 2, 28, 12, 20, 4, 24, 8, 16, 0]
+                for w_idx, slot_idx in enumerate(order_prelim_slots_32[:nb_prelim]):
+                    slots_32[slot_idx] = prelim_winners[w_idx]
+                    
+                order_upper = [s for s in [0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15] if slots_32[s] is None]
+                order_lower = [s for s in [16, 24, 20, 28, 18, 26, 22, 30, 17, 25, 21, 29, 19, 27, 23, 31] if slots_32[s] is None]
+                interleaved_bye_slots = interleave_bracket_slots(order_upper, order_lower)
+                for b_idx, s_idx in enumerate(interleaved_bye_slots):
+                    if b_idx < len(byes_32):
+                        slots_32[s_idx] = byes_32[b_idx]
+                        
+                for s_idx in range(32):
+                    if slots_32[s_idx] is None:
+                        slots_32[s_idx] = {"Nom": f"Qualifié 1/16 ({s_idx+1})", "Club": "Qualifié", "Comité": "-"}
+            else:
+                byes_32 = participants[:nb_byes]
+                prelim_pts = participants[nb_byes:]
+                prelim_matches = []
+                prelim_winners = []
+                for i in range(nb_prelim):
+                    p1 = prelim_pts[i * 2] if i * 2 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+1}", "Club": "-"}
+                    p2 = prelim_pts[i * 2 + 1] if i * 2 + 1 < len(prelim_pts) else {"Nom": f"Lutteur {i*2+2}", "Club": "-"}
+                    prelim_matches.append((p1, p2))
+                    prelim_winners.append({
+                        "Nom": f"Vainqueur 1/32 ({i+1}) [{cat_poids}]",
+                        "Club": "Qualifié",
+                        "Comité": "-"
+                    })
+                rondes.append(prelim_matches)
+                slots_32 = (byes_32 + prelim_winners)[:32]
+                while len(slots_32) < 32:
+                    slots_32.append({"Nom": f"Qualifié 1/16 ({len(slots_32)+1})", "Club": "Qualifié", "Comité": "-"})
             
             matches_116 = []
             winners_116 = []
@@ -625,7 +854,7 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             rondes.append([f_or, f_b1, f_b2])
 
         nom = f"{age} | {style_grp}{suffixe_niveau} | {cat_poids} (Tableau élimination & repêchages)"
-        return {
+        res = {
             'nom': nom,
             'participants': list(participants),
             'rondes': rondes,
@@ -633,6 +862,9 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             'cat_poids': cat_poids,
             'style_grp': style_grp
         }
+        if n == 7:
+            res['p_exempt'] = p_exempt
+        return res
 
 # --- GÉNÉRATEUR VISUEL DE TABLEAU À ÉLIMINATION DIRECTE & REPÊCHAGES U13 (DE GAUCHE À DROITE) ---
 def make_bracket_card(p1, p2, title='', badge=''):
@@ -772,7 +1004,7 @@ def generer_arbre_tableau_html(p_obj):
         if len(rondes) == 3:
             if n == 7:
                 q1, q2, q3 = rondes[0][0], rondes[0][1], rondes[0][2]
-                p_ex = participants[6]
+                p_ex = p_obj.get('p_exempt', participants[6])
                 q_matches = [
                     (q1[0], q1[1], '1/4 DE FINALE 1'),
                     (q2[0], q2[1], '1/4 DE FINALE 2'),
@@ -1827,7 +2059,7 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
             q_matches[0],
             q_matches[1],
             q_matches[2],
-            q_matches[3] if len(q_matches) > 3 else (liste_p[6], {'Nom': 'EXEMPT (BYE)', 'Club': '-'})
+            q_matches[3] if len(q_matches) > 3 else (p_obj.get('p_exempt', liste_p[6]), {'Nom': 'EXEMPT (BYE)', 'Club': '-'})
         ]
 
         qf_cards = []
