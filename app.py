@@ -241,7 +241,7 @@ def generer_rondes_fflda(participants_in):
 
 def attribuer_categorie_poids_u13(poids_val):
     try:
-        p = float(poids_val)
+        p = float(poids_val) if (poids_val is not None and str(poids_val).strip() != '') else 0.0
     except (ValueError, TypeError):
         p = 0.0
     if p <= 30.0: return "30 kg"
@@ -2831,12 +2831,12 @@ def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
                 
                 # Option 1: Essayer de fusionner directement avec la poule précédente (i-1)
                 if i > 0:
-                    cand = sorted(poules[i-1]['participants'] + [p_iso], key=lambda x: x['Poids_Num'])
+                    cand = sorted(poules[i-1]['participants'] + [p_iso], key=lambda x: float(x.get('Poids_Num') or 0.0))
                     if len(cand) <= max_size and poule_poids_valide(cand, multiplicateur_poids):
                         poules[i-1]['participants'] = cand
                         poules[i-1]['rondes'] = generer_rondes_fflda(cand)
-                        p_min = cand[0]['Poids_Num']
-                        p_max = cand[-1]['Poids_Num']
+                        p_min = cand[0].get('Poids_Num') or 0.0
+                        p_max = cand[-1].get('Poids_Num') or 0.0
                         prefix = poules[i-1]['nom'].split(' (')[0]
                         poules[i-1]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
                         poules.pop(i)
@@ -2846,12 +2846,12 @@ def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
                 
                 # Option 2: Essayer de fusionner directement avec la poule suivante (i+1)
                 if not fusionne and i < len(poules) - 1:
-                    cand = sorted([p_iso] + poules[i+1]['participants'], key=lambda x: x['Poids_Num'])
+                    cand = sorted([p_iso] + poules[i+1]['participants'], key=lambda x: float(x.get('Poids_Num') or 0.0))
                     if len(cand) <= max_size and poule_poids_valide(cand, multiplicateur_poids):
                         poules[i+1]['participants'] = cand
                         poules[i+1]['rondes'] = generer_rondes_fflda(cand)
-                        p_min = cand[0]['Poids_Num']
-                        p_max = cand[-1]['Poids_Num']
+                        p_min = cand[0].get('Poids_Num') or 0.0
+                        p_max = cand[-1].get('Poids_Num') or 0.0
                         prefix = poules[i+1]['nom'].split(' (')[0]
                         poules[i+1]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
                         poules.pop(i)
@@ -2863,8 +2863,8 @@ def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
                 if not fusionne and i > 0 and len(poules[i-1]['participants']) >= 3:
                     prev_parts = poules[i-1]['participants']
                     for k in range(1, len(prev_parts) - 1):
-                        new_prev = sorted(prev_parts[:-k], key=lambda x: x['Poids_Num'])
-                        new_iso = sorted(prev_parts[-k:] + [p_iso], key=lambda x: x['Poids_Num'])
+                        new_prev = sorted(prev_parts[:-k], key=lambda x: float(x.get('Poids_Num') or 0.0))
+                        new_iso = sorted(prev_parts[-k:] + [p_iso], key=lambda x: float(x.get('Poids_Num') or 0.0))
                         
                         if (len(new_prev) >= 2 and len(new_iso) >= 2 and len(new_iso) <= max_size and
                             poule_poids_valide(new_prev, multiplicateur_poids) and
@@ -2872,15 +2872,15 @@ def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
                             
                             poules[i-1]['participants'] = new_prev
                             poules[i-1]['rondes'] = generer_rondes_fflda(new_prev)
-                            p_min1 = new_prev[0]['Poids_Num']
-                            p_max1 = new_prev[-1]['Poids_Num']
+                            p_min1 = new_prev[0].get('Poids_Num') or 0.0
+                            p_max1 = new_prev[-1].get('Poids_Num') or 0.0
                             prefix1 = poules[i-1]['nom'].split(' (')[0]
                             poules[i-1]['nom'] = f"{prefix1} ({formater_poids_court(p_min1)} - {formater_poids_court(p_max1)})"
                             
                             poules[i]['participants'] = new_iso
                             poules[i]['rondes'] = generer_rondes_fflda(new_iso)
-                            p_min2 = new_iso[0]['Poids_Num']
-                            p_max2 = new_iso[-1]['Poids_Num']
+                            p_min2 = new_iso[0].get('Poids_Num') or 0.0
+                            p_max2 = new_iso[-1].get('Poids_Num') or 0.0
                             prefix2 = poules[i]['nom'].split(' (')[0]
                             poules[i]['nom'] = f"{prefix2} ({formater_poids_court(p_min2)} - {formater_poids_court(p_max2)})"
                             
@@ -2894,8 +2894,8 @@ def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
                 if not fusionne and i < len(poules) - 1 and len(poules[i+1]['participants']) >= 3:
                     next_parts = poules[i+1]['participants']
                     for k in range(1, len(next_parts) - 1):
-                        new_iso = sorted([p_iso] + next_parts[:k], key=lambda x: x['Poids_Num'])
-                        new_next = sorted(next_parts[k:], key=lambda x: x['Poids_Num'])
+                        new_iso = sorted([p_iso] + next_parts[:k], key=lambda x: float(x.get('Poids_Num') or 0.0))
+                        new_next = sorted(next_parts[k:], key=lambda x: float(x.get('Poids_Num') or 0.0))
                         
                         if (len(new_iso) >= 2 and len(new_next) >= 2 and len(new_iso) <= max_size and
                             poule_poids_valide(new_iso, multiplicateur_poids) and
@@ -2903,15 +2903,15 @@ def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
                             
                             poules[i]['participants'] = new_iso
                             poules[i]['rondes'] = generer_rondes_fflda(new_iso)
-                            p_min1 = new_iso[0]['Poids_Num']
-                            p_max1 = new_iso[-1]['Poids_Num']
+                            p_min1 = new_iso[0].get('Poids_Num') or 0.0
+                            p_max1 = new_iso[-1].get('Poids_Num') or 0.0
                             prefix1 = poules[i]['nom'].split(' (')[0]
                             poules[i]['nom'] = f"{prefix1} ({formater_poids_court(p_min1)} - {formater_poids_court(p_max1)})"
                             
                             poules[i+1]['participants'] = new_next
                             poules[i+1]['rondes'] = generer_rondes_fflda(new_next)
-                            p_min2 = new_next[0]['Poids_Num']
-                            p_max2 = new_next[-1]['Poids_Num']
+                            p_min2 = new_next[0].get('Poids_Num') or 0.0
+                            p_max2 = new_next[-1].get('Poids_Num') or 0.0
                             prefix2 = poules[i+1]['nom'].split(' (')[0]
                             poules[i+1]['nom'] = f"{prefix2} ({formater_poids_court(p_min2)} - {formater_poids_court(p_max2)})"
                             
@@ -2935,12 +2935,25 @@ def compter_collisions_club(participants_poule):
 def poule_poids_valide(participants_poule, multiplicateur_poids):
     if not participants_poule:
         return True
-    poids_list = [p['Poids_Num'] for p in participants_poule if p.get('Poids_Num', 0) > 0]
+    poids_list = []
+    for p in participants_poule:
+        try:
+            val = p.get('Poids_Num')
+            if val is not None and str(val).strip() != '':
+                f_val = float(val)
+                if f_val > 0:
+                    poids_list.append(f_val)
+        except (ValueError, TypeError):
+            continue
     if not poids_list:
         return True
     p_min = min(poids_list)
     p_max = max(poids_list)
-    return p_max <= round(p_min * multiplicateur_poids, 4)
+    try:
+        mult = float(multiplicateur_poids)
+    except (ValueError, TypeError):
+        mult = 1.15
+    return p_max <= round(p_min * mult, 4)
 
 def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
     """
@@ -2984,14 +2997,14 @@ def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
                 
                 if best_swap:
                     idx1, idx2, p1_test, p2_test = best_swap
-                    poules_groupe[i]['participants'] = sorted(p1_test, key=lambda x: x['Poids_Num'])
-                    poules_groupe[j]['participants'] = sorted(p2_test, key=lambda x: x['Poids_Num'])
+                    poules_groupe[i]['participants'] = sorted(p1_test, key=lambda x: float(x.get('Poids_Num') or 0.0))
+                    poules_groupe[j]['participants'] = sorted(p2_test, key=lambda x: float(x.get('Poids_Num') or 0.0))
                     
                     for idx_p in [i, j]:
                         parts = poules_groupe[idx_p]['participants']
                         prefix = poules_groupe[idx_p]['nom'].split(' (')[0]
-                        p_min = parts[0]['Poids_Num']
-                        p_max = parts[-1]['Poids_Num']
+                        p_min = parts[0].get('Poids_Num') or 0.0
+                        p_max = parts[-1].get('Poids_Num') or 0.0
                         poules_groupe[idx_p]['nom'] = f"{prefix} ({formater_poids_court(p_min)} - {formater_poids_court(p_max)})"
                         poules_groupe[idx_p]['rondes'] = generer_rondes_fflda(parts)
                     
@@ -3397,7 +3410,11 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
         for c in range(1, max_c + 1):
             col_letter = openpyxl.utils.get_column_letter(c)
             w = ws.column_dimensions[col_letter].width if col_letter in ws.column_dimensions else None
-            col_widths.append(float(w) if w and float(w) > 0 else 10.0)
+            try:
+                w_val = float(w) if (w is not None and str(w).strip() != '') else 10.0
+                col_widths.append(w_val if w_val > 0 else 10.0)
+            except (ValueError, TypeError):
+                col_widths.append(10.0)
             
         total_w = sum(col_widths)
         scale = page_width / total_w if total_w > 0 else 1.0
@@ -3423,7 +3440,12 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                 
                 font = cell.font
                 is_bold = bool(font.bold) if font else False
-                orig_f_size = font.size if font and font.size else 10
+                orig_f_size = 10
+                if font and getattr(font, 'size', None) is not None:
+                    try:
+                        orig_f_size = float(font.size)
+                    except (ValueError, TypeError):
+                        orig_f_size = 10
                 f_size = max(5, min(int(orig_f_size * base_scale), 12))
                 
                 f_color = get_hex(getattr(font, 'color', None), default='#1E293B')
@@ -3471,12 +3493,15 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                     t_styles.append(('SPAN', (min_col - 1, min_row - 1), (end_c - 1, end_r - 1)))
                 
         rep_rows = 2 if "tapis" in ws.title.lower() or "passage" in ws.title.lower() else 0
-        table = Table(data, colWidths=scaled_widths, repeatRows=rep_rows)
+        table = Table(data, colWidths=scaled_widths, repeatRows=rep_rows, splitByRow=1)
         table.setStyle(TableStyle(t_styles))
         story.append(table)
 
-    doc.build(story)
-    return buffer.getvalue()
+    try:
+        doc.build(story)
+        return buffer.getvalue()
+    except Exception:
+        return None
 
 # --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS (REPORTLAB - A4 PAYSAGE - 1 PAGE PAR ONGLET) ---
 def generer_pdf_tournoi_complet(titre, nom_comp, sections):
@@ -4228,7 +4253,11 @@ else:
             erreurs_jeune = []
             for _, row_test in df_inscr_total.iterrows():
                 val_style_raw = str(row_test.get('Style', '')).strip().lower()
-                poids_val = row_test['Poids_Num']
+                poids_val_raw = row_test.get('Poids_Num')
+                try:
+                    poids_val = float(poids_val_raw) if (poids_val_raw is not None and str(poids_val_raw).strip() != '') else 0.0
+                except (ValueError, TypeError):
+                    poids_val = 0.0
                 nom_lutteur = row_test.get('Nom', 'Lutteur Inconnu')
                 club_lutteur = row_test.get('Club', '')
                 sexe_val = row_test.get('Sexe', '')
@@ -4361,8 +4390,9 @@ else:
                         if not poule_courante:
                             poule_courante.append(p)
                         else:
-                            poids_min = poule_courante[0]['Poids_Num']
-                            if p['Poids_Num'] <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
+                            poids_min = float(poule_courante[0].get('Poids_Num') or 0.0)
+                            p_poids = float(p.get('Poids_Num') or 0.0)
+                            if p_poids <= (poids_min * multiplicateur_poids) and len(poule_courante) < max_size:
                                 poule_courante.append(p)
                             else:
                                 nom_groupe = f"{age} | {style_grp}{suffixe_niveau} ({formater_poids_court(poule_courante[0]['Poids_Num'])} - {formater_poids_court(poule_courante[-1]['Poids_Num'])})"
@@ -5449,8 +5479,21 @@ else:
                         construire_feuille_poule_nordique_excel(ws_poule, nom_poule, liste_p, rondes_par_categorie.get(nom_poule, []), coords_matchs_tapis, nom_competition)
 
                 # Génération du PDF imprimable basé à 100% sur le classeur Excel officiel FFLDA
-                pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(writer.book, nom_competition)
-                pdf_grille_bytes = generer_pdf_depuis_classeur_excel([writer.book["Grille de Passage"]], nom_competition)
+                try:
+                    pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(writer.book, nom_competition)
+                except Exception:
+                    pdf_bytes_tournoi_complet = None
+
+                if not pdf_bytes_tournoi_complet:
+                    try:
+                        pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi", nom_competition, sections_tournoi_complet)
+                    except Exception:
+                        pdf_bytes_tournoi_complet = b""
+
+                try:
+                    pdf_grille_bytes = generer_pdf_depuis_classeur_excel([writer.book["Grille de Passage"]], nom_competition)
+                except Exception:
+                    pdf_grille_bytes = None
 
             excel_bytes_tournoi_complet = output_excel.getvalue()
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
