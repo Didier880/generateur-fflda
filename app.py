@@ -3329,21 +3329,30 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
     - Les couleurs de fond (en-têtes bleus FFLDA, coins rouge/bleu, catégories d'âge, zébrures)
     - Les bordures de cellules
     - Les styles de police (gras, tailles, alignements, texte blanc sur fond sombre)
-    - Le nettoyage des formules de pointage pour afficher les libellés de combat
+    - La résolution intelligente des formules (liens inter-onglets, libellés de combat, scores)
     """
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab import rl_config
+    rl_config.allowTableBoundsErrors = 1
 
+    wb = None
     if hasattr(workbook_or_sheets, 'worksheets'):
         sheets = list(workbook_or_sheets.worksheets)
+        wb = workbook_or_sheets
     elif hasattr(workbook_or_sheets, 'sheets'):
         sheets = list(workbook_or_sheets.sheets.values()) if isinstance(workbook_or_sheets.sheets, dict) else list(workbook_or_sheets.sheets)
+        wb = getattr(workbook_or_sheets, 'book', None)
     elif isinstance(workbook_or_sheets, (list, tuple)):
         sheets = list(workbook_or_sheets)
+        if sheets and hasattr(sheets[0], 'parent'):
+            wb = sheets[0].parent
     else:
         sheets = [workbook_or_sheets]
+        if hasattr(workbook_or_sheets, 'parent'):
+            wb = workbook_or_sheets.parent
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -3364,47 +3373,95 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
         rgb = getattr(openpyxl_color, 'rgb', None)
         if not rgb:
             return default
-        rgb_s = str(rgb)
+        rgb_s = str(rgb).strip()
+        if rgb_s in ['00000000', '0', 'None', '']:
+            return default
         if len(rgb_s) == 8:
             return '#' + rgb_s[2:]
         elif len(rgb_s) == 6:
             return '#' + rgb_s
         return default
 
-    def clean_val(val):
+    def resolve_formula_cell(formula_str, current_ws, wb_ref, depth=0):
+        if depth > 3:
+            return ""
+        s = str(formula_str).strip()
+        if not s.startswith('='):
+            return s
+            
+        quoted = re.findall(r'"([^"]*)"', s)
+        priority_keywords = ['🥇', '🥈', '🥉', 'CHAMPION', 'Vainqueur', 'Perdant', 'Qualifié', 'Repêché', 'TOUR', 'COMBAT']
+        for q in quoted:
+            if any(k in q for k in priority_keywords):
+                return q
+                
+        # Inter-sheet reference: 'SheetName'!A1 or SheetName!A1
+        m_ref = re.search(r"(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+[0-9]+)", s)
+        if m_ref and wb_ref:
+            target_sheet_name = m_ref.group(1) or m_ref.group(2)
+            coord = m_ref.group(3)
+            if target_sheet_name in wb_ref.sheetnames:
+                t_val = wb_ref[target_sheet_name][coord].value
+                res = resolve_formula_cell(t_val, wb_ref[target_sheet_name], wb_ref, depth + 1)
+                if res:
+                    return res.replace('🔴 ', '').replace('🔵 ', '').strip()
+                    
+        # Intra-sheet reference: =A1
+        m_local = re.match(r"^=([A-Z]+[0-9]+)$", s)
+        if m_local and current_ws:
+            coord = m_local.group(1)
+            t_val = current_ws[coord].value
+            return resolve_formula_cell(t_val, current_ws, wb_ref, depth + 1)
+            
+        if quoted:
+            for q in quoted:
+                if q.strip() and q not in ["En attente", " ", "🔴 ", "🔵 "]:
+                    return q
+        return ""
+
+    def clean_val(val, current_ws):
         if val is None:
             return ""
         s = str(val).strip()
         if s.startswith('='):
-            quoted = re.findall(r'"([^"]*)"', s)
-            if quoted:
-                for q in quoted:
-                    if any(k in q for k in ['🔴', '🔵', 'Vainqueur', 'Perdant', 'Qualifié', 'Repêché', '🥇', '🥈', '🥉', 'CHAMPION']):
-                        return q
-                for q in quoted:
-                    if q.strip() and q not in ["En attente", " "]:
-                        return q
-            return ""
+            return resolve_formula_cell(s, current_ws, wb)
         return s
 
+    def cell_has_content(c_obj):
+        if c_obj.value not in [None, '']:
+            return True
+        f = getattr(c_obj, 'fill', None)
+        if getattr(f, 'fill_type', None) in ['solid']:
+            c_hex = get_hex(getattr(f, 'fgColor', None))
+            if c_hex and c_hex.upper() not in ['#FFFFFF', '#00000000']:
+                return True
+        b = getattr(c_obj, 'border', None)
+        if b and (getattr(b.left, 'style', None) or getattr(b.top, 'style', None) or getattr(b.right, 'style', None) or getattr(b.bottom, 'style', None)):
+            return True
+        return False
+
     story = []
-    
+    sheet_has_pages = False
+
     for sheet_idx, ws in enumerate(sheets):
-        max_r = ws.max_row
-        max_c = ws.max_column
-        if max_r < 1 or max_c < 1:
-            continue
-            
-        while max_r > 1 and all(ws.cell(row=max_r, column=c).value in [None, ''] for c in range(1, max_c + 1)):
+        max_r = ws.max_row or 1
+        max_c = ws.max_column or 1
+        
+        min_allowed_r = 1
+        min_allowed_c = 1
+        for mr in list(ws.merged_cells.ranges):
+            if mr.max_row > min_allowed_r:
+                min_allowed_r = min(mr.max_row, max_r)
+            if mr.max_col > min_allowed_c:
+                min_allowed_c = min(mr.max_col, max_c)
+                
+        while max_r > min_allowed_r and all(not cell_has_content(ws.cell(row=max_r, column=c)) for c in range(1, max_c + 1)):
             max_r -= 1
-        while max_c > 1 and all(ws.cell(row=r, column=max_c).value in [None, ''] for r in range(1, max_r + 1)):
+        while max_c > min_allowed_c and all(not cell_has_content(ws.cell(row=r, column=max_c)) for r in range(1, max_r + 1)):
             max_c -= 1
             
-        if max_r < 1 or max_c < 1:
+        if max_r == 1 and max_c == 1 and not cell_has_content(ws.cell(1, 1)):
             continue
-
-        if sheet_idx > 0:
-            story.append(PageBreak())
 
         col_widths = []
         for c in range(1, max_c + 1):
@@ -3418,7 +3475,7 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
             
         total_w = sum(col_widths)
         scale = page_width / total_w if total_w > 0 else 1.0
-        scaled_widths = [cw * scale for cw in col_widths]
+        scaled_widths = [max(cw * scale, 8.0) for cw in col_widths]
 
         data = []
         t_styles = [
@@ -3436,7 +3493,7 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
             for c in range(1, max_c + 1):
                 cell = ws.cell(row=r, column=c)
                 raw = cell.value
-                txt = clean_val(raw)
+                txt = clean_val(raw, ws)
                 
                 font = cell.font
                 is_bold = bool(font.bold) if font else False
@@ -3458,11 +3515,13 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                 if h_align == 'left': align_code = 0
                 elif h_align == 'right': align_code = 2
                 
-                bg_hex = get_hex(getattr(cell.fill, 'fgColor', None))
-                if bg_hex:
-                    t_styles.append(('BACKGROUND', (c - 1, r - 1), (c - 1, r - 1), colors.HexColor(bg_hex)))
-                    if bg_hex.upper() in ['#0055A4', '#EF4135', '#E53935', '#000000', '#334155', '#475569', '#1E88E5']:
-                        f_color = '#FFFFFF'
+                fill_obj = getattr(cell, 'fill', None)
+                if getattr(fill_obj, 'fill_type', None) in ['solid', 'lightGrid', 'darkGrid']:
+                    bg_hex = get_hex(getattr(fill_obj, 'fgColor', None))
+                    if bg_hex and bg_hex.upper() not in ['#FFFFFF', '#00000000']:
+                        t_styles.append(('BACKGROUND', (c - 1, r - 1), (c - 1, r - 1), colors.HexColor(bg_hex)))
+                        if bg_hex.upper() in ['#0055A4', '#EF4135', '#E53935', '#000000', '#334155', '#475569', '#1E88E5']:
+                            f_color = '#FFFFFF'
                     
                 b = cell.border
                 if b and (getattr(b.left, 'style', None) or getattr(b.top, 'style', None) or getattr(b.right, 'style', None) or getattr(b.bottom, 'style', None)):
@@ -3479,29 +3538,59 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                     alignment=align_code
                 )
                 
-                txt_safe = txt.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br/>')
+                txt_clean = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', txt)
+                txt_safe = txt_clean.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br/>')
                 p = Paragraph(txt_safe, p_style) if txt_safe else Paragraph("&nbsp;", p_style)
                 row_cells.append(p)
             data.append(row_cells)
 
-        for m_range in ws.merged_cells.ranges:
+        for m_range in list(ws.merged_cells.ranges):
             min_col, min_row, max_col_r, max_row_r = m_range.min_col, m_range.min_row, m_range.max_col, m_range.max_row
             if min_row <= max_r and min_col <= max_c:
                 end_c = min(max_col_r, max_c)
                 end_r = min(max_row_r, max_r)
-                if end_c > min_col or end_r > min_row:
-                    t_styles.append(('SPAN', (min_col - 1, min_row - 1), (end_c - 1, end_r - 1)))
+                if (end_c > min_col or end_r > min_row) and min_col >= 1 and min_row >= 1:
+                    c1 = min_col - 1
+                    r1 = min_row - 1
+                    c2 = min(end_c - 1, len(data[0]) - 1)
+                    r2 = min(end_r - 1, len(data) - 1)
+                    if c2 >= c1 and r2 >= r1 and (c2 > c1 or r2 > r1):
+                        t_styles.append(('SPAN', (c1, r1), (c2, r2)))
                 
-        rep_rows = 2 if "tapis" in ws.title.lower() or "passage" in ws.title.lower() else 0
-        table = Table(data, colWidths=scaled_widths, repeatRows=rep_rows, splitByRow=1)
-        table.setStyle(TableStyle(t_styles))
-        story.append(table)
+        rep_rows = 2 if ('tapis' in ws.title.lower() or 'passage' in ws.title.lower()) and max_r > 2 else 0
+        try:
+            table = Table(data, colWidths=scaled_widths, repeatRows=rep_rows, splitByRow=1)
+            table.setStyle(TableStyle(t_styles))
+            if sheet_has_pages:
+                story.append(PageBreak())
+            story.append(table)
+            sheet_has_pages = True
+        except Exception:
+            t_fallback = Table(data, colWidths=scaled_widths, splitByRow=1)
+            if sheet_has_pages:
+                story.append(PageBreak())
+            story.append(t_fallback)
+            sheet_has_pages = True
 
     try:
         doc.build(story)
         return buffer.getvalue()
     except Exception:
-        return None
+        # Fallback de secours : rendu épuré garanti
+        try:
+            simple_story = []
+            for item in story:
+                if isinstance(item, Table):
+                    t_simple = Table(item._cellvalues, colWidths=item._colWidths, splitByRow=1)
+                    simple_story.append(t_simple)
+                else:
+                    simple_story.append(item)
+            buf2 = io.BytesIO()
+            doc2 = SimpleDocTemplate(buf2, pagesize=landscape(A4), rightMargin=12, leftMargin=12, topMargin=12, bottomMargin=12)
+            doc2.build(simple_story)
+            return buf2.getvalue()
+        except Exception:
+            return None
 
 # --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS (REPORTLAB - A4 PAYSAGE - 1 PAGE PAR ONGLET) ---
 def generer_pdf_tournoi_complet(titre, nom_comp, sections):
@@ -5478,24 +5567,34 @@ else:
                     else:
                         construire_feuille_poule_nordique_excel(ws_poule, nom_poule, liste_p, rondes_par_categorie.get(nom_poule, []), coords_matchs_tapis, nom_competition)
 
-                # Génération du PDF imprimable basé à 100% sur le classeur Excel officiel FFLDA
+            excel_bytes_tournoi_complet = output_excel.getvalue()
+
+            # Génération du PDF imprimable basé à 100% sur le classeur Excel officiel FFLDA
+            wb_officiel = None
+            try:
+                wb_officiel = openpyxl.load_workbook(io.BytesIO(excel_bytes_tournoi_complet), data_only=False)
+            except Exception:
+                pass
+
+            pdf_bytes_tournoi_complet = None
+            if wb_officiel is not None:
                 try:
-                    pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(writer.book, nom_competition)
+                    pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(wb_officiel, nom_competition)
+                except Exception as e_pdf:
+                    st.warning(f"⚠️ Information : génération PDF vectoriel depuis Excel : {e_pdf}")
+
+            if not pdf_bytes_tournoi_complet:
+                try:
+                    pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi", nom_competition, sections_tournoi_complet)
                 except Exception:
-                    pdf_bytes_tournoi_complet = None
+                    pdf_bytes_tournoi_complet = b""
 
-                if not pdf_bytes_tournoi_complet:
-                    try:
-                        pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi", nom_competition, sections_tournoi_complet)
-                    except Exception:
-                        pdf_bytes_tournoi_complet = b""
-
+            pdf_grille_bytes = None
+            if wb_officiel is not None and "Grille de Passage" in wb_officiel.sheetnames:
                 try:
-                    pdf_grille_bytes = generer_pdf_depuis_classeur_excel([writer.book["Grille de Passage"]], nom_competition)
+                    pdf_grille_bytes = generer_pdf_depuis_classeur_excel([wb_officiel["Grille de Passage"]], nom_competition)
                 except Exception:
                     pdf_grille_bytes = None
-
-            excel_bytes_tournoi_complet = output_excel.getvalue()
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
 
             st.markdown("### 📄 Impression & Exportations Officielles (Format Excel FFLDA - A4 Paysage)")
