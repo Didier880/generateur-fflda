@@ -979,6 +979,167 @@ def generer_document_bracket_imprimable(nom_poule, nom_comp, bracket_html):
 </body>
 </html>"""
 
+def generer_document_poule_imprimable(nom_poule, nom_comp, participants, rondes):
+    nb_tours = len(rondes) if rondes else 0
+    
+    lignes_html = []
+    for idx, p in enumerate(participants, 1):
+        bg = "#F8FAFC" if idx % 2 == 0 else "#FFFFFF"
+        nom = p.get('Nom', '')
+        club = p.get('Club', '')
+        comite = p.get('Comité', '')
+        poids = formater_poids(p.get('Poids', ''))
+        
+        tours_tds = ''.join(['<td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;"></td>' for _ in range(nb_tours)])
+        
+        lignes_html.append(f"""
+        <tr style="background: {bg};">
+            <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; font-weight: bold; color: #0055A4;"></td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; font-weight: bold;">{idx}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px; font-weight: 600;">{nom}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px;">{club}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px;">{comite}</td>
+            {tours_tds}
+            <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; font-weight: bold;"></td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;"></td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">{poids}</td>
+        </tr>
+        """)
+
+    headers_tours = ''.join([f'<th style="border: 1px solid #CBD5E1; padding: 8px; font-size: 11px;">Tour {t}</th>' for t in range(1, nb_tours + 1)])
+    
+    n_p = len(participants)
+    podium_html = f"""
+    <div style="display: flex; gap: 12px; margin-top: 15px; margin-bottom: 20px;">
+        <div style="flex: 1; background: #FEF3C7; border: 1.5px solid #F59E0B; border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-weight: 800; font-size: 13px; color: #B45309;">🥇 1ère PLACE (OR)</div>
+            <div style="font-size: 12px; font-weight: 600; color: #78350F; margin-top: 4px;">En attente</div>
+        </div>
+        <div style="flex: 1; background: #F1F5F9; border: 1.5px solid #94A3B8; border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-weight: 800; font-size: 13px; color: #475569;">🥈 2ème PLACE (ARGENT)</div>
+            <div style="font-size: 12px; font-weight: 600; color: #1E293B; margin-top: 4px;">En attente</div>
+        </div>
+    """
+    if n_p >= 3:
+        podium_html += """
+        <div style="flex: 1; background: #FFEDD5; border: 1.5px solid #F97316; border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-weight: 800; font-size: 13px; color: #9A3412;">🥉 3ème PLACE (BRONZE)</div>
+            <div style="font-size: 12px; font-weight: 600; color: #7C2D12; margin-top: 4px;">En attente</div>
+        </div>
+        """
+    podium_html += "</div>"
+    
+    matchs_html = []
+    m_count = 1
+    for tour_idx, ronde in enumerate(rondes, 1):
+        tour_cards = []
+        for m in ronde:
+            p1, p2 = m[0], m[1]
+            nom1 = p1.get('Nom', '')
+            club1 = f" ({p1.get('Club', '')})" if p1.get('Club') and p1.get('Club') != '-' else ''
+            nom2 = p2.get('Nom', '')
+            club2 = f" ({p2.get('Club', '')})" if p2.get('Club') and p2.get('Club') != '-' else ''
+            
+            tour_cards.append(f"""
+            <div style="background: white; border: 1px solid #CBD5E1; border-radius: 6px; margin-bottom: 8px; overflow: hidden; width: 100%;">
+                <div style="background: #334155; color: white; font-size: 10px; font-weight: bold; padding: 3px 8px; text-align: center;">
+                    COMBAT N°{m_count}
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #FEF2F2; padding: 5px 8px; border-bottom: 1px solid #CBD5E1;">
+                    <span style="font-size: 11px; font-weight: 700; color: #991B1B;">🔴 {nom1}{club1}</span>
+                    <span style="border: 1px solid #CBD5E1; background: white; padding: 2px 8px; font-weight: bold; border-radius: 4px; font-size: 11px;">&nbsp;&nbsp;&nbsp;</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #EFF6FF; padding: 5px 8px;">
+                    <span style="font-size: 11px; font-weight: 700; color: #1E40AF;">🔵 {nom2}{club2}</span>
+                    <span style="border: 1px solid #CBD5E1; background: white; padding: 2px 8px; font-weight: bold; border-radius: 4px; font-size: 11px;">&nbsp;&nbsp;&nbsp;</span>
+                </div>
+            </div>
+            """)
+            m_count += 1
+            
+        matchs_html.append(f"""
+        <div style="margin-bottom: 14px;">
+            <div style="background: #0055A4; color: white; font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 4px; margin-bottom: 6px;">
+                🎯 TOUR {tour_idx}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px;">
+                {''.join(tour_cards)}
+            </div>
+        </div>
+        """)
+
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Poule Officielle - {nom_poule} - {nom_comp}</title>
+    <style>
+        @page {{
+            size: landscape;
+            margin: 8mm;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background: white;
+            color: #1E293B;
+        }}
+        .print-btn {{
+            background-color: #0055A4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }}
+        @media print {{
+            .print-btn {{
+                display: none !important;
+            }}
+            body {{
+                padding: 0;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimer cette Poule (A4 Paysage)</button>
+    <div style="margin-bottom: 12px;">
+        <h2 style="color: #0055A4; margin: 0 0 4px 0; font-size: 20px;">🏆 {nom_comp.upper()}</h2>
+        <div style="font-size: 12px; color: #64748B; font-weight: bold;">FFLDA — POULE OFFICIELLE : {nom_poule} (TOUS CONTRE TOUS)</div>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px;">
+        <thead>
+            <tr style="background: #0055A4; color: white;">
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 45px;">CLT</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 35px;">N°</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; text-align: left;">NOM Prénom</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; text-align: left;">CLUB</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; text-align: left;">COMITÉ</th>
+                {headers_tours}
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 65px;">Total Pts</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 65px;">Total Vict</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 55px;">Poids</th>
+            </tr>
+        </thead>
+        <tbody>
+            {''.join(lignes_html)}
+        </tbody>
+    </table>
+    
+    {podium_html}
+    
+    <div style="margin-top: 15px;">
+        {''.join(matchs_html)}
+    </div>
+</body>
+</html>"""
+
 def make_winner_formula(c_r, c_b, pt_r, pt_b, placeholder_name, target_corner="🔴"):
     default_text = f"{target_corner} {placeholder_name}"
     r_val = f"IF({pt_r.coordinate}=\"\", 0, {pt_r.coordinate})"
@@ -1976,6 +2137,195 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     ws.sheet_properties.pageSetUpPr.fitToPage = True
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
+
+
+def construire_feuille_poule_nordique_excel(ws, nom_poule, liste_p, rondes, coords_matchs_tapis, nom_competition):
+    font_title = Font(name="Arial", size=13, bold=True, color="0055A4")
+    font_sub = Font(name="Arial", size=9, italic=True, color="64748B")
+    font_hdr = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    font_pts = Font(name="Arial", size=10, bold=True)
+    
+    fill_blue = PatternFill("solid", fgColor="0055A4")
+    fill_gold = PatternFill("solid", fgColor="FEF3C7")
+    fill_silver = PatternFill("solid", fgColor="F1F5F9")
+    fill_bronze = PatternFill("solid", fgColor="FFEDD5")
+    fill_zebra = PatternFill("solid", fgColor="F8FAFC")
+    fill_gray_h = PatternFill("solid", fgColor="475569")
+    
+    b_thin = Side(style='thin', color='CBD5E1')
+    b_style = Border(left=b_thin, right=b_thin, top=b_thin, bottom=b_thin)
+
+    ws.views.sheetView[0].showGridLines = True
+    
+    # Titre officiel FFLDA & sous-titre
+    ws.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()} — POULE OFFICIELLE : {nom_poule}").font = font_title
+    ws.cell(row=2, column=1, value="Formule officielle FFLDA : Tournoi nordique (Tous contre tous) — Point de classement : 2 pt = victoire, 1 pt = nul, 0 pt = défaite").font = font_sub
+
+    nb_tours = len(rondes) if rondes else 0
+    headers = ["CLT", "N°", "NOM Prénom", "CLUB", "COMITÉ"]
+    for t in range(1, nb_tours + 1):
+        headers.append(f"Tour {t}")
+    headers.extend(["Total Pts", "Total Vict", "Poids"])
+    
+    col_fin_table = len(headers)
+    col_pts_idx = 6 + nb_tours
+    col_vict_idx = 7 + nb_tours
+    col_poids_idx = 8 + nb_tours
+    
+    row_cursor = 4
+    for col_idx, h in enumerate(headers, 1):
+        c = ws.cell(row=row_cursor, column=col_idx, value=h)
+        c.font, c.alignment, c.border = font_hdr, Alignment(horizontal="center", vertical="center"), b_style
+        c.fill = fill_blue
+        
+    lignes_lutteurs = {}
+    ligne_debut_poule = row_cursor + 1
+    
+    col_pts_lettre = get_column_letter(col_pts_idx)
+    col_debut_tours_lettre = get_column_letter(6)
+    col_fin_tours_lettre = get_column_letter(5 + nb_tours) if nb_tours > 0 else col_pts_lettre
+    plage_totaux = f"${col_pts_lettre}${ligne_debut_poule}:${col_pts_lettre}${ligne_debut_poule + len(liste_p) - 1}"
+    plage_clt = f"$A${ligne_debut_poule}:$A${ligne_debut_poule + len(liste_p) - 1}"
+    plage_nom = f"$C${ligne_debut_poule}:$C${ligne_debut_poule + len(liste_p) - 1}"
+    plage_club = f"$D${ligne_debut_poule}:$D${ligne_debut_poule + len(liste_p) - 1}"
+
+    for idx, p in enumerate(liste_p, 1):
+        r = ligne_debut_poule + idx - 1
+        lignes_lutteurs[p['Nom']] = r
+        
+        # Formule CLT sécurisée avec gestion dynamique des rangs et égalités
+        c_clt = ws.cell(row=r, column=1, value=f'=IF(SUM({plage_totaux})=0, "", RANK({col_pts_lettre}{r}, {plage_totaux}) + COUNTIF({col_pts_lettre}${ligne_debut_poule}:{col_pts_lettre}{r}, {col_pts_lettre}{r}) - 1)')
+        c_clt.alignment, c_clt.border = Alignment(horizontal="center", vertical="center"), b_style
+        c_clt.font = Font(name="Arial", size=10, bold=True, color="0055A4")
+        
+        c_num = ws.cell(row=r, column=2, value=idx)
+        c_num.alignment, c_num.border = Alignment(horizontal="center", vertical="center"), b_style
+        
+        c_nom = ws.cell(row=r, column=3, value=p['Nom'])
+        c_nom.border = b_style
+        
+        c_club = ws.cell(row=r, column=4, value=p.get('Club', ''))
+        c_club.border = b_style
+        
+        c_comite = ws.cell(row=r, column=5, value=p.get('Comité', ''))
+        c_comite.border = b_style
+        
+        for t in range(nb_tours):
+            c_tour = ws.cell(row=r, column=6 + t)
+            c_tour.alignment, c_tour.border = Alignment(horizontal="center", vertical="center"), b_style
+            
+        if nb_tours > 0:
+            c_tot_pts = ws.cell(row=r, column=col_pts_idx, value=f"=SUM({col_debut_tours_lettre}{r}:{col_fin_tours_lettre}{r})")
+            c_tot_vict = ws.cell(row=r, column=col_vict_idx, value=f"=COUNTIF({col_debut_tours_lettre}{r}:{col_fin_tours_lettre}{r}, 2)")
+        else:
+            c_tot_pts = ws.cell(row=r, column=col_pts_idx, value=0)
+            c_tot_vict = ws.cell(row=r, column=col_vict_idx, value="")
+            
+        c_tot_pts.font, c_tot_pts.alignment, c_tot_pts.border = font_pts, Alignment(horizontal="center", vertical="center"), b_style
+        c_tot_vict.alignment, c_tot_vict.border = Alignment(horizontal="center", vertical="center"), b_style
+        
+        c_poids = ws.cell(row=r, column=col_poids_idx, value=formater_poids(p.get('Poids', '')))
+        c_poids.alignment, c_poids.border = Alignment(horizontal="center", vertical="center"), b_style
+        
+        if idx % 2 == 0:
+            for col_k in range(1, col_fin_table + 1):
+                ws.cell(row=r, column=col_k).fill = fill_zebra
+
+    # Ajustement dynamique des largeurs de colonnes
+    max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
+    max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p if p.get('Club') and p.get('Club') != '-'] + [10])
+    max_len_comite = max([len(str(p.get('Comité', ''))) for p in liste_p if p.get('Comité') and p.get('Comité') != '-'] + [10])
+
+    ws.column_dimensions['A'].width = 6
+    ws.column_dimensions['B'].width = 5
+    ws.column_dimensions['C'].width = max(max_len_nom + 4, 24)
+    ws.column_dimensions['D'].width = max(max_len_club + 4, 16)
+    ws.column_dimensions['E'].width = max(max_len_comite + 4, 16)
+    for t in range(nb_tours):
+        col_t_lettre = get_column_letter(6 + t)
+        ws.column_dimensions[col_t_lettre].width = 9
+    ws.column_dimensions[col_pts_lettre].width = 11
+    ws.column_dimensions[get_column_letter(col_vict_idx)].width = 11
+    ws.column_dimensions[get_column_letter(col_poids_idx)].width = 10
+
+    # Cartes Podium Dynamiques (reliées au classement)
+    col_pod = col_poids_idx + 2
+    col_pod_lettre1 = get_column_letter(col_pod)
+    col_pod_lettre2 = get_column_letter(col_pod + 1)
+    ws.column_dimensions[get_column_letter(col_pod - 1)].width = 3
+    ws.column_dimensions[col_pod_lettre1].width = 16
+    ws.column_dimensions[col_pod_lettre2].width = 16
+    
+    form_gold = (
+        f'=IF(SUM({plage_totaux})=0, "🥇 CHAMPION (OR)" & CHAR(10) & "En attente", '
+        f'"🥇 CHAMPION (OR)" & CHAR(10) & INDEX({plage_nom}, MATCH(1, {plage_clt}, 0)) & '
+        f'IF(INDEX({plage_club}, MATCH(1, {plage_clt}, 0))<>"", " (" & INDEX({plage_club}, MATCH(1, {plage_clt}, 0)) & ")", ""))'
+    )
+    form_silver = (
+        f'=IF(SUM({plage_totaux})=0, "🥈 VICE-CHAMPION (ARGENT)" & CHAR(10) & "En attente", '
+        f'"🥈 VICE-CHAMPION (ARGENT)" & CHAR(10) & INDEX({plage_nom}, MATCH(2, {plage_clt}, 0)) & '
+        f'IF(INDEX({plage_club}, MATCH(2, {plage_clt}, 0))<>"", " (" & INDEX({plage_club}, MATCH(2, {plage_clt}, 0)) & ")", ""))'
+    )
+    
+    draw_excel_podium_card(ws, 4, col_pod, "🥇 CHAMPION (OR)", "En attente", fill_gold, font_color="B45309", formula_val=form_gold)
+    draw_excel_podium_card(ws, 7, col_pod, "🥈 VICE-CHAMPION (ARGENT)", "En attente", fill_silver, font_color="475569", formula_val=form_silver)
+    
+    if len(liste_p) >= 3:
+        form_bronze = (
+            f'=IF(SUM({plage_totaux})=0, "🥉 3ème PLACE (BRONZE)" & CHAR(10) & "En attente", '
+            f'"🥉 3ème PLACE (BRONZE)" & CHAR(10) & INDEX({plage_nom}, MATCH(3, {plage_clt}, 0)) & '
+            f'IF(INDEX({plage_club}, MATCH(3, {plage_clt}, 0))<>"", " (" & INDEX({plage_club}, MATCH(3, {plage_clt}, 0)) & ")", ""))'
+        )
+        draw_excel_podium_card(ws, 10, col_pod, "🥉 3ème PLACE (BRONZE)", "En attente", fill_bronze, font_color="9A3412", formula_val=form_bronze)
+
+    # Fiches de combat modernes en bas de feuille
+    row_cursor = max(ligne_debut_poule + len(liste_p) + 2, 13)
+    match_cpt = 1
+    
+    for tour_idx, ronde in enumerate(rondes, 1):
+        ws.merge_cells(start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=col_fin_table)
+        c_tour = ws.cell(row=row_cursor, column=1, value=f"🎯 TOUR {tour_idx}")
+        c_tour.font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+        c_tour.fill = fill_blue
+        c_tour.alignment = Alignment(horizontal="center", vertical="center")
+        for c_k in range(1, col_fin_table + 1):
+            ws.cell(row=row_cursor, column=c_k).border = b_style
+        row_cursor += 2
+        
+        for match in ronde:
+            p1, p2 = match[0], match[1]
+            m_title = f"COMBAT N°{match_cpt} (TOUR {tour_idx})"
+            
+            c_pt_r, c_pt_b, c_r, c_b = draw_excel_match_card(
+                ws=ws,
+                start_row=row_cursor,
+                start_col=1,
+                title=m_title,
+                p1=p1,
+                p2=p2,
+                cat_poule=nom_poule,
+                coords_map=coords_matchs_tapis,
+                bg_header=fill_gray_h,
+                end_col=col_fin_table
+            )
+            
+            if p1['Nom'] in lignes_lutteurs:
+                lig1 = lignes_lutteurs[p1['Nom']]
+                ws.cell(row=lig1, column=6 + (tour_idx - 1), value=f"={c_pt_r.coordinate}").alignment = Alignment(horizontal="center", vertical="center")
+            if p2['Nom'] in lignes_lutteurs:
+                lig2 = lignes_lutteurs[p2['Nom']]
+                ws.cell(row=lig2, column=6 + (tour_idx - 1), value=f"={c_pt_b.coordinate}").alignment = Alignment(horizontal="center", vertical="center")
+                
+            match_cpt += 1
+            row_cursor += 4
+        row_cursor += 1
+
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+
 
 def fusionner_poules_isolees(poules, multiplicateur_poids, max_size):
     """
@@ -3800,6 +4150,11 @@ else:
                         doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
                         nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
                         bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
+                    else:
+                        st.markdown("##### 🥋 Combats & Fiche Imprimable :")
+                        doc_print_poule = generer_document_poule_imprimable(nom_poule, nom_competition, liste_p, rondes_par_categorie.get(nom_poule, []))
+                        nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
+                        bouton_imprimer(doc_print_poule, filename=f"Poule_{nom_safe}.html", label="🖨️ Imprimer cette Poule (A4 Paysage)", key=f"btn_print_poule_{idx}")
 
             st.markdown("---")
             
@@ -4195,202 +4550,7 @@ else:
                     elif p_obj and p_obj.get('type_formule') == 'poules_croisees':
                         construire_feuille_poules_croisees_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
                     else:
-                        ws_poule.cell(row=1, column=1, value=f"POULE : {nom_poule}").font = Font(bold=True, size=16, color="0055A4")
-                        ws_poule.cell(row=2, column=1, value="*POINT DE CLASSEMENT : 2 pt = victoire - 1 pt = match nul - 0 pt = défaite (Calculés depuis les onglets Grille Tapis)").font = Font(italic=True, size=9)
-                        
-                        row_cursor = 4
-                        headers = ["CLT", "N°", "NOM Prénom", "CLUB", "COMITÉ"]
-                        nb_tours = len(rondes_par_categorie[nom_poule])
-                        for t in range(1, nb_tours + 1):
-                            headers.append(f"Tour {t}")
-                        headers.extend(["Total Pts", "Total Vict", "Poids"])
-                        
-                        for col_idx, h in enumerate(headers, 1):
-                            c = ws_poule.cell(row=row_cursor, column=col_idx, value=h)
-                            c.font, c.alignment, c.border = Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                            c.fill = entete_noir
-                        
-                        max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
-                        max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p] + [10])
-                        max_len_comite = max([len(str(p.get('Comité', ''))) for p in liste_p] + [12])
-                        
-                        largeur_nom_col = max(max_len_nom + 4, 25)
-                        largeur_club_col = max(max_len_club + 4, 18)
-                        largeur_comite_col = max(max_len_comite + 4, 20)
-
-                        ws_poule.column_dimensions['A'].width = 6
-                        ws_poule.column_dimensions['B'].width = 6
-                        ws_poule.column_dimensions['C'].width = largeur_nom_col  
-                        ws_poule.column_dimensions['D'].width = largeur_club_col 
-                        ws_poule.column_dimensions['E'].width = largeur_comite_col
-                        ws_poule.column_dimensions['F'].width = 6                 
-                        ws_poule.column_dimensions['G'].width = largeur_nom_col  
-                        ws_poule.column_dimensions['H'].width = largeur_club_col 
-                        ws_poule.column_dimensions['I'].width = 10                
-                        
-                        lignes_lutteurs = {}
-                        row_cursor += 1
-                        
-                        ligne_debut_poule = row_cursor
-                        for i, p in enumerate(liste_p, 1):
-                            lignes_lutteurs[p['Nom']] = row_cursor
-                            
-                            col_pts_lettre = openpyxl.utils.get_column_letter(6 + nb_tours)
-                            plage_totaux = f"{col_pts_lettre}{ligne_debut_poule}:{col_pts_lettre}{ligne_debut_poule + len(liste_p) - 1}"
-                            
-                            cell_clt = ws_poule.cell(row=row_cursor, column=1, value=f'=IF(SUM({plage_totaux})=0, "", RANK({col_pts_lettre}{row_cursor}, {plage_totaux}))')
-                            cell_clt.border = b_style
-                            cell_clt.alignment = Alignment(horizontal="center", vertical="center")
-                            cell_clt.font = Font(bold=True, color="0055A4")
-
-                            ws_poule.cell(row=row_cursor, column=2, value=i).border = b_style 
-                            ws_poule.cell(row=row_cursor, column=2).alignment = Alignment(horizontal="center")
-                            ws_poule.cell(row=row_cursor, column=3, value=p['Nom']).border = b_style
-                            ws_poule.cell(row=row_cursor, column=4, value=p.get('Club', '')).border = b_style
-                            ws_poule.cell(row=row_cursor, column=5, value=p.get('Comité', '')).border = b_style
-                            
-                            col_offset = 6
-                            for t in range(nb_tours):
-                                cell_tour = ws_poule.cell(row=row_cursor, column=col_offset+t)
-                                cell_tour.border = b_style 
-                                cell_tour.alignment = Alignment(horizontal="center", vertical="center")
-                            
-                            col_lettre_debut = openpyxl.utils.get_column_letter(col_offset)
-                            col_lettre_fin = openpyxl.utils.get_column_letter(col_offset + nb_tours - 1)
-                            
-                            cell_total_pts = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours, value=f"=SUM({col_lettre_debut}{row_cursor}:{col_lettre_fin}{row_cursor})")
-                            cell_total_pts.border = b_style
-                            cell_total_pts.alignment = Alignment(horizontal="center", vertical="center")
-                            cell_total_pts.font = Font(bold=True)
-                            
-                            cell_total_vict = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+1, value="")
-                            cell_total_vict.border = b_style 
-                            cell_total_vict.alignment = Alignment(horizontal="center", vertical="center")
-                            
-                            cell_poids = ws_poule.cell(row=row_cursor, column=col_offset+nb_tours+2, value=p.get('Poids', ''))
-                            cell_poids.border = b_style 
-                            cell_poids.alignment = Alignment(horizontal="center", vertical="center")
-                            
-                            row_cursor += 1
-                        
-                        row_cursor += 2
-                        
-                        rondes = rondes_par_categorie[nom_poule]
-                        col_offset_tours = 6 
-                        
-                        for tour_idx, ronde in enumerate(rondes, 1):
-                            ws_poule.cell(row=row_cursor, column=2, value=f"TOUR {tour_idx}").font = Font(bold=True, size=14)
-                            row_cursor += 1
-                            
-                            for match in ronde:
-                                p1, p2 = match[0], match[1]
-                                idx1 = next((i+1 for i, x in enumerate(liste_p) if x['Nom'] == p1['Nom']), "")
-                                idx2 = next((i+1 for i, x in enumerate(liste_p) if x['Nom'] == p2['Nom']), "")
-                                
-                                c_rouge = ws_poule.cell(row=row_cursor, column=3, value="LUTTEUR ROUGE")
-                                c_rouge.fill, c_rouge.font, c_rouge.alignment, c_rouge.border = rouge_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center"), b_style
-                                ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
-                                
-                                c_ptr = ws_poule.cell(row=row_cursor, column=5, value="Pt Clt")
-                                c_ptr.font, c_ptr.alignment, c_ptr.border = Font(bold=True), Alignment(horizontal="center"), b_style
-                                
-                                c_bleu = ws_poule.cell(row=row_cursor, column=7, value="LUTTEUR BLEU")
-                                c_bleu.fill, c_bleu.font, c_bleu.alignment, c_bleu.border = bleu_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center"), b_style
-                                ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
-                                
-                                c_ptb = ws_poule.cell(row=row_cursor, column=9, value="Pt Clt")
-                                c_ptb.font, c_ptb.alignment, c_ptb.border = Font(bold=True), Alignment(horizontal="center"), b_style
-                                
-                                row_cursor += 1
-                                
-                                ws_poule.cell(row=row_cursor, column=2, value=idx1).alignment = Alignment(horizontal="center")
-                                ws_poule.cell(row=row_cursor, column=2).font = Font(bold=True, color="E53935", size=14)
-                                ws_poule.cell(row=row_cursor, column=3, value=p1['Nom']).border = b_style
-                                ws_poule.cell(row=row_cursor, column=4, value=p1.get('Club', '')).border = b_style
-                                
-                                box_ptr = ws_poule.cell(row=row_cursor, column=5)
-                                box_ptr.border, box_ptr.fill = b_style, gris_clair
-                                box_ptr.alignment = Alignment(horizontal="center", vertical="center")
-                                
-                                ws_poule.cell(row=row_cursor, column=6, value=idx2).alignment = Alignment(horizontal="center")
-                                ws_poule.cell(row=row_cursor, column=6).font = Font(bold=True, color="1E88E5", size=14)
-                                ws_poule.cell(row=row_cursor, column=7, value=p2['Nom']).border = b_style
-                                ws_poule.cell(row=row_cursor, column=8, value=p2.get('Club', '')).border = b_style
-                                
-                                box_ptb = ws_poule.cell(row=row_cursor, column=9)
-                                box_ptb.border, box_ptb.fill = b_style, gris_clair
-                                box_ptb.alignment = Alignment(horizontal="center", vertical="center")
-
-                                if p1['Nom'] in lignes_lutteurs:
-                                    lig_haut_p1 = lignes_lutteurs[p1['Nom']]
-                                    cell_haut_p1 = ws_poule.cell(row=lig_haut_p1, column=col_offset_tours + (tour_idx - 1))
-                                    cell_haut_p1.value = f"={box_ptr.coordinate}"
-                                    cell_haut_p1.alignment = Alignment(horizontal="center", vertical="center")
-                                
-                                if p2['Nom'] in lignes_lutteurs:
-                                    lig_haut_p2 = lignes_lutteurs[p2['Nom']]
-                                    cell_haut_p2 = ws_poule.cell(row=lig_haut_p2, column=col_offset_tours + (tour_idx - 1))
-                                    cell_haut_p2.value = f"={box_ptb.coordinate}"
-                                    cell_haut_p2.alignment = Alignment(horizontal="center", vertical="center")
-
-                                row_cursor += 1
-                                
-                                ws_poule.cell(row=row_cursor, column=3, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
-                                ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
-                                ws_poule.cell(row=row_cursor, column=5, value="Total Score").font = Font(size=9, italic=True)
-                                
-                                ws_poule.cell(row=row_cursor, column=7, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
-                                ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
-                                ws_poule.cell(row=row_cursor, column=9, value="Total Score").font = Font(size=9, italic=True)
-                                
-                                row_cursor += 1
-                                
-                                ws_poule.row_dimensions[row_cursor].height = 25
-                                box_act_r = ws_poule.cell(row=row_cursor, column=3)
-                                box_act_r.border = b_style
-                                box_act_r.alignment = Alignment(horizontal="center", vertical="center")
-                                ws_poule.cell(row=row_cursor, column=4).border = b_style
-                                ws_poule.merge_cells(start_row=row_cursor, start_column=3, end_row=row_cursor, end_column=4)
-                                
-                                box_tot_r = ws_poule.cell(row=row_cursor, column=5)
-                                box_tot_r.border = b_style
-                                box_tot_r.alignment = Alignment(horizontal="center", vertical="center")
-                                
-                                box_act_b = ws_poule.cell(row=row_cursor, column=7)
-                                box_act_b.border = b_style
-                                box_act_b.alignment = Alignment(horizontal="center", vertical="center")
-                                ws_poule.cell(row=row_cursor, column=8).border = b_style
-                                ws_poule.merge_cells(start_row=row_cursor, start_column=7, end_row=row_cursor, end_column=8)
-                                
-                                box_tot_b = ws_poule.cell(row=row_cursor, column=9)
-                                box_tot_b.border = b_style
-                                box_tot_b.alignment = Alignment(horizontal="center", vertical="center")
-
-                                # Recherche de la correspondance exacte du match sur l'onglet Grille Tapis X
-                                m_info = coords_matchs_tapis.get((nom_poule, p1['Nom'], p2['Nom']))
-                                if not m_info:
-                                    m_info = coords_matchs_tapis.get((nom_poule, p2['Nom'], p1['Nom']))
-
-                                if m_info:
-                                    sheet_name = m_info['sheet']
-                                    if p1['Nom'] == m_info['p1']:
-                                        box_ptr.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
-                                        box_ptb.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
-                                        box_act_r.value = f"='{sheet_name}'!{m_info['act_r_cell']}"
-                                        box_tot_r.value = f"='{sheet_name}'!{m_info['tot_r_cell']}"
-                                        box_act_b.value = f"='{sheet_name}'!{m_info['act_b_cell']}"
-                                        box_tot_b.value = f"='{sheet_name}'!{m_info['tot_b_cell']}"
-                                    else:
-                                        box_ptr.value = f"='{sheet_name}'!{m_info['ptb_cell']}"
-                                        box_ptb.value = f"='{sheet_name}'!{m_info['ptr_cell']}"
-                                        box_act_r.value = f"='{sheet_name}'!{m_info['act_b_cell']}"
-                                        box_tot_r.value = f"='{sheet_name}'!{m_info['tot_b_cell']}"
-                                        box_act_b.value = f"='{sheet_name}'!{m_info['act_r_cell']}"
-                                        box_tot_b.value = f"='{sheet_name}'!{m_info['tot_r_cell']}"
-                                
-                                row_cursor += 2 
-                            
-                            row_cursor += 1
+                        construire_feuille_poule_nordique_excel(ws_poule, nom_poule, liste_p, rondes_par_categorie.get(nom_poule, []), coords_matchs_tapis, nom_competition)
 
             st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U7_U9_U11_U13.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
