@@ -2583,6 +2583,161 @@ def optimiser_poules_clubs(poules_groupe, multiplicateur_poids):
                 
     return poules_groupe
 
+# --- CONFIGURATION HARMONISÉE DES COULEURS PAR CATÉGORIE D'ÂGE (GRILLES DE PASSAGE & TAPIS) ---
+COULEURS_AGE_GRILLE = {
+    'U7': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="FEF3C7"),  # Ambre / Jaune doré doux
+        'bg_excel_header': PatternFill("solid", fgColor="D97706"),  # Ambre soutenu
+        'hex_pastel': '#FEF3C7',
+        'hex_header': '#D97706',
+        'hex_text': '#92400E',
+        'badge': '🟡 U7',
+        'nom': 'U7 (Jaune ambré)'
+    },
+    'U9': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="DCFCE7"),  # Vert menthe doux
+        'bg_excel_header': PatternFill("solid", fgColor="059669"),  # Vert émeraude soutenu
+        'hex_pastel': '#DCFCE7',
+        'hex_header': '#059669',
+        'hex_text': '#166534',
+        'badge': '🟢 U9',
+        'nom': 'U9 (Vert menthe)'
+    },
+    'U11': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="E0F2FE"),  # Bleu ciel doux
+        'bg_excel_header': PatternFill("solid", fgColor="0284C7"),  # Bleu ciel soutenu
+        'hex_pastel': '#E0F2FE',
+        'hex_header': '#0284C7',
+        'hex_text': '#075985',
+        'badge': '🔵 U11',
+        'nom': 'U11 (Bleu ciel)'
+    },
+    'U13': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="F3E8FF"),  # Violet / Lavande doux
+        'bg_excel_header': PatternFill("solid", fgColor="7C3AED"),  # Violet / Indigo soutenu
+        'hex_pastel': '#F3E8FF',
+        'hex_header': '#7C3AED',
+        'hex_text': '#6B21A8',
+        'badge': '🟣 U13',
+        'nom': 'U13 (Violet)'
+    },
+    'U15': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="FCE7F3"),  # Rose doux
+        'bg_excel_header': PatternFill("solid", fgColor="DB2777"),  # Rose soutenu
+        'hex_pastel': '#FCE7F3',
+        'hex_header': '#DB2777',
+        'hex_text': '#9D174D',
+        'badge': '🌸 U15',
+        'nom': 'U15 (Rose)'
+    },
+    'U17': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="FFEDD5"),  # Orange pêche doux
+        'bg_excel_header': PatternFill("solid", fgColor="EA580C"),  # Orange soutenu
+        'hex_pastel': '#FFEDD5',
+        'hex_header': '#EA580C',
+        'hex_text': '#9A3412',
+        'badge': '🟠 U17',
+        'nom': 'U17 (Orange)'
+    },
+    'U20': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="E2E8F0"),  # Ardoise argenté doux
+        'bg_excel_header': PatternFill("solid", fgColor="475569"),  # Ardoise soutenu
+        'hex_pastel': '#E2E8F0',
+        'hex_header': '#475569',
+        'hex_text': '#1E293B',
+        'badge': '⚪ U20',
+        'nom': 'U20 (Ardoise)'
+    },
+    'SENIOR': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="CCFBF1"),  # Turquoise doux
+        'bg_excel_header': PatternFill("solid", fgColor="0D9488"),  # Sarcelle soutenu
+        'hex_pastel': '#CCFBF1',
+        'hex_header': '#0D9488',
+        'hex_text': '#115E59',
+        'badge': '🔘 Senior',
+        'nom': 'Senior (Turquoise)'
+    },
+    'AUTRE': {
+        'bg_excel_pastel': PatternFill("solid", fgColor="F1F5F9"),  # Gris clair neutre
+        'bg_excel_header': PatternFill("solid", fgColor="0055A4"),  # Bleu officiel FFLDA
+        'hex_pastel': '#F1F5F9',
+        'hex_header': '#0055A4',
+        'hex_text': '#1E293B',
+        'badge': '🥋 Autre',
+        'nom': 'Général (Bleu)'
+    }
+}
+
+def extraire_age_de_texte(texte):
+    """
+    Extrait la catégorie d'âge (U7, U9, U11, U13, etc.) depuis le libellé d'un match ou d'une poule.
+    """
+    if not texte:
+        return 'AUTRE'
+    txt = str(texte).upper()
+    for age in ['U7', 'U9', 'U11', 'U13', 'U15', 'U17', 'U20', 'SENIOR']:
+        if re.search(rf'\[\s*{age}\b|\b{age}\b', txt):
+            return age
+    return 'AUTRE'
+
+def generer_html_grille_coloree(grille_lignes, nb_tapis):
+    """
+    Génère un tableau HTML stylé avec les couleurs de fond spécifiques à chaque catégorie d'âge.
+    Parfait pour l'affichage interactif Streamlit et l'export HTML d'impression.
+    """
+    html = []
+    html.append('''
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; padding:10px 14px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px;">
+        <span style="font-weight:bold; color:#1E293B; font-size:13px;">🎨 Légende des Catégories d'Âge :</span>
+        <span style="background:#FEF3C7; color:#92400E; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:12px; border:1px solid #FCD34D;">🟡 U7</span>
+        <span style="background:#DCFCE7; color:#166534; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:12px; border:1px solid #86EFAC;">🟢 U9</span>
+        <span style="background:#E0F2FE; color:#075985; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:12px; border:1px solid #7DD3FC;">🔵 U11</span>
+        <span style="background:#F3E8FF; color:#6B21A8; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:12px; border:1px solid #D8B4FE;">🟣 U13</span>
+        <span style="background:#EF4135; color:#FFFFFF; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:12px;">⏸️ Pause</span>
+        <span style="background:#EFEFEF; color:#666666; padding:3px 10px; border-radius:12px; font-style:italic; font-size:12px;">⏳ Repos / Pesée</span>
+    </div>
+    ''')
+    
+    html.append('<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-family:Arial, sans-serif;">')
+    html.append('<thead><tr>')
+    for t in range(nb_tapis):
+        html.append(f'<th style="background:#0055A4; color:#ffffff; padding:10px 8px; border:1px solid #CBD5E1; text-align:center; font-size:14px; font-weight:bold;">🥋 Tapis {t + 1}</th>')
+    html.append('</tr></thead><tbody>')
+    
+    for row in grille_lignes:
+        html.append('<tr>')
+        for t in range(nb_tapis):
+            col_name = f"Tapis {t + 1}"
+            val = row.get(col_name, "")
+            if not val:
+                html.append('<td style="background:#FFFFFF; border:1px solid #E2E8F0; padding:8px;"></td>')
+                continue
+            val_s = str(val)
+            if "PAUSE" in val_s:
+                bg = "#EF4135"
+                color = "#FFFFFF"
+                border_c = "#DC2626"
+                weight = "bold"
+            elif any(k in val_s for k in ["Attente", "Pesée", "échauffement", "Repos"]):
+                bg = "#F1F5F9"
+                color = "#64748B"
+                border_c = "#CBD5E1"
+                weight = "normal"
+            else:
+                age = extraire_age_de_texte(val_s)
+                cfg = COULEURS_AGE_GRILLE.get(age, COULEURS_AGE_GRILLE['AUTRE'])
+                bg = cfg['hex_pastel']
+                color = "#0F172A"
+                border_c = cfg['hex_header']
+                weight = "normal"
+            
+            cell_content = val_s.replace("\n", "<br>")
+            html.append(f'<td style="background:{bg}; color:{color}; border:1px solid #CBD5E1; border-top:3px solid {border_c}; padding:8px 6px; text-align:center; font-size:12px; font-weight:{weight}; vertical-align:middle; line-height:1.4;">{cell_content}</td>')
+        html.append('</tr>')
+        
+    html.append('</tbody></table></div>')
+    return "\n".join(html)
+
 # --- GÉNÉRATEUR DE DOCUMENTS HTML AUTONOMES POUR IMPRESSION PAYSAGE A4 ---
 def generer_document_html_imprimable(titre, nom_comp, sections):
     """
@@ -2592,7 +2747,10 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
     html_sections = []
     for section_title, content in sections:
         if isinstance(content, pd.DataFrame):
-            table_html = content.to_html(index=False, classes="print-table")
+            if "Grille Globale" in section_title or "Grille de Passage" in section_title:
+                table_html = generer_html_grille_coloree(content.to_dict('records'), len(content.columns))
+            else:
+                table_html = content.to_html(index=False, classes="print-table")
         else:
             table_html = str(content)
         
@@ -2831,16 +2989,30 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
             col_w = page_width / nb_cols if nb_cols > 0 else page_width
             col_widths = [col_w] * nb_cols
             
-            t = Table(data, colWidths=col_widths, repeatRows=1)
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EF4135')),
+            t_styles = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0055A4')),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ]))
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]
+            if "Grille Globale" in sec_title or "Grille de Passage" in sec_title:
+                for r_idx, (_, row_data) in enumerate(df.iterrows(), 1):
+                    for c_idx, val in enumerate(row_data):
+                        if pd.notna(val) and val:
+                            val_str = str(val)
+                            if "PAUSE" in val_str:
+                                t_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#EF4135')))
+                            elif any(k in val_str for k in ["Attente", "Pesée", "échauffement", "Repos"]):
+                                t_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#EFEFEF')))
+                            else:
+                                age_k = extraire_age_de_texte(val_str)
+                                hex_col = COULEURS_AGE_GRILLE.get(age_k, COULEURS_AGE_GRILLE['AUTRE'])['hex_pastel']
+                                t_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor(hex_col)))
+            else:
+                t_styles.append(('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]))
+            t.setStyle(TableStyle(t_styles))
             story.append(KeepTogether(t))
         else:
             story.append(Paragraph(str(content), cell_body_style))
@@ -4189,7 +4361,11 @@ else:
                         with cols_arb_disp[t]:
                             arb_list_txt = "\n".join([f"• **{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]]) if tapis_arbitres[t] else "• Aucun"
                             st.info(f"**Tapis {t+1}** ({len(tapis_arbitres[t])} arbitres) :\n\n{arb_list_txt}")
-                st.table(pd.DataFrame(grille_ui))
+                
+                # Grille interactive avec couleurs par catégorie d'âge
+                html_grille_ui = generer_html_grille_coloree(grille_ui, nb_tapis)
+                st.markdown(html_grille_ui, unsafe_allow_html=True)
+                st.write("")
                 
                 col_p1, col_h1 = st.columns(2)
                 with col_p1:
@@ -4236,10 +4412,13 @@ else:
                             st.info(f"[{m['Heure']}] {m['Texte']}")
                         elif m["Type"] == "MATCH":
                             m_count_st += 1
+                            age_m = extraire_age_de_texte(m['Cat'])
+                            badge_age = COULEURS_AGE_GRILLE.get(age_m, {}).get('badge', '')
+                            badge_str = f"{badge_age} " if badge_age else ""
                             arb_info_st = f" | 🛡️ Arbitre : {m['Arbitre']}" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
                             t_nom = m.get('Nom_Tour') or (f"Tour {m['Tour']}" if m.get('Tour') else "")
                             tour_st = f" | 🎯 Tour : **{t_nom}**" if t_nom else ""
-                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Catégorie : `{m['Cat']}`{tour_st}{arb_info_st}")
+                            st.markdown(f"#### 🤼 MATCH N° {m_count_st} — 🕘 {m['Heure']} ({m['Duree']} min) | Catégorie : {badge_str}`{m['Cat']}`{tour_st}{arb_info_st}")
                             
                             c1_cl = f" ({m.get('Club 1', '')})" if m.get('Club 1') else ""
                             c1_co = f" - {m.get('Comité 1', '')}" if (m.get('Comité 1') and m.get('Comité 1') != 'Comité Non Renseigné') else ""
@@ -4422,7 +4601,9 @@ else:
                             tour_txt = f"  |  🎯 Tour : {tour_label}" if tour_label else ""
                             hdr_text = f"MATCH N° {m_count_t}  |  🕘 {item['Heure']} ({item['Duree']} min)  |  Catégorie : {item['Cat']}{tour_txt}{arb_txt}"
                             h_cell = ws_mat.cell(row=r_curr, column=1, value=hdr_text)
-                            h_cell.fill, h_cell.font, h_cell.alignment = bleu, Font(bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
+                            age_m = extraire_age_de_texte(item.get('Cat', ''))
+                            cfg_m = COULEURS_AGE_GRILLE.get(age_m, COULEURS_AGE_GRILLE['AUTRE'])
+                            h_cell.fill, h_cell.font, h_cell.alignment = cfg_m['bg_excel_header'], Font(name="Arial", bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
                             ws_mat.row_dimensions[r_curr].height = 24
                             r_curr += 1
 
@@ -4593,8 +4774,8 @@ else:
                 ws_grille = writer.sheets["Grille de Passage"]
                 ws_grille.row_dimensions[1].height = 65
                 ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
-                titre_cell = ws_grille.cell(row=1, column=1, value=f"🏆 {nom_competition.upper()} - PLANNING OFFICIEL 🏆")
-                titre_cell.font = Font(name="Arial", size=22, bold=True, color="FFFFFF")
+                titre_cell = ws_grille.cell(row=1, column=1, value=f"🏆 {nom_competition.upper()} — PLANNING OFFICIEL  (🟡 U7 | 🟢 U9 | 🔵 U11 | 🟣 U13) 🏆")
+                titre_cell.font = Font(name="Arial", size=20, bold=True, color="FFFFFF")
                 titre_cell.fill = bleu
                 titre_cell.alignment = Alignment(horizontal="center", vertical="center")
                 
@@ -4621,15 +4802,19 @@ else:
                     
                 for row in ws_grille.iter_rows(min_row=3, max_row=ws_grille.max_row):
                     ws_grille.row_dimensions[row[0].row].height = 90
-                    is_even = (row[0].row % 2 == 0)
                     for cell in row:
                         cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
                         if cell.value:
-                            if "PAUSE" in str(cell.value): cell.fill, cell.font = rouge, Font(bold=True, color="FFFFFF", size=12)
-                            elif any(k in str(cell.value) for k in ["Attente", "Pesée", "échauffement", "Repos"]): cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=11)
+                            val_s = str(cell.value)
+                            if "PAUSE" in val_s:
+                                cell.fill, cell.font = rouge, Font(name="Arial", bold=True, color="FFFFFF", size=12)
+                            elif any(k in val_s for k in ["Attente", "Pesée", "échauffement", "Repos"]):
+                                cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(name="Arial", italic=True, color="666666", size=11)
                             else:
-                                cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
-                                cell.font = Font(size=12)
+                                age_k = extraire_age_de_texte(val_s)
+                                cfg_c = COULEURS_AGE_GRILLE.get(age_k, COULEURS_AGE_GRILLE['AUTRE'])
+                                cell.fill = cfg_c['bg_excel_pastel']
+                                cell.font = Font(name="Arial", size=10, color="0F172A")
 
                 df_excel_arb = None
                 if liste_arbitres:
