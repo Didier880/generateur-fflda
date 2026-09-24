@@ -1609,20 +1609,23 @@ def draw_excel_match_card(ws, start_row, start_col, title, p1, p2, cat_poule, co
                     if (nom1 == k1 and nom2 == k2) or (b1 == kb1 and b2 == kb2) or (nom1 == k2 and nom2 == k1) or (b1 == kb2 and b2 == kb1):
                         m_info = inf
                         break
-        if m_info:
-            s_name = m_info['sheet']
+        if m_info and isinstance(m_info, dict):
+            s_name = m_info.get('sheet') or m_info.get('sheet_name', '')
             b1 = re.sub(r'\s*\[.*?\]', '', nom1).strip()
             bp1 = re.sub(r'\s*\[.*?\]', '', str(m_info.get('p1', ''))).strip()
-            if nom1 == m_info['p1'] or (b1 and b1 == bp1) or (b1 and b1 in bp1) or (bp1 and bp1 in b1):
-                ptr_c = m_info['ptr_cell']
-                ptb_c = m_info['ptb_cell']
-                c_pt_r.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, \"\")"
-                c_pt_b.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, \"\")"
-            else:
-                ptr_c = m_info['ptb_cell']
-                ptb_c = m_info['ptr_cell']
-                c_pt_r.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, \"\")"
-                c_pt_b.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, \"\")"
+            ptr_c = m_info.get('ptr_cell')
+            ptb_c = m_info.get('ptb_cell')
+            if not ptr_c and 'ptr' in m_info and hasattr(m_info['ptr'], 'coordinate'):
+                ptr_c = m_info['ptr'].coordinate
+            if not ptb_c and 'ptb' in m_info and hasattr(m_info['ptb'], 'coordinate'):
+                ptb_c = m_info['ptb'].coordinate
+            if s_name and ptr_c and ptb_c:
+                if nom1 == m_info.get('p1') or (b1 and b1 == bp1) or (b1 and b1 in bp1) or (bp1 and bp1 in b1):
+                    c_pt_r.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, \"\")"
+                    c_pt_b.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, \"\")"
+                else:
+                    c_pt_r.value = f"=IF('{s_name}'!{ptb_c}<>\"\", '{s_name}'!{ptb_c}, \"\")"
+                    c_pt_b.value = f"=IF('{s_name}'!{ptr_c}<>\"\", '{s_name}'!{ptr_c}, \"\")"
 
     return c_pt_r, c_pt_b, c_r, c_b
 
@@ -3322,7 +3325,9 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
 
     if hasattr(workbook_or_sheets, 'worksheets'):
         sheets = list(workbook_or_sheets.worksheets)
-    elif isinstance(workbook_or_sheets, list):
+    elif hasattr(workbook_or_sheets, 'sheets'):
+        sheets = list(workbook_or_sheets.sheets.values()) if isinstance(workbook_or_sheets.sheets, dict) else list(workbook_or_sheets.sheets)
+    elif isinstance(workbook_or_sheets, (list, tuple)):
         sheets = list(workbook_or_sheets)
     else:
         sheets = [workbook_or_sheets]
@@ -5134,165 +5139,292 @@ else:
                     ws_mat.column_dimensions['H'].width = w_club_t
                     ws_mat.column_dimensions['I'].width = 10
 
-                    ws_mat.row_dimensions[3].height = 25
-                    headers_mat = ["HEURE", "N°", "LUTTEUR (ROUGE)", "CLUB", "POINTS", "VS", "LUTTEUR (BLEU)", "CLUB", "POINTS"]
-                    for col_idx, h in enumerate(headers_mat, 1):
-                        c = ws_mat.cell(row=3, column=col_idx, value=h)
-                        c.font, c.border = Font(name="Arial", size=10, bold=True, color="FFFFFF"), b_style
-                        if col_idx in [3, 4, 5]: c.fill = rouge
-                        elif col_idx in [7, 8, 9]: c.fill = bleu
-                        else: c.fill = entete_noir
-                        c.alignment = Alignment(horizontal="center", vertical="center")
-
-                    m_count = 0
-                    current_row = 4
+                    r_curr = 4
+                    m_count_t = 0
                     for item in planning_tapis[t]:
                         if item["Type"] == "PAUSE":
-                            ws_mat.row_dimensions[current_row].height = 22
-                            ws_mat.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=9)
-                            c_p = ws_mat.cell(row=current_row, column=1, value=f"⏸️ [{item['Heure']}] PAUSE DE LA COMPÉTITION")
-                            c_p.font, c_p.fill, c_p.alignment = Font(name="Arial", size=11, bold=True, color="FFFFFF"), rouge, Alignment(horizontal="center", vertical="center")
-                            for k in range(1, 10): ws_mat.cell(row=current_row, column=k).border = b_style
-                            current_row += 1
+                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr, end_column=9)
+                            p_cell = ws_mat.cell(row=r_curr, column=1, value=f"[{item['Heure']}] ⏸️ PAUSE DE LA COMPÉTITION")
+                            p_cell.fill, p_cell.font, p_cell.alignment = rouge, Font(bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
+                            ws_mat.row_dimensions[r_curr].height = 24
+                            r_curr += 2
                         elif item["Type"] == "ATTENTE":
-                            ws_mat.row_dimensions[current_row].height = 18
-                            ws_mat.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=9)
-                            c_a = ws_mat.cell(row=current_row, column=1, value=f"⏳ [{item['Heure']}] {item['Texte']}")
-                            c_a.font, c_a.fill, c_a.alignment = Font(name="Arial", size=9, italic=True, color="333333"), gris_clair, Alignment(horizontal="center", vertical="center")
-                            for k in range(1, 10): ws_mat.cell(row=current_row, column=k).border = b_style
-                            current_row += 1
+                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr, end_column=9)
+                            a_cell = ws_mat.cell(row=r_curr, column=1, value=f"[{item['Heure']}] ⏳ {item['Texte']}")
+                            a_cell.fill, a_cell.font, a_cell.alignment = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=10), Alignment(horizontal="center", vertical="center")
+                            ws_mat.row_dimensions[r_curr].height = 22
+                            r_curr += 2
                         elif item["Type"] == "MATCH":
-                            m_count += 1
-                            r_m = current_row
-                            r_c = current_row + 1
-                            ws_mat.row_dimensions[r_m].height = 20
-                            ws_mat.row_dimensions[r_c].height = 16
+                            m_count_t += 1
+                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr, end_column=9)
+                            arb_txt = f"  |  🛡️ Arbitre : {item['Arbitre']}" if item.get('Arbitre') and item['Arbitre'] != "Non attribué" else ""
+                            tour_label = item.get('Nom_Tour') or (f"Tour {item['Tour']}" if item.get('Tour') else "")
+                            tour_txt = f"  |  🎯 Tour : {tour_label}" if tour_label else ""
+                            hdr_text = f"MATCH N° {m_count_t}  |  🕘 {item['Heure']} ({item['Duree']} min)  |  Catégorie : {item['Cat']}{tour_txt}{arb_txt}"
+                            h_cell = ws_mat.cell(row=r_curr, column=1, value=hdr_text)
+                            age_m = extraire_age_de_texte(item.get('Cat', ''))
+                            cfg_m = COULEURS_AGE_GRILLE.get(age_m, COULEURS_AGE_GRILLE['AUTRE'])
+                            h_cell.fill, h_cell.font, h_cell.alignment = cfg_m['bg_excel_header'], Font(name="Arial", bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
+                            ws_mat.row_dimensions[r_curr].height = 24
+                            r_curr += 1
 
-                            ws_mat.merge_cells(start_row=r_m, start_column=1, end_row=r_c, end_column=1)
-                            c_h = ws_mat.cell(row=r_m, column=1, value=item["Heure"])
-                            c_h.font, c_h.border, c_h.alignment = Font(name="Arial", size=10, bold=True), b_style, Alignment(horizontal="center", vertical="center")
-                            ws_mat.cell(row=r_c, column=1).border = b_style
+                            c_tour_h = ws_mat.cell(row=r_curr, column=1, value="TOUR / PHASE")
+                            c_tour_h.fill, c_tour_h.font, c_tour_h.alignment, c_tour_h.border = gris_clair, Font(bold=True, size=8), Alignment(horizontal="center", vertical="center"), b_style
 
-                            ws_mat.merge_cells(start_row=r_m, start_column=2, end_row=r_c, end_column=2)
-                            c_num = ws_mat.cell(row=r_m, column=2, value=f"M{m_count}")
-                            c_num.font, c_num.border, c_num.alignment = Font(name="Arial", size=10, bold=True), b_style, Alignment(horizontal="center", vertical="center")
-                            ws_mat.cell(row=r_c, column=2).border = b_style
-
-                            c_r_nom = ws_mat.cell(row=r_m, column=3, value=f"🔴 {item['Combattant 1']}")
-                            c_r_nom.font, c_r_nom.fill, c_r_nom.border = Font(name="Arial", size=10, bold=True, color="991B1B"), PatternFill("solid", fgColor="FEF2F2"), b_style
+                            c_num_h = ws_mat.cell(row=r_curr, column=2, value="N°")
+                            c_num_h.alignment, c_num_h.border, c_num_h.fill = Alignment(horizontal="center", vertical="center"), b_style, gris_clair
                             
-                            c_r_clb = ws_mat.cell(row=r_m, column=4, value=item.get('Club 1', ''))
-                            c_r_clb.font, c_r_clb.fill, c_r_clb.border = Font(name="Arial", size=9), PatternFill("solid", fgColor="FEF2F2"), b_style
+                            c_rouge_h = ws_mat.cell(row=r_curr, column=3, value="LUTTEUR ROUGE")
+                            c_rouge_h.fill, c_rouge_h.font, c_rouge_h.alignment, c_rouge_h.border = rouge_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
+                            ws_mat.cell(row=r_curr, column=4).border = b_style
                             
-                            c_r_pts = ws_mat.cell(row=r_m, column=5)
-                            c_r_pts.font, c_r_pts.border, c_r_pts.alignment = Font(name="Arial", size=11, bold=True), b_style, Alignment(horizontal="center", vertical="center")
-
-                            ws_mat.merge_cells(start_row=r_m, start_column=6, end_row=r_c, end_column=6)
-                            c_vs = ws_mat.cell(row=r_m, column=6, value="VS")
-                            c_vs.font, c_vs.border, c_vs.alignment = Font(name="Arial", size=9, bold=True, color="666666"), b_style, Alignment(horizontal="center", vertical="center")
-                            ws_mat.cell(row=r_c, column=6).border = b_style
-
-                            c_b_nom = ws_mat.cell(row=r_m, column=7, value=f"🔵 {item['Combattant 2']}")
-                            c_b_nom.font, c_b_nom.fill, c_b_nom.border = Font(name="Arial", size=10, bold=True, color="1E40AF"), PatternFill("solid", fgColor="EFF6FF"), b_style
+                            c_ptr = ws_mat.cell(row=r_curr, column=5, value="Pt Clt")
+                            c_ptr.font, c_ptr.alignment, c_ptr.border = Font(bold=True), Alignment(horizontal="center", vertical="center"), b_style
                             
-                            c_b_clb = ws_mat.cell(row=r_m, column=8, value=item.get('Club 2', ''))
-                            c_b_clb.font, c_b_clb.fill, c_b_clb.border = Font(name="Arial", size=9), PatternFill("solid", fgColor="EFF6FF"), b_style
+                            ws_mat.cell(row=r_curr, column=6, value="VS").alignment = Alignment(horizontal="center", vertical="center")
                             
-                            c_b_pts = ws_mat.cell(row=r_m, column=9)
-                            c_b_pts.font, c_b_pts.border, c_b_pts.alignment = Font(name="Arial", size=11, bold=True), b_style, Alignment(horizontal="center", vertical="center")
-
-                            ws_mat.merge_cells(start_row=r_c, start_column=3, end_row=r_c, end_column=4)
-                            tour_str_t = item.get('Nom_Tour') or f"Tour {item.get('Tour', '')}"
-                            cat_info = f"Cat: {item['Cat']} | {tour_str_t}"
-                            c_cat = ws_mat.cell(row=r_c, column=3, value=cat_info)
-                            c_cat.font, c_cat.border = Font(name="Arial", size=8, italic=True, color="555555"), b_style
-                            ws_mat.cell(row=r_c, column=4).border = b_style
-
-                            c_r_ann = ws_mat.cell(row=r_c, column=5)
-                            c_r_ann.font, c_r_ann.border, c_r_ann.alignment = Font(name="Arial", size=7, italic=True), b_style, Alignment(horizontal="center", vertical="center")
-
-                            ws_mat.merge_cells(start_row=r_c, start_column=7, end_row=r_c, end_column=8)
-                            arb_t = f"Arbitre: {item.get('Arbitre', 'Non attribué')}"
-                            c_arb = ws_mat.cell(row=r_c, column=7, value=arb_t)
-                            c_arb.font, c_arb.border = Font(name="Arial", size=8, italic=True, color="555555"), b_style
-                            ws_mat.cell(row=r_c, column=8).border = b_style
-
-                            c_b_ann = ws_mat.cell(row=r_c, column=9)
-                            c_b_ann.font, c_b_ann.border, c_b_ann.alignment = Font(name="Arial", size=7, italic=True), b_style, Alignment(horizontal="center", vertical="center")
-
-                            cat_cle = item['Cat']
-                            p1_nom_c = item['Combattant 1']
-                            p2_nom_c = item['Combattant 2']
-                            pair_key1 = (cat_cle, p1_nom_c, p2_nom_c)
-                            pair_key2 = (cat_cle, p2_nom_c, p1_nom_c)
+                            c_bleu_h = ws_mat.cell(row=r_curr, column=7, value="LUTTEUR BLEU")
+                            c_bleu_h.fill, c_bleu_h.font, c_bleu_h.alignment, c_bleu_h.border = bleu_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
+                            ws_mat.cell(row=r_curr, column=8).border = b_style
                             
-                            tapis_info = {
-                                'tapis_idx': t,
+                            c_ptb = ws_mat.cell(row=r_curr, column=9, value="Pt Clt")
+                            c_ptb.font, c_ptb.alignment, c_ptb.border = Font(bold=True), Alignment(horizontal="center", vertical="center"), b_style
+                            
+                            r_curr += 1
+                            
+                            c_tour_v = ws_mat.cell(row=r_curr, column=1, value=tour_label)
+                            c_tour_v.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                            c_tour_v.font = Font(bold=True, size=9, color="0055A4")
+                            c_tour_v.border = b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr+2, end_column=1)
+                            ws_mat.cell(row=r_curr+1, column=1).border = b_style
+                            ws_mat.cell(row=r_curr+2, column=1).border = b_style
+
+                            ws_mat.cell(row=r_curr, column=2, value=m_count_t).alignment = Alignment(horizontal="center", vertical="center")
+                            ws_mat.cell(row=r_curr, column=2).font = Font(bold=True, color="E53935", size=12)
+                            ws_mat.cell(row=r_curr, column=2).border = b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=2, end_row=r_curr+2, end_column=2)
+                            ws_mat.cell(row=r_curr+1, column=2).border = b_style
+                            ws_mat.cell(row=r_curr+2, column=2).border = b_style
+                            
+                            c1_str = f"{item['Combattant 1']}"
+                            if item.get('Club 1'): c1_str += f" ({item['Club 1']})"
+                            if item.get('Comité 1') and item['Comité 1'] != 'Comité Non Renseigné': c1_str += f" - {item['Comité 1']}"
+                            
+                            c_r_info = ws_mat.cell(row=r_curr, column=3, value=c1_str)
+                            c_r_info.border = b_style
+                            c_r_info.alignment = Alignment(vertical="center")
+                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
+                            ws_mat.cell(row=r_curr, column=4).border = b_style
+                            
+                            box_ptr = ws_mat.cell(row=r_curr, column=5)
+                            box_ptr.border, box_ptr.fill = b_style, gris_clair
+                            box_ptr.alignment = Alignment(horizontal="center", vertical="center")
+                            
+                            c_vs_mid = ws_mat.cell(row=r_curr, column=6, value="-")
+                            c_vs_mid.alignment = Alignment(horizontal="center", vertical="center")
+                            c_vs_mid.border = b_style
+                            
+                            c2_str = f"{item['Combattant 2']}"
+                            if item.get('Club 2'): c2_str += f" ({item['Club 2']})"
+                            if item.get('Comité 2') and item['Comité 2'] != 'Comité Non Renseigné': c2_str += f" - {item['Comité 2']}"
+                            
+                            c_b_info = ws_mat.cell(row=r_curr, column=7, value=c2_str)
+                            c_b_info.border = b_style
+                            c_b_info.alignment = Alignment(vertical="center")
+                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
+                            ws_mat.cell(row=r_curr, column=8).border = b_style
+                            
+                            box_ptb = ws_mat.cell(row=r_curr, column=9)
+                            box_ptb.border, box_ptb.fill = b_style, gris_clair
+                            box_ptb.alignment = Alignment(horizontal="center", vertical="center")
+                            
+                            def reg_tapis_slot(k, sl):
+                                if k not in tapis_slots_map:
+                                    tapis_slots_map[k] = [sl]
+                                elif isinstance(tapis_slots_map[k], list):
+                                    tapis_slots_map[k].append(sl)
+                                else:
+                                    tapis_slots_map[k] = [tapis_slots_map[k], sl]
+
+                            cat_m = item.get('Cat', '')
+                            c1_m = str(item.get('Combattant 1', ''))
+                            c2_m = str(item.get('Combattant 2', ''))
+                            s1 = (ws_mat, f"C{r_curr}")
+                            s2 = (ws_mat, f"G{r_curr}")
+                            
+                            reg_tapis_slot((cat_m, c1_m), s1)
+                            reg_tapis_slot((cat_m, c2_m), s2)
+                            reg_tapis_slot(c1_m, s1)
+                            reg_tapis_slot(c2_m, s2)
+                            
+                            b_c1 = re.sub(r'\s*\[.*?\]', '', c1_m).strip()
+                            b_c2 = re.sub(r'\s*\[.*?\]', '', c2_m).strip()
+                            if b_c1 and b_c1 != c1_m:
+                                reg_tapis_slot((cat_m, b_c1), s1)
+                                reg_tapis_slot(b_c1, s1)
+                            if b_c2 and b_c2 != c2_m:
+                                reg_tapis_slot((cat_m, b_c2), s2)
+                                reg_tapis_slot(b_c2, s2)
+                            
+                            r_curr += 1
+                            
+                            ws_mat.cell(row=r_curr, column=3, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
+                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
+                            ws_mat.cell(row=r_curr, column=5, value="Total Score").font = Font(size=9, italic=True)
+                            
+                            ws_mat.cell(row=r_curr, column=7, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
+                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
+                            ws_mat.cell(row=r_curr, column=9, value="Total Score").font = Font(size=9, italic=True)
+                            
+                            r_curr += 1
+                            
+                            ws_mat.row_dimensions[r_curr].height = 25
+                            c_act_r = ws_mat.cell(row=r_curr, column=3)
+                            c_act_r.border = b_style
+                            ws_mat.cell(row=r_curr, column=4).border = b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
+                            
+                            ws_mat.cell(row=r_curr, column=5).border = b_style
+                            
+                            c_act_b = ws_mat.cell(row=r_curr, column=7)
+                            c_act_b.border = b_style
+                            ws_mat.cell(row=r_curr, column=8).border = b_style
+                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
+                            
+                            ws_mat.cell(row=r_curr, column=9).border = b_style
+
+                            # Enregistrement des coordonnées des cases Pt Clt, Actions et Total Score sur la Grille Tapis X
+                            m_coord_info = {
+                                'sheet': f"Grille Tapis {t + 1}",
                                 'sheet_name': f"Grille Tapis {t + 1}",
-                                'm_num': f"M{m_count}",
-                                'c_r': c_r_nom,
-                                'c_b': c_b_nom,
-                                'ptr': c_r_pts,
-                                'ptb': c_b_pts,
-                                'row_m': r_m
+                                'ptr_cell': f"E{r_curr - 2}",
+                                'ptb_cell': f"I{r_curr - 2}",
+                                'act_r_cell': f"C{r_curr}",
+                                'tot_r_cell': f"E{r_curr}",
+                                'act_b_cell': f"G{r_curr}",
+                                'tot_b_cell': f"I{r_curr}",
+                                'p1': item['Combattant 1'],
+                                'p2': item['Combattant 2']
                             }
-                            coords_matchs_tapis[pair_key1] = tapis_info
-                            coords_matchs_tapis[pair_key2] = tapis_info
-                            tapis_slots_map.setdefault(cat_cle, []).append(tapis_info)
-                            current_row += 2
+                            coords_matchs_tapis[(cat_m, c1_m, c2_m)] = m_coord_info
+                            coords_matchs_tapis[(cat_m, c2_m, c1_m)] = m_coord_info
+                            if (b_c1 and b_c1 != c1_m) or (b_c2 and b_c2 != c2_m):
+                                coords_matchs_tapis[(cat_m, b_c1 or c1_m, b_c2 or c2_m)] = m_coord_info
+                                coords_matchs_tapis[(cat_m, b_c2 or c2_m, b_c1 or c1_m)] = m_coord_info
+                            
+                            r_curr += 2 
+                
+                for ws_name in writer.book.sheetnames:
+                    ws_sheet = writer.book[ws_name]
+                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
+                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
+                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
+                    ws_sheet.page_setup.fitToWidth = 1
+                    ws_sheet.page_setup.fitToHeight = 0
+                
+                ws_res = writer.sheets["Résumé"]
+                for cell in ws_res[1]: 
+                    cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
+                ws_res.column_dimensions['A'].width = 50
+                ws_res.column_dimensions['B'].width = 25
+                for row in ws_res.iter_rows(min_row=2, max_row=ws_res.max_row):
+                    for cell in row:
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        cell.font = Font(size=12)
+                
+                ws_grille = writer.sheets["Grille de Passage"]
+                ws_grille.row_dimensions[1].height = 65
+                ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
+                titre_cell = ws_grille.cell(row=1, column=1, value=f"🏆 {nom_competition.upper()} — PLANNING OFFICIEL  (🟡 U7 | 🟢 U9 | 🔵 U11 | 🟣 U13) 🏆")
+                titre_cell.font = Font(name="Arial", size=20, bold=True, color="FFFFFF")
+                titre_cell.fill = bleu
+                titre_cell.alignment = Alignment(horizontal="center", vertical="center")
+                
+                try:
+                    from openpyxl.drawing.image import Image as OpenpyxlImage
+                    if os.path.exists("logo_fflda.png"):
+                        img = OpenpyxlImage("logo_fflda.png")
+                    else:
+                        url_logo = "https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png"
+                        req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
+                        img = OpenpyxlImage(img_data)
+                    img.height, img.width = 30, 36
+                    ws_grille.add_image(img, 'A1')
+                except Exception: pass 
 
-                # Feuille récapitulative des Arbitres
+                ws_grille.freeze_panes = 'A3'
+                
+                for col in range(1, nb_tapis + 1):
+                    c = ws_grille.cell(row=2, column=col)
+                    c.fill, c.font, c.border = rouge, Font(bold=True, size=14, color="FFFFFF"), b_style
+                    c.alignment = Alignment(horizontal="center", vertical="center")
+                    ws_grille.column_dimensions[c.column_letter].width = 45
+                    
+                for row in ws_grille.iter_rows(min_row=3, max_row=ws_grille.max_row):
+                    ws_grille.row_dimensions[row[0].row].height = 90
+                    for cell in row:
+                        cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
+                        if cell.value:
+                            val_s = str(cell.value)
+                            if "PAUSE" in val_s:
+                                cell.fill, cell.font = rouge, Font(name="Arial", bold=True, color="FFFFFF", size=12)
+                            elif any(k in val_s for k in ["Attente", "Pesée", "échauffement", "Repos"]):
+                                cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(name="Arial", italic=True, color="666666", size=11)
+                            else:
+                                age_k = extraire_age_de_texte(val_s)
+                                cfg_c = COULEURS_AGE_GRILLE.get(age_k, COULEURS_AGE_GRILLE['AUTRE'])
+                                cell.fill = cfg_c['bg_excel_pastel']
+                                cell.font = Font(name="Arial", size=10, color="0F172A")
+
+                df_excel_arb = None
                 if liste_arbitres:
-                    ws_arb_sheet = writer.book.create_sheet("Corps Arbitral")
-                    ws_arb_sheet.views.sheetView[0].showGridLines = True
-                    ws_arb_sheet.page_setup.orientation = ws_arb_sheet.ORIENTATION_LANDSCAPE
-                    ws_arb_sheet.page_setup.paperSize = ws_arb_sheet.PAPERSIZE_A4
-                    ws_arb_sheet.sheet_properties.pageSetUpPr.fitToPage = True
-                    ws_arb_sheet.page_setup.fitToWidth = 1
-                    ws_arb_sheet.page_setup.fitToHeight = 0
-                    
-                    ws_arb_sheet.row_dimensions[1].height = 30
-                    ws_arb_sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
-                    c_title_arb = ws_arb_sheet.cell(row=1, column=1, value=f"🛡️ CORPS ARBITRAL OFFICIEL — {nom_competition.upper()}")
-                    c_title_arb.font, c_title_arb.fill, c_title_arb.alignment = Font(name="Arial", size=14, bold=True, color="FFFFFF"), bleu, Alignment(horizontal="center", vertical="center")
-                    for k in range(1, 7): ws_arb_sheet.cell(row=1, column=k).border = b_style
-                    
-                    ws_arb_sheet.row_dimensions[2].height = 22
-                    headers_arb = ["N° LICENCE", "NOM Prénom", "CLUB", "COMITÉ", "CATÉGORIE ARBITRE", "AFFECTATION TAPIS"]
-                    for col_idx, h in enumerate(headers_arb, 1):
-                        c = ws_arb_sheet.cell(row=2, column=col_idx, value=h)
-                        c.font, c.fill, c.border = Font(name="Arial", size=10, bold=True, color="FFFFFF"), entete_noir, b_style
-                        c.alignment = Alignment(horizontal="center", vertical="center")
+                    lignes_excel_arb = []
+                    for t in range(nb_tapis):
+                        for a in tapis_arbitres[t]:
+                            lignes_excel_arb.append({
+                                "Tapis Affecté": f"Tapis {t + 1}",
+                                "Nom": a['Nom'],
+                                "Prénom": a['Prenom'],
+                                "N° Licence": a['Licence'],
+                                "Club": a['Club'],
+                                "Comité Régional": a['Comite']
+                            })
+                    if lignes_excel_arb:
+                        df_excel_arb = pd.DataFrame(lignes_excel_arb)
+                        df_excel_arb.to_excel(writer, sheet_name="Corps d'Arbitrage", index=False, startrow=4)
+                        ws_arb_sheet = writer.sheets["Corps d'Arbitrage"]
+                        ws_arb_sheet.views.sheetView[0].showGridLines = True
+                        ws_arb_sheet.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = Font(name="Arial", size=15, bold=True, color="0055A4")
+                        ws_arb_sheet.cell(row=2, column=1, value="🛡️ CORPS D'ARBITRAGE ET AFFECTATION AUX TAPIS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
+                        ws_arb_sheet.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
                         
-                    for row_idx, a in enumerate(liste_arbitres, 3):
-                        tapis_affecte_str = "Non affecté"
-                        for t_idx in range(nb_tapis):
-                            if any(arb['Licence'] == a['Licence'] for arb in tapis_arbitres[t_idx]):
-                                tapis_affecte_str = f"Tapis {t_idx + 1}"
-                                break
-                                
-                        row_vals = [
-                            a.get('Licence', '-'),
-                            a.get('Nom_Complet', ''),
-                            a.get('Club', ''),
-                            a.get('Comite', ''),
-                            a.get('Categorie', 'Arbitre'),
-                            tapis_affecte_str
-                        ]
-                        ws_arb_sheet.row_dimensions[row_idx].height = 18
-                        is_even = (row_idx % 2 == 0)
-                        for col_idx, val in enumerate(row_vals, 1):
-                            cell = ws_arb_sheet.cell(row=row_idx, column=col_idx, value=val)
-                            cell.border = b_style
-                            cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
-                            cell.alignment = Alignment(horizontal="center", vertical="center")
+                        for col_idx in range(1, len(df_excel_arb.columns) + 1):
+                            cell = ws_arb_sheet.cell(row=5, column=col_idx)
+                            cell.fill, cell.font, cell.alignment = bleu, Font(name="Arial", size=10, bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center")
+                        
+                        for row_idx in range(6, ws_arb_sheet.max_row + 1):
+                            is_even = (row_idx % 2 == 0)
+                            for col_idx in range(1, len(df_excel_arb.columns) + 1):
+                                cell = ws_arb_sheet.cell(row=row_idx, column=col_idx)
+                                cell.border = b_style
+                                cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
+                                cell.alignment = Alignment(horizontal="center", vertical="center")
 
-                    ws_arb_sheet.column_dimensions['A'].width = 15
-                    ws_arb_sheet.column_dimensions['B'].width = 25
-                    ws_arb_sheet.column_dimensions['C'].width = 20
-                    ws_arb_sheet.column_dimensions['D'].width = 15
-                    ws_arb_sheet.column_dimensions['E'].width = 25
-                    ws_arb_sheet.column_dimensions['F'].width = 25
+                        ws_arb_sheet.column_dimensions['A'].width = 15
+                        ws_arb_sheet.column_dimensions['B'].width = 25
+                        ws_arb_sheet.column_dimensions['C'].width = 20
+                        ws_arb_sheet.column_dimensions['D'].width = 15
+                        ws_arb_sheet.column_dimensions['E'].width = 25
+                        ws_arb_sheet.column_dimensions['F'].width = 25
+
+                rouge_lutte = PatternFill("solid", fgColor="E53935") 
+                bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
+                gris_clair = PatternFill("solid", fgColor="F2F2F2")
+                entete_noir = PatternFill("solid", fgColor="000000")
 
                 feuilles_creees = set()
                 for nom_poule, liste_p in participants_par_poule.items():
