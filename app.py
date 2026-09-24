@@ -3318,20 +3318,20 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
 </html>"""
     return html_doc
 
-# --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS DEPUIS LE CLASSEUR EXCEL OFFICIEL (A4 PAYSAGE) ---
+# --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS DEPUIS LE CLASSEUR EXCEL OFFICIEL (A4 PORTRAIT) ---
 def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tournoi FFLDA"):
     """
-    Génère un fichier PDF vectoriel A4 Paysage à partir des feuilles du classeur Excel officiel FFLDA (openpyxl).
+    Génère un fichier PDF vectoriel A4 Portrait à partir des feuilles du classeur Excel officiel FFLDA (openpyxl).
     Chaque feuille Excel (Poule nordique, Tableau éliminatoire, Poules croisées, Plateaux U7,
-    Grille de Tapis, Planning) est fidèlement convertie en page(s) PDF avec :
+    Grille de Tapis, Planning) est fidèlement convertie en page(s) PDF en mode Portrait avec :
     - La disposition exacte des cellules et fusions (SPAN)
-    - Les largeurs de colonnes proportionnelles
-    - Les couleurs de fond (en-têtes bleus FFLDA, coins rouge/bleu, catégories d'âge, zébrures)
+    - Les largeurs de colonnes proportionnelles adaptées au mode Portrait A4
+    - Les couleurs de fond officielles FFLDA
     - Les bordures de cellules
-    - Les styles de police (gras, tailles, alignements, texte blanc sur fond sombre)
-    - La résolution intelligente des formules (liens inter-onglets, libellés de combat, scores)
+    - Les styles de police (gras, tailles, alignements)
+    - La résolution intelligente des formules et liens inter-onglets
     """
-    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -3357,15 +3357,22 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, 
-        pagesize=landscape(A4), 
+        pagesize=A4, # Format A4 Portrait
         rightMargin=12, 
         leftMargin=12, 
         topMargin=12, 
         bottomMargin=12
     )
     styles = getSampleStyleSheet()
-    page_width = landscape(A4)[0] - 24   # 817.89 pt
-    page_height = landscape(A4)[1] - 24  # 571.27 pt
+    page_width = A4[0] - 24   # 571.27 pt
+    page_height = A4[1] - 24  # 817.89 pt
+
+    def to_col_letter(col_idx):
+        res = ""
+        while col_idx > 0:
+            col_idx, rem = divmod(col_idx - 1, 26)
+            res = chr(65 + rem) + res
+        return res
 
     def get_hex(openpyxl_color, default=None):
         if not openpyxl_color:
@@ -3374,12 +3381,12 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
         if not rgb:
             return default
         rgb_s = str(rgb).strip()
-        if rgb_s in ['00000000', '0', 'None', '']:
+        if rgb_s in ['00000000', '0', 'None', '', 'none']:
             return default
-        if len(rgb_s) == 8:
-            return '#' + rgb_s[2:]
-        elif len(rgb_s) == 6:
+        if re.match(r'^[0-9a-fA-F]{6}$', rgb_s):
             return '#' + rgb_s
+        elif re.match(r'^[0-9a-fA-F]{8}$', rgb_s):
+            return '#' + rgb_s[2:]
         return default
 
     def resolve_formula_cell(formula_str, current_ws, wb_ref, depth=0):
@@ -3395,23 +3402,29 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
             if any(k in q for k in priority_keywords):
                 return q
                 
-        # Inter-sheet reference: 'SheetName'!A1 or SheetName!A1
-        m_ref = re.search(r"(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+[0-9]+)", s)
-        if m_ref and wb_ref:
-            target_sheet_name = m_ref.group(1) or m_ref.group(2)
-            coord = m_ref.group(3)
-            if target_sheet_name in wb_ref.sheetnames:
-                t_val = wb_ref[target_sheet_name][coord].value
-                res = resolve_formula_cell(t_val, wb_ref[target_sheet_name], wb_ref, depth + 1)
-                if res:
-                    return res.replace('🔴 ', '').replace('🔵 ', '').strip()
+        try:
+            m_ref = re.search(r"(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+[0-9]+)", s)
+            if m_ref and wb_ref:
+                target_sheet_name = m_ref.group(1) or m_ref.group(2)
+                coord = m_ref.group(3)
+                if hasattr(wb_ref, 'sheetnames') and target_sheet_name in wb_ref.sheetnames:
+                    cell_obj = wb_ref[target_sheet_name][coord]
+                    t_val = getattr(cell_obj, 'value', None)
+                    res = resolve_formula_cell(t_val, wb_ref[target_sheet_name], wb_ref, depth + 1)
+                    if res:
+                        return res.replace('🔴 ', '').replace('🔵 ', '').strip()
+        except Exception:
+            pass
                     
-        # Intra-sheet reference: =A1
-        m_local = re.match(r"^=([A-Z]+[0-9]+)$", s)
-        if m_local and current_ws:
-            coord = m_local.group(1)
-            t_val = current_ws[coord].value
-            return resolve_formula_cell(t_val, current_ws, wb_ref, depth + 1)
+        try:
+            m_local = re.match(r"^=([A-Z]+[0-9]+)$", s)
+            if m_local and current_ws:
+                coord = m_local.group(1)
+                cell_obj = current_ws[coord]
+                t_val = getattr(cell_obj, 'value', None)
+                return resolve_formula_cell(t_val, current_ws, wb_ref, depth + 1)
+        except Exception:
+            pass
             
         if quoted:
             for q in quoted:
@@ -3465,7 +3478,7 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
 
         col_widths = []
         for c in range(1, max_c + 1):
-            col_letter = openpyxl.utils.get_column_letter(c)
+            col_letter = to_col_letter(c)
             w = ws.column_dimensions[col_letter].width if col_letter in ws.column_dimensions else None
             try:
                 w_val = float(w) if (w is not None and str(w).strip() != '') else 10.0
@@ -3475,18 +3488,18 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
             
         total_w = sum(col_widths)
         scale = page_width / total_w if total_w > 0 else 1.0
-        scaled_widths = [max(cw * scale, 8.0) for cw in col_widths]
+        scaled_widths = [max(cw * scale, 6.0) for cw in col_widths]
 
         data = []
         t_styles = [
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 2),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 1.5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 1.5),
             ('TOPPADDING', (0, 0), (-1, -1), 1.5),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
         ]
 
-        base_scale = 0.60 if max_c > 15 else 0.70
+        base_scale = 0.50 if max_c > 14 else (0.60 if max_c > 9 else 0.70)
 
         for r in range(1, max_r + 1):
             row_cells = []
@@ -3503,7 +3516,7 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                         orig_f_size = float(font.size)
                     except (ValueError, TypeError):
                         orig_f_size = 10
-                f_size = max(5, min(int(orig_f_size * base_scale), 12))
+                f_size = max(4.5, min(int(orig_f_size * base_scale), 11))
                 
                 f_color = get_hex(getattr(font, 'color', None), default='#1E293B')
                 if not f_color or f_color in ['#00000000', '#000000']:
@@ -3533,14 +3546,17 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                     parent=styles['Normal'],
                     fontName='Helvetica-Bold' if is_bold else 'Helvetica',
                     fontSize=f_size,
-                    leading=f_size + 2,
+                    leading=f_size + 1.5,
                     textColor=colors.HexColor(f_color),
                     alignment=align_code
                 )
                 
                 txt_clean = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', txt)
                 txt_safe = txt_clean.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br/>')
-                p = Paragraph(txt_safe, p_style) if txt_safe else Paragraph("&nbsp;", p_style)
+                try:
+                    p = Paragraph(txt_safe, p_style) if txt_safe else Paragraph("&nbsp;", p_style)
+                except Exception:
+                    p = Paragraph("&nbsp;", p_style)
                 row_cells.append(p)
             data.append(row_cells)
 
@@ -3557,48 +3573,68 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                     if c2 >= c1 and r2 >= r1 and (c2 > c1 or r2 > r1):
                         t_styles.append(('SPAN', (c1, r1), (c2, r2)))
                 
-        rep_rows = 2 if ('tapis' in ws.title.lower() or 'passage' in ws.title.lower()) and max_r > 2 else 0
+        safe_styles = []
+        for cmd in t_styles:
+            try:
+                op = cmd[0]
+                if op in ('BACKGROUND', 'BOX', 'SPAN'):
+                    sc1, sr1 = cmd[1]
+                    sc2, sr2 = cmd[2]
+                    if 0 <= sc1 < max_c and 0 <= sc2 < max_c and 0 <= sr1 < max_r and 0 <= sr2 < max_r:
+                        if sc2 >= sc1 and sr2 >= sr1:
+                            safe_styles.append(cmd)
+                else:
+                    safe_styles.append(cmd)
+            except Exception:
+                pass
+
+        rep_rows = 2 if ('tapis' in ws.title.lower() or 'passage' in ws.title.lower()) and max_r > 4 else 0
         try:
             table = Table(data, colWidths=scaled_widths, repeatRows=rep_rows, splitByRow=1)
-            table.setStyle(TableStyle(t_styles))
-            if sheet_has_pages:
-                story.append(PageBreak())
-            story.append(table)
-            sheet_has_pages = True
+            table.setStyle(TableStyle(safe_styles))
         except Exception:
-            t_fallback = Table(data, colWidths=scaled_widths, splitByRow=1)
-            if sheet_has_pages:
-                story.append(PageBreak())
-            story.append(t_fallback)
-            sheet_has_pages = True
+            table = Table(data, colWidths=scaled_widths, splitByRow=1)
+            table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ]))
+
+        if sheet_has_pages:
+            story.append(PageBreak())
+        story.append(table)
+        sheet_has_pages = True
 
     try:
         doc.build(story)
         return buffer.getvalue()
     except Exception:
-        # Fallback de secours : rendu épuré garanti
+        # Fallback d'urgence sans repeatRows ni spans
         try:
-            simple_story = []
+            buf_fb = io.BytesIO()
+            doc_fb = SimpleDocTemplate(buf_fb, pagesize=A4, rightMargin=12, leftMargin=12, topMargin=12, bottomMargin=12)
+            fb_story = []
             for item in story:
                 if isinstance(item, Table):
-                    t_simple = Table(item._cellvalues, colWidths=item._colWidths, splitByRow=1)
-                    simple_story.append(t_simple)
+                    fb_t = Table(item._cellvalues, colWidths=item._colWidths, splitByRow=1)
+                    fb_t.setStyle(TableStyle([
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                    ]))
+                    fb_story.append(fb_t)
                 else:
-                    simple_story.append(item)
-            buf2 = io.BytesIO()
-            doc2 = SimpleDocTemplate(buf2, pagesize=landscape(A4), rightMargin=12, leftMargin=12, topMargin=12, bottomMargin=12)
-            doc2.build(simple_story)
-            return buf2.getvalue()
+                    fb_story.append(item)
+            doc_fb.build(fb_story)
+            return buf_fb.getvalue()
         except Exception:
             return None
 
-# --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS (REPORTLAB - A4 PAYSAGE - 1 PAGE PAR ONGLET) ---
+# --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS (REPORTLAB - A4 PORTRAIT - 1 PAGE PAR ONGLET) ---
 def generer_pdf_tournoi_complet(titre, nom_comp, sections):
     """
-    Génère un fichier PDF vectoriel (A4 Paysage) prêt à imprimer et télécharger.
+    Génère un fichier PDF vectoriel (A4 Portrait) prêt à imprimer et télécharger.
     Chaque onglet / section commence sur une nouvelle page (PageBreak) et aucun tableau n'est coupé.
     """
-    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -3606,7 +3642,7 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, 
-        pagesize=landscape(A4), 
+        pagesize=A4, 
         rightMargin=20, 
         leftMargin=20, 
         topMargin=20, 
@@ -3665,7 +3701,7 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
     )
 
     story = []
-    page_width = landscape(A4)[0] - 40  # 841.89 - 40 = 801.89 pt
+    page_width = A4[0] - 40  # 555.27 pt
 
     for idx, (sec_title, content) in enumerate(sections):
         if idx > 0:
@@ -5569,19 +5605,20 @@ else:
 
             excel_bytes_tournoi_complet = output_excel.getvalue()
 
-            # Génération du PDF imprimable basé à 100% sur le classeur Excel officiel FFLDA
-            wb_officiel = None
-            try:
-                wb_officiel = openpyxl.load_workbook(io.BytesIO(excel_bytes_tournoi_complet), data_only=False)
-            except Exception:
-                pass
+            # Source du classeur Excel officiel FFLDA pour la génération PDF
+            wb_officiel = getattr(writer, 'book', None)
+            if wb_officiel is None:
+                try:
+                    wb_officiel = openpyxl.load_workbook(io.BytesIO(excel_bytes_tournoi_complet), data_only=False)
+                except Exception:
+                    wb_officiel = None
 
             pdf_bytes_tournoi_complet = None
             if wb_officiel is not None:
                 try:
                     pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(wb_officiel, nom_competition)
                 except Exception as e_pdf:
-                    st.warning(f"⚠️ Information : génération PDF vectoriel depuis Excel : {e_pdf}")
+                    st.warning(f"⚠️ Information : génération PDF depuis Excel : {e_pdf}")
 
             if not pdf_bytes_tournoi_complet:
                 try:
@@ -5590,18 +5627,27 @@ else:
                     pdf_bytes_tournoi_complet = b""
 
             pdf_grille_bytes = None
-            if wb_officiel is not None and "Grille de Passage" in wb_officiel.sheetnames:
-                try:
-                    pdf_grille_bytes = generer_pdf_depuis_classeur_excel([wb_officiel["Grille de Passage"]], nom_competition)
-                except Exception:
-                    pdf_grille_bytes = None
+            if wb_officiel is not None:
+                sheet_gp = None
+                if hasattr(wb_officiel, 'sheetnames') and "Grille de Passage" in wb_officiel.sheetnames:
+                    sheet_gp = wb_officiel["Grille de Passage"]
+                elif hasattr(wb_officiel, 'worksheets'):
+                    for s in wb_officiel.worksheets:
+                        if s.title == "Grille de Passage":
+                            sheet_gp = s
+                            break
+                if sheet_gp is not None:
+                    try:
+                        pdf_grille_bytes = generer_pdf_depuis_classeur_excel([sheet_gp], nom_competition)
+                    except Exception:
+                        pdf_grille_bytes = None
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
 
-            st.markdown("### 📄 Impression & Exportations Officielles (Format Excel FFLDA - A4 Paysage)")
+            st.markdown("### 📄 Impression & Exportations Officielles (Format Excel FFLDA - A4 Portrait)")
             col_pdf_top, col_xl_top, col_html_top = st.columns([1, 1, 1])
             with col_pdf_top:
                 st.download_button(
-                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage - Format Excel)",
+                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Portrait - Format Excel)",
                     data=pdf_bytes_tournoi_complet,
                     file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
                     mime="application/pdf",
@@ -5666,7 +5712,7 @@ else:
                 col_p1, col_h1 = st.columns(2)
                 with col_p1:
                     st.download_button(
-                        label="📄 Télécharger la Grille Globale en PDF (A4 Paysage - Format Excel)",
+                        label="📄 Télécharger la Grille Globale en PDF (A4 Portrait - Format Excel)",
                         data=pdf_grille_bytes,
                         file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
                         mime="application/pdf",
@@ -5803,7 +5849,7 @@ else:
             col_b_pdf, col_b_xl = st.columns(2)
             with col_b_pdf:
                 st.download_button(
-                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage - Format Excel)",
+                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Portrait - Format Excel)",
                     data=pdf_bytes_tournoi_complet,
                     file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
                     mime="application/pdf",
