@@ -1980,6 +1980,7 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
             c = ws.cell(row=start_row+1, column=c_i, value=h)
             c.font, c.fill, c.alignment, c.border = font_match_h, fill_gray_h, Alignment(horizontal="center", vertical="center"), b_style
             
+        row_cur = start_row + 2
         sub_poule_match_cols = {(1, 2): 'E', (2, 1): 'E', (2, 3): 'F', (3, 2): 'F', (1, 3): 'G', (3, 1): 'G'}
         for idx, p in enumerate(participants, 1):
             lignes_lutteurs[p['Nom']] = row_cur
