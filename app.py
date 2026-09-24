@@ -1980,11 +1980,31 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
             c = ws.cell(row=start_row+1, column=c_i, value=h)
             c.font, c.fill, c.alignment, c.border = font_match_h, fill_gray_h, Alignment(horizontal="center", vertical="center"), b_style
             
-        row_cur = start_row + 2
+        sub_poule_match_cols = {(1, 2): 'E', (2, 1): 'E', (2, 3): 'F', (3, 2): 'F', (1, 3): 'G', (3, 1): 'G'}
         for idx, p in enumerate(participants, 1):
             lignes_lutteurs[p['Nom']] = row_cur
             
-            c_clt = ws.cell(row=row_cur, column=1, value=f'=IF(SUM(H${start_row+2}:H${start_row+1+len(participants)})=0, "", RANK(H{row_cur}, H${start_row+2}:H${start_row+1+len(participants)}) + COUNTIF(H${start_row+2}:H{row_cur}, H{row_cur}) - 1)')
+            comparisons = []
+            for idx_j in range(1, len(participants) + 1):
+                if idx_j == idx:
+                    continue
+                r_j = start_row + 1 + idx_j
+                col_t_lettre = sub_poule_match_cols.get((idx, idx_j))
+                if col_t_lettre:
+                    comp = (
+                        f"IF(H{r_j}>H{row_cur}, 1, "
+                        f"IF(H{r_j}<H{row_cur}, 0, "
+                        f"IF({col_t_lettre}{r_j}>{col_t_lettre}{row_cur}, 1, "
+                        f"IF({col_t_lettre}{r_j}<{col_t_lettre}{row_cur}, 0, "
+                        f"IF({r_j}<{row_cur}, 1, 0)))))"
+                    )
+                else:
+                    comp = f"IF(H{r_j}>H{row_cur}, 1, IF(H{r_j}<H{row_cur}, 0, IF({r_j}<{row_cur}, 1, 0)))"
+                comparisons.append(comp)
+
+            somme_comp = " + ".join(comparisons) if comparisons else "0"
+            plage_tot = f"H${start_row+2}:H${start_row+1+len(participants)}"
+            c_clt = ws.cell(row=row_cur, column=1, value=f'=IF(SUM({plage_tot})=0, "", 1 + {somme_comp})')
             c_clt.alignment, c_clt.border = Alignment(horizontal="center", vertical="center"), b_style
             c_clt.font = Font(name="Arial", size=10, bold=True, color="0055A4")
             
@@ -2189,12 +2209,52 @@ def construire_feuille_poule_nordique_excel(ws, nom_poule, liste_p, rondes, coor
     plage_nom = f"$C${ligne_debut_poule}:$C${ligne_debut_poule + len(liste_p) - 1}"
     plage_club = f"$D${ligne_debut_poule}:$D${ligne_debut_poule + len(liste_p) - 1}"
 
+    # Correspondance des combats directs entre lutteurs pour le départage FFLDA
+    match_col_map = {}
+    for tour_idx, ronde in enumerate(rondes, 1):
+        col_t_lettre = get_column_letter(5 + tour_idx)
+        for match in ronde:
+            p1_nom = match[0].get('Nom', '') if isinstance(match[0], dict) else str(match[0])
+            p2_nom = match[1].get('Nom', '') if isinstance(match[1], dict) else str(match[1])
+            match_col_map[(p1_nom, p2_nom)] = col_t_lettre
+            match_col_map[(p2_nom, p1_nom)] = col_t_lettre
+
     for idx, p in enumerate(liste_p, 1):
         r = ligne_debut_poule + idx - 1
         lignes_lutteurs[p['Nom']] = r
         
-        # Formule CLT sécurisée avec gestion dynamique des rangs et égalités
-        c_clt = ws.cell(row=r, column=1, value=f'=IF(SUM({plage_totaux})=0, "", RANK({col_pts_lettre}{r}, {plage_totaux}) + COUNTIF({col_pts_lettre}${ligne_debut_poule}:{col_pts_lettre}{r}, {col_pts_lettre}{r}) - 1)')
+        # Formule CLT officielle FFLDA : classement par Total Pts, avec départage au combat direct en cas d'égalité
+        comparisons = []
+        for idx_j, p_j in enumerate(liste_p, 1):
+            if idx_j == idx:
+                continue
+            r_j = ligne_debut_poule + idx_j - 1
+            col_t_lettre = match_col_map.get((p['Nom'], p_j['Nom']))
+            
+            if col_t_lettre:
+                # Si j a plus de points que r, j est devant (+1).
+                # Si j a moins de points que r, j est derrière (+0).
+                # En cas d'égalité de points totaux (col_pts_lettre), départage par la victoire directe (col_t_lettre) :
+                # Si j a battu r au combat direct, j est devant (+1). Si r a battu j, r est devant (+0).
+                # En cas d'égalité absolue (ex: match nul direct 1-1 ou 0-0), départage résiduel par la ligne.
+                comp = (
+                    f"IF({col_pts_lettre}{r_j}>{col_pts_lettre}{r}, 1, "
+                    f"IF({col_pts_lettre}{r_j}<{col_pts_lettre}{r}, 0, "
+                    f"IF({col_t_lettre}{r_j}>{col_t_lettre}{r}, 1, "
+                    f"IF({col_t_lettre}{r_j}<{col_t_lettre}{r}, 0, "
+                    f"IF({r_j}<{r}, 1, 0)))))"
+                )
+            else:
+                comp = f"IF({col_pts_lettre}{r_j}>{col_pts_lettre}{r}, 1, IF({col_pts_lettre}{r_j}<{col_pts_lettre}{r}, 0, IF({r_j}<{r}, 1, 0)))"
+            comparisons.append(comp)
+
+        if comparisons:
+            somme_comp = " + ".join(comparisons)
+            form_clt = f'=IF(SUM({plage_totaux})=0, "", 1 + {somme_comp})'
+        else:
+            form_clt = f'=IF(SUM({plage_totaux})=0, "", 1)'
+
+        c_clt = ws.cell(row=r, column=1, value=form_clt)
         c_clt.alignment, c_clt.border = Alignment(horizontal="center", vertical="center"), b_style
         c_clt.font = Font(name="Arial", size=10, bold=True, color="0055A4")
         
@@ -2928,13 +2988,20 @@ if mode_app.startswith("2"):
 
                     poids_val = formater_poids(poids_raw)
 
+                    clt_excel_raw = ws.cell(row=r, column=1).value
+                    try:
+                        clt_excel = int(float(str(clt_excel_raw).strip())) if clt_excel_raw is not None and str(clt_excel_raw).strip() not in ['', 'NR', 'None'] else None
+                    except (ValueError, TypeError):
+                        clt_excel = None
+
                     lutteurs_poule.append({
                         "Poule": nom_feuille,
                         "Nom": nom,
                         "Club": club if club else "Indépendant",
                         "Comité": comite,
                         "Poids": poids_val,
-                        "Points": pts_val
+                        "Points": pts_val,
+                        "Clt_Excel": clt_excel
                     })
                     r += 1
                 
@@ -2942,6 +3009,10 @@ if mode_app.startswith("2"):
                 if not df_poule.empty:
                     if df_poule["Points"].sum() == 0:
                         df_poule["Clt"] = "NR"
+                    elif all(p.get("Clt_Excel") is not None for p in lutteurs_poule):
+                        # Classement officiel calculé par la feuille Excel avec départage direct FFLDA
+                        df_poule["Clt"] = [p["Clt_Excel"] for p in lutteurs_poule]
+                        df_poule = df_poule.sort_values(by="Clt").reset_index(drop=True)
                     else:
                         df_poule = df_poule.sort_values(by="Points", ascending=False).reset_index(drop=True)
                         rangs = []
