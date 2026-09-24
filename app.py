@@ -47,7 +47,8 @@ with st.sidebar:
         meme_tapis_poule = st.checkbox("Maintenir chaque poule / lutteur sur un même tapis", value=True)
         tolerance_poids = st.number_input("Tolérance d'écart de poids (%) [U7, U9, U11]", min_value=10, max_value=15, value=10, step=1)
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
-        duree_u7 = st.number_input("Temps total U7 (min)", value=3)
+        duree_plateau_u7 = st.number_input("Temps de chaque plateau U7 (min)", min_value=3, max_value=30, value=10, step=1, help="L'animation U7 est sous forme de 3 plateaux d'activités avec rotation. Par exemple, 10 min par plateau = 3x10 min = 30 min consacrées aux U7 au total.")
+        duree_u7 = duree_plateau_u7 * 3
         duree_u9 = st.number_input("Temps total U9 (min)", value=3)
         duree_u11 = st.number_input("Temps total U11 (min)", value=4)
         duree_u13 = st.number_input("Temps total U13 (min)", value=5)
@@ -1140,6 +1141,87 @@ def generer_document_poule_imprimable(nom_poule, nom_comp, participants, rondes)
 </body>
 </html>"""
 
+def generer_document_plateau_u7_imprimable(nom_poule, nom_comp, participants):
+    lignes_html = []
+    for idx, p in enumerate(participants, 1):
+        bg = "#FFFBEB" if idx % 2 == 0 else "#FFFFFF"
+        nom = p.get('Nom', '')
+        club = p.get('Club', '')
+        poids = formater_poids(p.get('Poids', ''))
+        lignes_html.append(f"""
+        <tr style="background: {bg};">
+            <td style="border: 1px solid #CBD5E1; padding: 8px; text-align: center; font-weight: bold;">{idx}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight: 600;">{nom}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 8px;">{club}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 8px; text-align: center;">{poids}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 8px; text-align: center; color: #166534; font-weight: bold;">[ ✓ ] Validé</td>
+            <td style="border: 1px solid #CBD5E1; padding: 8px; text-align: center; color: #166534; font-weight: bold;">[ ✓ ] Validé</td>
+            <td style="border: 1px solid #CBD5E1; padding: 8px; text-align: center; color: #166534; font-weight: bold;">[ ✓ ] Validé</td>
+            <td style="border: 1px solid #CBD5E1; padding: 8px; text-align: center; background: #FEF3C7; color: #92400E; font-weight: 800;">🥇 Médaille d'Or</td>
+        </tr>
+        """)
+
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Passeport U7 - {nom_poule} - {nom_comp}</title>
+    <style>
+        @page {{ size: landscape; margin: 8mm; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 10px; background: white; color: #1E293B; }}
+        .print-btn {{ background-color: #D97706; color: white; border: none; padding: 8px 16px; font-size: 13px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-bottom: 12px; }}
+        @media print {{ .print-btn {{ display: none !important; }} body {{ padding: 0; }} }}
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimer cette Fiche Plateau U7 (A4 Paysage)</button>
+    <div style="margin-bottom: 12px;">
+        <h2 style="color: #D97706; margin: 0 0 4px 0; font-size: 20px;">🏆 {nom_comp.upper()}</h2>
+        <div style="font-size: 13px; color: #64748B; font-weight: bold;">FFLDA — ANIMATION PLATEAU U7 : {nom_poule}</div>
+        <div style="font-size: 11px; color: #92400E; font-style: italic;">Formule officielle FFLDA : Découverte pédagogique sous forme de 3 plateaux d'activités avec rotation. Tous les enfants sont récompensés !</div>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 15px;">
+        <thead>
+            <tr style="background: #D97706; color: white;">
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 40px;">N°</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; text-align: left;">NOM Prénom</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; text-align: left;">CLUB</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 70px;">Poids</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px;">Plateau 1 : Motricité & Agilité</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px;">Plateau 2 : Ateliers techniques</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px;">Plateau 3 : Oppositions</th>
+                <th style="border: 1px solid #CBD5E1; padding: 8px; width: 150px;">Validation / Récompense</th>
+            </tr>
+        </thead>
+        <tbody>
+            {''.join(lignes_html)}
+        </tbody>
+    </table>
+    
+    <div style="background: #FFFBEB; border: 1.5px solid #F59E0B; border-radius: 8px; padding: 12px; font-size: 11px;">
+        <div style="font-weight: 800; font-size: 12px; color: #B45309; margin-bottom: 6px;">ℹ️ ORGANISATION DES 3 PLATEAUX D'ACTIVITÉ U7 :</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div style="background: white; border: 1px solid #FCD34D; border-radius: 6px; padding: 8px;">
+                <b style="color: #B45309;">🟡 Plateau 1 : Motricité & Agilité</b>
+                <p style="margin: 4px 0 0 0; color: #78350F;">Parcours gymnique, franchissements, équilibre, réactivité motrice.</p>
+            </div>
+            <div style="background: white; border: 1px solid #FCD34D; border-radius: 6px; padding: 8px;">
+                <b style="color: #166534;">🟢 Plateau 2 : Ateliers techniques</b>
+                <p style="margin: 4px 0 0 0; color: #14532D;">Ateliers d'apprentissage technique, habiletés motrices et gestes de lutte adaptés.</p>
+            </div>
+            <div style="background: white; border: 1px solid #FCD34D; border-radius: 6px; padding: 8px;">
+                <b style="color: #1E40AF;">🔵 Plateau 3 : Oppositions</b>
+                <p style="margin: 4px 0 0 0; color: #1E3A8A;">Jeux de lutte et oppositions adaptées, combats éducatifs aménagés.</p>
+            </div>
+        </div>
+        <div style="margin-top: 8px; text-align: center; font-weight: bold; color: #92400E;">
+            🏅 Chaque enfant passe successivement sur les 3 plateaux. Tous reçoivent une médaille d'or FFLDA et un diplôme !
+        </div>
+    </div>
+</body>
+</html>"""
+
 def make_winner_formula(c_r, c_b, pt_r, pt_b, placeholder_name, target_corner="🔴"):
     default_text = f"{target_corner} {placeholder_name}"
     r_val = f"IF({pt_r.coordinate}=\"\", 0, {pt_r.coordinate})"
@@ -2153,6 +2235,100 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     link_tapis_slot(tapis_slots, nom_poule, f_b[0]['Nom'], ws, fb_r)
     link_tapis_slot(tapis_slots, nom_poule, f_b[1]['Nom'], ws, fb_b)
 
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+
+
+def construire_feuille_plateau_u7_excel(ws, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition):
+    font_title = Font(name="Arial", size=13, bold=True, color="B45309")
+    font_sub = Font(name="Arial", size=9, italic=True, color="64748B")
+    font_hdr = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    font_pts = Font(name="Arial", size=10, bold=True)
+    
+    fill_amber = PatternFill("solid", fgColor="D97706")  # Ambre U7
+    fill_pastel = PatternFill("solid", fgColor="FEF3C7") # Pastel U7
+    fill_zebra = PatternFill("solid", fgColor="FFFBEB")
+    
+    b_thin = Side(style='thin', color='CBD5E1')
+    b_style = Border(left=b_thin, right=b_thin, top=b_thin, bottom=b_thin)
+    
+    ws.views.sheetView[0].showGridLines = True
+    
+    ws.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()} — ANIMATION PLATEAU U7 : {nom_poule}").font = font_title
+    ws.cell(row=2, column=1, value="Formule officielle FFLDA : Découverte pédagogique sous forme de 3 plateaux d'activités avec rotation (Tous les enfants sont récompensés)").font = font_sub
+    
+    headers = [
+        "N°", "NOM Prénom", "CLUB", "POIDS", 
+        "Plateau 1 : Motricité & Agilité", "Plateau 2 : Ateliers techniques", "Plateau 3 : Oppositions", 
+        "Validation / Récompense"
+    ]
+    
+    for c_i, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=c_i, value=h)
+        c.fill, c.font, c.alignment, c.border = fill_amber, font_hdr, Alignment(horizontal="center", vertical="center", wrap_text=True), b_style
+    ws.row_dimensions[4].height = 28
+    
+    for idx, p in enumerate(liste_p, 1):
+        r = 4 + idx
+        ws.row_dimensions[r].height = 22
+        is_even = (idx % 2 == 0)
+        row_fill = fill_zebra if is_even else PatternFill(fill_type=None)
+        
+        c_num = ws.cell(row=r, column=1, value=idx)
+        c_num.alignment, c_num.border, c_num.fill = Alignment(horizontal="center", vertical="center"), b_style, row_fill
+        
+        c_nom = ws.cell(row=r, column=2, value=p.get('Nom', ''))
+        c_nom.border, c_nom.fill = b_style, row_fill
+        c_nom.alignment = Alignment(vertical="center", indent=1)
+        
+        c_club = ws.cell(row=r, column=3, value=p.get('Club', ''))
+        c_club.border, c_club.fill = b_style, row_fill
+        c_club.alignment = Alignment(vertical="center", indent=1)
+        
+        c_pds = ws.cell(row=r, column=4, value=formater_poids(p.get('Poids', '')))
+        c_pds.alignment, c_pds.border, c_pds.fill = Alignment(horizontal="center", vertical="center"), b_style, row_fill
+        
+        for p_col in [5, 6, 7]:
+            c_plat = ws.cell(row=r, column=p_col, value="[ ✓ ] Validé")
+            c_plat.alignment, c_plat.border, c_plat.fill = Alignment(horizontal="center", vertical="center"), b_style, row_fill
+            c_plat.font = Font(name="Arial", size=9, bold=True, color="166534")
+            
+        c_rec = ws.cell(row=r, column=8, value="🥇 Médaille d'Or / Diplôme")
+        c_rec.alignment, c_rec.border, c_rec.fill = Alignment(horizontal="center", vertical="center"), b_style, fill_pastel
+        c_rec.font = Font(name="Arial", size=9, bold=True, color="92400E")
+        
+    max_len_nom = max([len(str(p.get('Nom', ''))) for p in liste_p] + [12])
+    max_len_club = max([len(str(p.get('Club', ''))) for p in liste_p if p.get('Club') and p.get('Club') != '-'] + [10])
+    
+    ws.column_dimensions['A'].width = 6
+    ws.column_dimensions['B'].width = max(max_len_nom + 4, 22)
+    ws.column_dimensions['C'].width = max(max_len_club + 4, 16)
+    ws.column_dimensions['D'].width = 10
+    ws.column_dimensions['E'].width = 24
+    ws.column_dimensions['F'].width = 24
+    ws.column_dimensions['G'].width = 24
+    ws.column_dimensions['H'].width = 24
+    
+    r_info = 4 + len(liste_p) + 2
+    ws.merge_cells(start_row=r_info, start_column=1, end_row=r_info, end_column=8)
+    c_info_h = ws.cell(row=r_info, column=1, value="ℹ️ DÉROULEMENT DES 3 PLATEAUX D'ACTIVITÉ U7")
+    c_info_h.fill, c_info_h.font, c_info_h.alignment = fill_amber, font_hdr, Alignment(horizontal="center", vertical="center")
+    
+    explications = [
+        ("🟡 Plateau 1 : Motricité & Agilité", "Parcours gymnique, franchissements, agilité, équilibre, réactivité motrice."),
+        ("🟢 Plateau 2 : Ateliers techniques", "Ateliers d'apprentissage technique, habiletés motrices et gestes de lutte adaptés."),
+        ("🔵 Plateau 3 : Oppositions", "Jeux de lutte et oppositions adaptées, combats éducatifs aménagés."),
+        ("🏅 Esprit FFLDA", "Chaque enfant passe successivement sur les 3 plateaux. Tous reçoivent un diplôme et une médaille !")
+    ]
+    for idx_e, (tit, desc) in enumerate(explications, start=1):
+        r_e = r_info + idx_e
+        ws.cell(row=r_e, column=1, value=tit).font = Font(name="Arial", size=9, bold=True, color="92400E")
+        ws.merge_cells(start_row=r_e, start_column=2, end_row=r_e, end_column=8)
+        ws.cell(row=r_e, column=2, value=desc).font = Font(name="Arial", size=9, italic=True)
+        
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.sheet_properties.pageSetUpPr.fitToPage = True
@@ -3721,10 +3897,42 @@ else:
             poules_u7, poules_u9, poules_u11, poules_u13 = [], [], [], []
             multiplicateur_poids = 1 + (tolerance_poids / 100.0)
             
-            # --- GÉNÉRATION U7, U9, U11 (Poules morphologiques à tolérance de poids) ---
-            for age in ['U7', 'U9', 'U11']:
+            # --- GÉNÉRATION SPÉCIFIQUE U7 : 3 GROUPES HOMOGÈNES EN PLATEAUX D'ACTIVITÉ ---
+            df_u7_total = df_inscr[df_inscr['Age'] == 'U7'].sort_values('Poids_Num')
+            if not df_u7_total.empty:
+                u7_all = df_u7_total.to_dict('records')
+                nb_lutteurs_u7 = len(u7_all)
+                # Exactement 3 groupes homogènes en effectif (ou moins si < 3 lutteurs au total)
+                nb_groupes_u7 = 3 if nb_lutteurs_u7 >= 3 else max(1, nb_lutteurs_u7)
+                
+                base_len = nb_lutteurs_u7 // nb_groupes_u7
+                reste = nb_lutteurs_u7 % nb_groupes_u7
+                start_i = 0
+                for g_i in range(nb_groupes_u7):
+                    taille = base_len + (1 if g_i < reste else 0)
+                    parts_g = u7_all[start_i : start_i + taille]
+                    start_i += taille
+                    
+                    p_min = parts_g[0]['Poids_Num']
+                    p_max = parts_g[-1]['Poids_Num']
+                    p_min_str = formater_poids_court(p_min)
+                    p_max_str = formater_poids_court(p_max)
+                    poids_range_str = f" ({p_min_str} - {p_max_str})" if p_min_str and p_max_str else ""
+                    
+                    nom_g = f"U7 | Plateau - Groupe {g_i + 1} ({len(parts_g)} lutteurs){poids_range_str}"
+                    poule_obj = {
+                        'nom': nom_g,
+                        'participants': parts_g,
+                        'rondes': [],  # Animation sous forme de plateaux (pas de combats éliminatoires)
+                        'type_formule': 'plateau_u7',
+                        'num_groupe': g_i + 1
+                    }
+                    poules_u7.append(poule_obj)
+
+            # --- GÉNÉRATION U9, U11 (Poules morphologiques à tolérance de poids) ---
+            for age in ['U9', 'U11']:
                 df_age = df_inscr[df_inscr['Age'] == age].sort_values('Poids_Num')
-                max_size = 4 if age in ['U7', 'U9'] else 5
+                max_size = 4 if age == 'U9' else 5
                 counter_gr = 1  # Numérotation continue des groupes pour la catégorie d'âge (ex: Poule 1 à 14)
                 
                 for (style_grp, niveau), groupe in df_age.groupby(['Style_Groupe', 'Niveau']):
@@ -3769,8 +3977,7 @@ else:
                         p_obj['type_formule'] = 'poule'
                         counter_gr += 1
                     
-                    if age == 'U7': poules_u7.extend(poules_groupe)
-                    elif age == 'U9': poules_u9.extend(poules_groupe)
+                    if age == 'U9': poules_u9.extend(poules_groupe)
                     else: poules_u11.extend(poules_groupe)
 
             # --- GÉNÉRATION U13 (Catégories de poids fixes : 30, 33, 36, 39, 42, 46, 50, 55, 60, +60 kg) ---
@@ -4141,9 +4348,60 @@ else:
 
                 return tapis_heure, planning
 
-            # PHASE 1a : Tous les U7
-            tapis_heure_u7, planning_u7 = ordonnancer_phase(poules_u7, dt_debut_u7, duree_u7, meme_tapis_poule)
-            fin_u7_globale = max(tapis_heure_u7) if poules_u7 else dt_debut_u7
+            # PHASE 1a : Tous les U7 (Format Plateaux d'Activité : 3 rotations de duree_plateau_u7 min)
+            planning_u7 = {t: [] for t in range(nb_tapis)}
+            tapis_heure_u7 = [dt_debut_u7 for _ in range(nb_tapis)]
+            
+            if poules_u7:
+                nb_rotations = 3
+                noms_plateaux = [
+                    "Plateau 1 : Motricité & Agilité",
+                    "Plateau 2 : Ateliers techniques",
+                    "Plateau 3 : Oppositions"
+                ]
+                
+                # Affectation tournante des 3 groupes sur les 3 plateaux d'activité
+                rot_affectations = [
+                    {0: 0, 1: 1, 2: 2},  # Rot 1: P1->G1, P2->G2, P3->G3
+                    {0: 2, 1: 0, 2: 1},  # Rot 2: P1->G3, P2->G1, P3->G2
+                    {0: 1, 1: 2, 2: 0}   # Rot 3: P1->G2, P2->G3, P3->G1
+                ]
+                
+                for r in range(nb_rotations):
+                    h_rot = dt_debut_u7 + timedelta(minutes=r * duree_plateau_u7)
+                    
+                    for t in range(nb_tapis):
+                        plat_idx = t % 3
+                        grp_idx = rot_affectations[r][plat_idx]
+                        
+                        grp_poule = poules_u7[grp_idx] if grp_idx < len(poules_u7) else poules_u7[0]
+                        grp_parts = grp_poule.get('participants', [])
+                        
+                        arb_nom = choisir_arbitre_match("", "", t)
+                        arb_disp = arb_nom if (arb_nom and arb_nom != "Non attribué") else "Animateur FFLDA"
+                        
+                        item_plateau = {
+                            "Type": "MATCH",
+                            "Heure": h_rot.strftime("%H:%M"),
+                            "Duree": duree_plateau_u7,
+                            "Cat": f"U7 | Plateau {plat_idx + 1}",
+                            "Combattant 1": f"Groupe {grp_idx + 1} ({len(grp_parts)} lutteurs)",
+                            "Club 1": "Tous clubs",
+                            "Comité 1": "",
+                            "Combattant 2": noms_plateaux[plat_idx],
+                            "Club 2": "",
+                            "Comité 2": "",
+                            "Tour": f"Rotation {r + 1}/3",
+                            "Nom_Tour": f"Rotation {r + 1} / 3",
+                            "Arbitre": arb_disp
+                        }
+                        planning_u7[t].append(item_plateau)
+                
+                fin_u7_globale = dt_debut_u7 + timedelta(minutes=3 * duree_plateau_u7)
+                for t in range(nb_tapis):
+                    tapis_heure_u7[t] = fin_u7_globale
+            else:
+                fin_u7_globale = dt_debut_u7
 
             # PHASE 1b : Tous les U9
             tapis_heure_u9, planning_u9 = ordonnancer_phase(poules_u9, fin_u7_globale, duree_u9, meme_tapis_poule)
@@ -4219,8 +4477,8 @@ else:
                 {"Étape de la journée": texte_pesee_1, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
             ]
             if poules_u7:
-                lignes_accueil.append({"Étape de la journée": "Compétition U7", "Horaire / Valeur": str_comp_u7})
-                lignes_accueil.append({"Étape de la journée": "Poules U7 générées", "Horaire / Valeur": f"{len(poules_u7)} poules"})
+                lignes_accueil.append({"Étape de la journée": "Animation U7 (3 Plateaux)", "Horaire / Valeur": str_comp_u7})
+                lignes_accueil.append({"Étape de la journée": "Groupes U7 (Plateaux)", "Horaire / Valeur": f"{len(poules_u7)} groupes"})
             lignes_accueil.extend([
                 {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
                 {"Étape de la journée": "Poules U9 générées", "Horaire / Valeur": f"{len(poules_u9)} poules"},
@@ -4306,8 +4564,25 @@ else:
                 sections_tournoi_complet.append((f"🥋 Grille de Passage & Scores - Tapis {t + 1}", pd.DataFrame(lignes_tapis_doc)))
 
             for nom_poule, liste_p in participants_par_poule.items():
-                df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
-                sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
+                p_obj = poule_obj_map.get(nom_poule)
+                if p_obj and p_obj.get('type_formule') == 'plateau_u7':
+                    df_poule_vue = pd.DataFrame([
+                        {
+                            "N°": idx,
+                            "Nom": p.get('Nom', ''),
+                            "Club": p.get('Club', ''),
+                            "Poids": formater_poids(p.get('Poids', '')),
+                            "Plateau 1 (Motricité & Agilité)": "[ ✓ ]",
+                            "Plateau 2 (Ateliers techniques)": "[ ✓ ]",
+                            "Plateau 3 (Oppositions)": "[ ✓ ]",
+                            "Validation": "🥇 Médaille d'Or"
+                        }
+                        for idx, p in enumerate(liste_p, 1)
+                    ])
+                    sections_tournoi_complet.append((f"🏅 Animation U7 (3 Plateaux) : {nom_poule}", df_poule_vue))
+                else:
+                    df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                    sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
                 
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
             pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
@@ -4328,7 +4603,9 @@ else:
             st.markdown("---")
 
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
-            noms_onglets = ["📊 Résumé & Stats", "📅 Grille Globale", "🛡️ Équipes d'Arbitrage"] + [f"🥋 Grille Tapis {t + 1}" for t in range(nb_tapis)] + [f"Groupe : {p[:18]}" for p in participants_par_poule.keys()]
+            noms_onglets = ["📊 Résumé & Stats", "📅 Grille Globale", "🛡️ Équipes d'Arbitrage"] + [f"🥋 Grille Tapis {t + 1}" for t in range(nb_tapis)] + [
+                f"🏅 {p[:18]}" if 'plateau' in p.lower() else f"Groupe : {p[:18]}" for p in participants_par_poule.keys()
+            ]
             onglets_ui = st.tabs(noms_onglets)
             
             with onglets_ui[0]:
@@ -4338,7 +4615,7 @@ else:
                 col_m1, col_m2, col_m3, col_m4, col_m5, col_m6, col_m7, col_m8 = st.columns(8)
                 col_m1.metric("Participants (pesés)", total_participants_peses)
                 col_m2.metric("Absents / Non pesés", total_non_peses)
-                col_m3.metric("Poules U7", len(poules_u7))
+                col_m3.metric("Groupes U7 (Plateaux)", len(poules_u7))
                 col_m4.metric("Poules U9", len(poules_u9))
                 col_m5.metric("Poules U11", len(poules_u11))
                 col_m6.metric("Groupes U13", len(poules_u13))
@@ -4445,40 +4722,62 @@ else:
             start_idx_poules = 3 + nb_tapis
             for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=start_idx_poules):
                 with onglets_ui[idx]:
-                    st.subheader(f"Feuille : {nom_poule}")
-                    df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
-                    st.table(df_poule_vue)
-
                     p_obj = poule_obj_map.get(nom_poule)
-                    if p_obj and p_obj.get('type_formule') == 'poules_croisees':
-                        st.markdown("##### 🥋 Répartition en 2 Poules de 3 :")
-                        c_pa, c_pb = st.columns(2)
-                        with c_pa:
-                            st.markdown("**Poule A**")
-                            st.table(pd.DataFrame(p_obj['poule_a'])[['Nom', 'Club', 'Poids']])
-                        with c_pb:
-                            st.markdown("**Poule B**")
-                            st.table(pd.DataFrame(p_obj['poule_b'])[['Nom', 'Club', 'Poids']])
-                        
-                        st.markdown("##### 🤼 Tableau Visuel de la Phase Finale (Gauche ➔ Droite) :")
-                        bracket_html = generer_arbre_tableau_html(p_obj)
-                        st.markdown(bracket_html, unsafe_allow_html=True)
-                        doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
+                    if p_obj and p_obj.get('type_formule') == 'plateau_u7':
+                        st.subheader(f"🏅 Animation U7 : {nom_poule}")
+                        st.info("Formule officielle FFLDA : Découverte pédagogique sous forme de 3 plateaux d'activités avec rotation (Motricité, Opposition au sol, Lutte debout). Tous les enfants sont récompensés !")
+                        df_u7_tab = pd.DataFrame([
+                            {
+                                "N°": idx_p,
+                                "Nom Prénom": p.get('Nom', ''),
+                                "Club": p.get('Club', ''),
+                                "Poids": formater_poids(p.get('Poids', '')),
+                                "Plateau 1 : Motricité & Agilité": "✓ Validé",
+                                "Plateau 2 : Ateliers techniques": "✓ Validé",
+                                "Plateau 3 : Oppositions": "✓ Validé",
+                                "Récompense": "🥇 Médaille d'Or"
+                            }
+                            for idx_p, p in enumerate(liste_p, 1)
+                        ])
+                        st.table(df_u7_tab)
+                        doc_print_u7 = generer_document_plateau_u7_imprimable(nom_poule, nom_competition, liste_p)
                         nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                        bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
+                        bouton_imprimer(doc_print_u7, filename=f"Plateau_U7_{nom_safe}.html", label="🖨️ Imprimer la Fiche Plateau U7 (A4 Paysage)", key=f"btn_print_u7_{idx}")
 
-                    elif p_obj and p_obj.get('type_formule') == 'tableau':
-                        st.markdown("##### 🤼 Tableau Visuel Officiel FFLDA (Gauche ➔ Droite) :")
-                        bracket_html = generer_arbre_tableau_html(p_obj)
-                        st.markdown(bracket_html, unsafe_allow_html=True)
-                        doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
-                        nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                        bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
                     else:
-                        st.markdown("##### 🥋 Combats & Fiche Imprimable :")
-                        doc_print_poule = generer_document_poule_imprimable(nom_poule, nom_competition, liste_p, rondes_par_categorie.get(nom_poule, []))
-                        nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                        bouton_imprimer(doc_print_poule, filename=f"Poule_{nom_safe}.html", label="🖨️ Imprimer cette Poule (A4 Paysage)", key=f"btn_print_poule_{idx}")
+                        st.subheader(f"Feuille : {nom_poule}")
+                        df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
+                        st.table(df_poule_vue)
+
+                        if p_obj and p_obj.get('type_formule') == 'poules_croisees':
+                            st.markdown("##### 🥋 Répartition en 2 Poules de 3 :")
+                            c_pa, c_pb = st.columns(2)
+                            with c_pa:
+                                st.markdown("**Poule A**")
+                                st.table(pd.DataFrame(p_obj['poule_a'])[['Nom', 'Club', 'Poids']])
+                            with c_pb:
+                                st.markdown("**Poule B**")
+                                st.table(pd.DataFrame(p_obj['poule_b'])[['Nom', 'Club', 'Poids']])
+                            
+                            st.markdown("##### 🤼 Tableau Visuel de la Phase Finale (Gauche ➔ Droite) :")
+                            bracket_html = generer_arbre_tableau_html(p_obj)
+                            st.markdown(bracket_html, unsafe_allow_html=True)
+                            doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
+                            nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
+                            bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
+
+                        elif p_obj and p_obj.get('type_formule') == 'tableau':
+                            st.markdown("##### 🤼 Tableau Visuel Officiel FFLDA (Gauche ➔ Droite) :")
+                            bracket_html = generer_arbre_tableau_html(p_obj)
+                            st.markdown(bracket_html, unsafe_allow_html=True)
+                            doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
+                            nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
+                            bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
+                        else:
+                            st.markdown("##### 🥋 Combats & Fiche Imprimable :")
+                            doc_print_poule = generer_document_poule_imprimable(nom_poule, nom_competition, liste_p, rondes_par_categorie.get(nom_poule, []))
+                            nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
+                            bouton_imprimer(doc_print_poule, filename=f"Poule_{nom_safe}.html", label="🖨️ Imprimer cette Poule (A4 Paysage)", key=f"btn_print_poule_{idx}")
 
             st.markdown("---")
             
@@ -4491,8 +4790,8 @@ else:
                     {"Étape de la journée": texte_pesee_1, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
                 ]
                 if poules_u7:
-                    resume_data.append({"Étape de la journée": "Compétition U7", "Horaire / Valeur": str_comp_u7})
-                    resume_data.append({"Étape de la journée": "Poules U7 générées", "Horaire / Valeur": f"{len(poules_u7)} poules"})
+                    resume_data.append({"Étape de la journée": "Animation U7 (3 Plateaux)", "Horaire / Valeur": str_comp_u7})
+                    resume_data.append({"Étape de la journée": "Groupes U7 (Plateaux)", "Horaire / Valeur": f"{len(poules_u7)} groupes"})
                 resume_data.extend([
                     {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
                     {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
@@ -4879,6 +5178,8 @@ else:
                         construire_feuille_tableau_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
                     elif p_obj and p_obj.get('type_formule') == 'poules_croisees':
                         construire_feuille_poules_croisees_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
+                    elif p_obj and p_obj.get('type_formule') == 'plateau_u7':
+                        construire_feuille_plateau_u7_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition)
                     else:
                         construire_feuille_poule_nordique_excel(ws_poule, nom_poule, liste_p, rondes_par_categorie.get(nom_poule, []), coords_matchs_tapis, nom_competition)
 
