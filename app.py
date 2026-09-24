@@ -40,7 +40,7 @@ with st.sidebar:
         duree_pause = st.selectbox("Durée de la pause (min)", [30, 45, 60, 75, 90], index=2) if activer_pause else 0
     
     with st.expander("🤼 3. Règles Sportives & Temps", expanded=False):
-        mixte_active = st.checkbox("Catégories Mixtes (U7/U9/U11/U13 ensemble)", value=True)
+        mixte_active = st.checkbox("Catégories Mixtes (U7, U9, U11 uniquement)", value=True, help="Conformément à la réglementation officielle FFLDA, la mixité n'existe plus en U13 : les catégories Féminine (LF), Libre (LL) et Gréco (LG) sont toujours strictement séparées.")
         poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
         separer_clubs = st.checkbox("Éviter les lutteurs d'un même club dans la même poule (dans la mesure du possible)", value=True)
         eviter_arbitre_meme_club = st.checkbox("Éviter les matchs entre arbitres et lutteurs du même club", value=True)
@@ -3276,6 +3276,17 @@ else:
             if "Maîtrise" not in df_raw.columns:
                 df_raw["Maîtrise"] = ""
 
+            sexe_col_found = None
+            for col_name in df_raw.columns:
+                col_str = str(col_name).strip().lower()
+                if any(k in col_str for k in ["sexe", "genre", "civilité", "civilite", "m/f"]):
+                    sexe_col_found = col_name
+                    break
+            if sexe_col_found:
+                df_raw = df_raw.rename(columns={sexe_col_found: "Sexe"})
+            if "Sexe" not in df_raw.columns:
+                df_raw["Sexe"] = ""
+
             if "Prénom" in df_raw.columns and "Nom" in df_raw.columns:
                 df_raw["Nom"] = df_raw["Nom"].astype(str) + " " + df_raw["Prénom"].astype(str)
 
@@ -3340,43 +3351,89 @@ else:
                 st.info("💡 *Remarque : Tous les lutteurs enregistrés dans le fichier de base doivent posséder un numéro de licence valide avant de générer la compétition.*")
                 st.stop()
 
-            # --- DÉTECTION ET VALIDATION DU STYLE "JEUNE" ---
+            # Fonctions utilitaires d'identification du Sexe et du Style
+            def est_sexe_feminin(val):
+                v = str(val).strip().upper()
+                if not v or v in ['NAN', 'NONE', '']: return False
+                return v in ['F', 'FEMME', 'FILLE', 'FEMININ', 'FÉMININ', 'FEM', 'WOMAN', 'GIRL'] or v.startswith('FÉM') or v.startswith('FEM')
+
+            def est_sexe_masculin(val):
+                v = str(val).strip().upper()
+                if not v or v in ['NAN', 'NONE', '']: return False
+                return v in ['M', 'H', 'HOMME', 'GARCON', 'GARÇON', 'MASCULIN', 'MASC', 'MAN', 'BOY'] or v.startswith('MASC') or v.startswith('HOM')
+
+            def est_style_greco(val):
+                s = str(val).strip().upper()
+                if not s or s in ['NAN', 'NONE', '']: return False
+                return any(k in s for k in ['LG', 'GR', 'GRECO', 'GRÉCO', 'ROMAIN']) or s == 'G'
+
+            # --- VALIDATION : INCOMPATIBILITÉ SEXE FÉMININ & LUTTE GRÉCO-ROMAINE (LG/GR) ---
+            erreurs_sexe_greco = []
+            for _, row_test in df_inscr_total.iterrows():
+                nom_lutteur = str(row_test.get('Nom', 'Lutteur Inconnu')).strip()
+                if not nom_lutteur or nom_lutteur.lower() in ['nan', 'nan nan', 'none', '']:
+                    continue
+                
+                sexe_val = row_test.get('Sexe', '')
+                style_val = row_test.get('Style', '')
+                
+                if est_sexe_feminin(sexe_val) and est_style_greco(style_val):
+                    club_lutteur = str(row_test.get('Club', '')).strip()
+                    club_txt = f" ({club_lutteur})" if club_lutteur and club_lutteur.lower() not in ['nan', 'none', '-'] else ""
+                    erreurs_sexe_greco.append(f"• **{nom_lutteur}**{club_txt} est de sexe féminin et ne peut pas être référencé en LG.")
+
+            if erreurs_sexe_greco:
+                st.error("❌ **Erreur d'importation dans le fichier :**\n\n" + "\n".join(erreurs_sexe_greco))
+                st.info("💡 *Remarque : La lutte gréco-romaine (LG / GR) ne s'applique pas aux féminines. Une lutteuse de sexe féminin est automatiquement orientée en LF et ne peut pas être inscrite en LG.*")
+                st.stop()
+
+            # --- DÉTECTION ET VALIDATION DU STYLE "JEUNE" SANS SEXE IDENTIFIÉ ---
             erreurs_jeune = []
             for _, row_test in df_inscr_total.iterrows():
                 val_style_raw = str(row_test.get('Style', '')).strip().lower()
                 poids_val = row_test['Poids_Num']
                 nom_lutteur = row_test.get('Nom', 'Lutteur Inconnu')
                 club_lutteur = row_test.get('Club', '')
+                sexe_val = row_test.get('Sexe', '')
                 
-                if val_style_raw == 'jeune':
+                # Si le style est "jeune" mais qu'aucun sexe (F ou M) n'est présent pour déduire LF ou LL
+                if val_style_raw == 'jeune' and not (est_sexe_feminin(sexe_val) or est_sexe_masculin(sexe_val)):
                     if poids_val > 0:
-                        erreurs_jeune.append(f"• **{nom_lutteur}** ({club_lutteur}) : Poids renseigné (**{poids_val} kg**) avec le style '**jeune**'. Le style doit être corrigé en LL, LF, GR ou LG.")
+                        club_txt = f" ({club_lutteur})" if club_lutteur and str(club_lutteur).lower() not in ['nan', 'none', '-'] else ""
+                        erreurs_jeune.append(f"• **{nom_lutteur}**{club_txt} : Poids renseigné (**{poids_val} kg**) avec le style '**jeune**' sans colonne Sexe renseignée. Veuillez renseigner le sexe (M/F) ou le style (LL/LF/LG).")
 
             if erreurs_jeune:
                 st.error("❌ **Erreur d'importation dans le fichier :**\n\n" + "\n".join(erreurs_jeune))
-                st.info("💡 *Remarque : Le style 'jeune' ne peut pas être associé à un poids validé. Veuillez corriger les styles dans votre fichier Excel (LL, LF, GR ou LG) avant de réimporter.*")
+                st.info("💡 *Remarque : Le style 'jeune' nécessite d'indiquer le sexe dans la colonne Sexe/Genre (M ou F) pour orienter automatiquement le lutteur en LL ou LF, ou de corriger directement le style en LL, LF ou LG.*")
                 st.stop()
 
-            # Normalisation des styles (LL, LF, LG / GR) et exclusion des "jeune" sans poids
+            # RÈGLES DE NORMALISATION DES STYLES :
+            # 1. Le sexe féminin est TOUJOURS identifié LF peu importe ce qu'il y a marqué dans la colonne style
+            # 2. Le sexe masculin est orienté LL automatiquement peu importe ce qu'il y a marqué dans la colonne style, à part si marqué LG, GR ou gréco
+            # 3. Si sexe non renseigné : repli sur la colonne style
             def normaliser_style(row_p):
-                st_str = str(row_p.get('Style', '')).strip().upper()
-                sexe_str = str(row_p.get('Sexe', '')).strip().upper()
-                if any(k in st_str for k in ['LG', 'GR', 'GRECO', 'GRÉCO', 'ROMAIN']) or st_str == 'G':
-                    return 'LG'
-                elif any(k in st_str for k in ['LF', 'FEM', 'FÉM', 'FILLE']) or st_str == 'F' or sexe_str in ['F', 'FEMME', 'FILLE']:
+                sexe_val = row_p.get('Sexe', '')
+                style_val = row_p.get('Style', '')
+                
+                if est_sexe_feminin(sexe_val):
                     return 'LF'
-                elif any(k in st_str for k in ['LL', 'LIBRE', 'GARCON', 'GARÇON']) or st_str in ['M', 'H'] or sexe_str in ['M', 'H', 'GARCON', 'GARÇON']:
+                
+                if est_sexe_masculin(sexe_val):
+                    if est_style_greco(style_val):
+                        return 'LG'
                     return 'LL'
-                else:
-                    return 'LL'
+                    
+                if est_style_greco(style_val):
+                    return 'LG'
+                st_upper = str(style_val).strip().upper()
+                if any(k in st_upper for k in ['LF', 'FEM', 'FÉM', 'FILLE']) or st_upper == 'F':
+                    return 'LF'
+                return 'LL'
 
             df_inscr_total['Style_Norm'] = df_inscr_total.apply(normaliser_style, axis=1)
 
-            # Exclure les "jeune" sans poids (ou poids=0) et ne conserver que les pesés avec style valide
-            df_inscr = df_inscr_total[
-                (df_inscr_total['Poids_Num'] > 0) & 
-                (df_inscr_total['Style'].astype(str).str.strip().str.lower() != 'jeune')
-            ].copy()
+            # Conserver tous les participants pesés (Poids_Num > 0)
+            df_inscr = df_inscr_total[df_inscr_total['Poids_Num'] > 0].copy()
 
             total_participants_peses = len(df_inscr)
             total_non_peses = total_inscrits_global - total_participants_peses
@@ -3385,21 +3442,36 @@ else:
                 st.error("❌ Aucun lutteur U7, U9, U11 ou U13 avec un poids valide et un style de compétition n'a été trouvé dans le fichier.")
                 st.stop()
             
-            # Définition des groupes de styles selon le réglage de mixité
-            def attribuer_style_groupe(style_norm):
+            # Définition des groupes de styles selon le réglage de mixité (mixité interdite en U13 selon le règlement officiel FFLDA)
+            def attribuer_style_groupe(row_p):
+                style_norm = row_p['Style_Norm']
+                age = str(row_p.get('Age', '')).strip().upper()
+                
+                # RÈGLEMENT FFLDA : En U13, il n'existe plus de catégorie mixte !
+                # Filles et garçons sont obligatoirement séparés : LF (Féminine), LL (Libre) ou LG (Gréco)
+                if age == 'U13':
+                    if style_norm == 'LG':
+                        return 'LG (Gréco)'
+                    elif style_norm == 'LF':
+                        return 'LF (Féminine)'
+                    else:
+                        return 'LL (Libre)'
+
+                # Pour U7, U9, U11 : la mixité dépend du réglage mixte_active
                 if mixte_active:
-                    # En mode mixte : LL et LF sont regroupés ensemble, mais LG reste strict séparé !
                     if style_norm == 'LG':
                         return 'LG (Gréco)'
                     else:
                         return 'Mixte (LL/LF)'
                 else:
-                    # Sans mixité : LL, LF et LG sont tous séparés
-                    if style_norm == 'LG': return 'LG (Gréco)'
-                    elif style_norm == 'LF': return 'LF (Féminine)'
-                    else: return 'LL (Libre)'
+                    if style_norm == 'LG':
+                        return 'LG (Gréco)'
+                    elif style_norm == 'LF':
+                        return 'LF (Féminine)'
+                    else:
+                        return 'LL (Libre)'
 
-            df_inscr['Style_Groupe'] = df_inscr['Style_Norm'].apply(attribuer_style_groupe)
+            df_inscr['Style_Groupe'] = df_inscr.apply(attribuer_style_groupe, axis=1)
             
             poules_u7, poules_u9, poules_u11, poules_u13 = [], [], [], []
             multiplicateur_poids = 1 + (tolerance_poids / 100.0)
