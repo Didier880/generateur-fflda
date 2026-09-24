@@ -2989,6 +2989,7 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
             col_w = page_width / nb_cols if nb_cols > 0 else page_width
             col_widths = [col_w] * nb_cols
             
+            table_obj = Table(data, colWidths=col_widths, repeatRows=1)
             t_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0055A4')),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -3012,8 +3013,8 @@ def generer_pdf_tournoi_complet(titre, nom_comp, sections):
                                 t_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor(hex_col)))
             else:
                 t_styles.append(('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]))
-            t.setStyle(TableStyle(t_styles))
-            story.append(KeepTogether(t))
+            table_obj.setStyle(TableStyle(t_styles))
+            story.append(KeepTogether(table_obj))
         else:
             story.append(Paragraph(str(content), cell_body_style))
 
