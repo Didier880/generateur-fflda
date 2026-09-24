@@ -3302,6 +3302,177 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
 </html>"""
     return html_doc
 
+# --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS DEPUIS LE CLASSEUR EXCEL OFFICIEL (A4 PAYSAGE) ---
+def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tournoi FFLDA"):
+    """
+    Génère un fichier PDF vectoriel A4 Paysage à partir des feuilles du classeur Excel officiel FFLDA (openpyxl).
+    Chaque feuille Excel (Poule nordique, Tableau éliminatoire, Poules croisées, Plateaux U7,
+    Grille de Tapis, Planning) est fidèlement convertie en page(s) PDF avec :
+    - La disposition exacte des cellules et fusions (SPAN)
+    - Les largeurs de colonnes proportionnelles
+    - Les couleurs de fond (en-têtes bleus FFLDA, coins rouge/bleu, catégories d'âge, zébrures)
+    - Les bordures de cellules
+    - Les styles de police (gras, tailles, alignements, texte blanc sur fond sombre)
+    - Le nettoyage des formules de pointage pour afficher les libellés de combat
+    """
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, PageBreak
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    if hasattr(workbook_or_sheets, 'worksheets'):
+        sheets = list(workbook_or_sheets.worksheets)
+    elif isinstance(workbook_or_sheets, list):
+        sheets = list(workbook_or_sheets)
+    else:
+        sheets = [workbook_or_sheets]
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=landscape(A4), 
+        rightMargin=12, 
+        leftMargin=12, 
+        topMargin=12, 
+        bottomMargin=12
+    )
+    styles = getSampleStyleSheet()
+    page_width = landscape(A4)[0] - 24   # 817.89 pt
+    page_height = landscape(A4)[1] - 24  # 571.27 pt
+
+    def get_hex(openpyxl_color, default=None):
+        if not openpyxl_color:
+            return default
+        rgb = getattr(openpyxl_color, 'rgb', None)
+        if not rgb:
+            return default
+        rgb_s = str(rgb)
+        if len(rgb_s) == 8:
+            return '#' + rgb_s[2:]
+        elif len(rgb_s) == 6:
+            return '#' + rgb_s
+        return default
+
+    def clean_val(val):
+        if val is None:
+            return ""
+        s = str(val).strip()
+        if s.startswith('='):
+            quoted = re.findall(r'"([^"]*)"', s)
+            if quoted:
+                for q in quoted:
+                    if any(k in q for k in ['🔴', '🔵', 'Vainqueur', 'Perdant', 'Qualifié', 'Repêché', '🥇', '🥈', '🥉', 'CHAMPION']):
+                        return q
+                for q in quoted:
+                    if q.strip() and q not in ["En attente", " "]:
+                        return q
+            return ""
+        return s
+
+    story = []
+    
+    for sheet_idx, ws in enumerate(sheets):
+        max_r = ws.max_row
+        max_c = ws.max_column
+        if max_r < 1 or max_c < 1:
+            continue
+            
+        while max_r > 1 and all(ws.cell(row=max_r, column=c).value in [None, ''] for c in range(1, max_c + 1)):
+            max_r -= 1
+        while max_c > 1 and all(ws.cell(row=r, column=max_c).value in [None, ''] for r in range(1, max_r + 1)):
+            max_c -= 1
+            
+        if max_r < 1 or max_c < 1:
+            continue
+
+        if sheet_idx > 0:
+            story.append(PageBreak())
+
+        col_widths = []
+        for c in range(1, max_c + 1):
+            col_letter = openpyxl.utils.get_column_letter(c)
+            w = ws.column_dimensions[col_letter].width if col_letter in ws.column_dimensions else None
+            col_widths.append(float(w) if w and float(w) > 0 else 10.0)
+            
+        total_w = sum(col_widths)
+        scale = page_width / total_w if total_w > 0 else 1.0
+        scaled_widths = [cw * scale for cw in col_widths]
+
+        data = []
+        t_styles = [
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
+        ]
+
+        base_scale = 0.60 if max_c > 15 else 0.70
+
+        for r in range(1, max_r + 1):
+            row_cells = []
+            for c in range(1, max_c + 1):
+                cell = ws.cell(row=r, column=c)
+                raw = cell.value
+                txt = clean_val(raw)
+                
+                font = cell.font
+                is_bold = bool(font.bold) if font else False
+                orig_f_size = font.size if font and font.size else 10
+                f_size = max(5, min(int(orig_f_size * base_scale), 12))
+                
+                f_color = get_hex(getattr(font, 'color', None), default='#1E293B')
+                if not f_color or f_color in ['#00000000', '#000000']:
+                    f_color = '#1E293B'
+                    
+                align_obj = cell.alignment
+                h_align = getattr(align_obj, 'horizontal', 'center') or 'center'
+                align_code = 1 # Center
+                if h_align == 'left': align_code = 0
+                elif h_align == 'right': align_code = 2
+                
+                bg_hex = get_hex(getattr(cell.fill, 'fgColor', None))
+                if bg_hex:
+                    t_styles.append(('BACKGROUND', (c - 1, r - 1), (c - 1, r - 1), colors.HexColor(bg_hex)))
+                    if bg_hex.upper() in ['#0055A4', '#EF4135', '#E53935', '#000000', '#334155', '#475569', '#1E88E5']:
+                        f_color = '#FFFFFF'
+                    
+                b = cell.border
+                if b and (getattr(b.left, 'style', None) or getattr(b.top, 'style', None) or getattr(b.right, 'style', None) or getattr(b.bottom, 'style', None)):
+                    b_col = get_hex(getattr(b.top, 'color', None), default='#CBD5E1')
+                    t_styles.append(('BOX', (c - 1, r - 1), (c - 1, r - 1), 0.5, colors.HexColor(b_col)))
+                    
+                p_style = ParagraphStyle(
+                    f'S_{sheet_idx}_{r}_{c}',
+                    parent=styles['Normal'],
+                    fontName='Helvetica-Bold' if is_bold else 'Helvetica',
+                    fontSize=f_size,
+                    leading=f_size + 2,
+                    textColor=colors.HexColor(f_color),
+                    alignment=align_code
+                )
+                
+                txt_safe = txt.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br/>')
+                p = Paragraph(txt_safe, p_style) if txt_safe else Paragraph("&nbsp;", p_style)
+                row_cells.append(p)
+            data.append(row_cells)
+
+        for m_range in ws.merged_cells.ranges:
+            min_col, min_row, max_col_r, max_row_r = m_range.min_col, m_range.min_row, m_range.max_col, m_range.max_row
+            if min_row <= max_r and min_col <= max_c:
+                end_c = min(max_col_r, max_c)
+                end_r = min(max_row_r, max_r)
+                if end_c > min_col or end_r > min_row:
+                    t_styles.append(('SPAN', (min_col - 1, min_row - 1), (end_c - 1, end_r - 1)))
+                
+        rep_rows = 2 if "tapis" in ws.title.lower() or "passage" in ws.title.lower() else 0
+        table = Table(data, colWidths=scaled_widths, repeatRows=rep_rows)
+        table.setStyle(TableStyle(t_styles))
+        story.append(table)
+
+    doc.build(story)
+    return buffer.getvalue()
+
 # --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS (REPORTLAB - A4 PAYSAGE - 1 PAGE PAR ONGLET) ---
 def generer_pdf_tournoi_complet(titre, nom_comp, sections):
     """
@@ -4865,21 +5036,313 @@ else:
                     df_poule_vue = pd.DataFrame(liste_p)[['Nom', 'Club', 'Poids']]
                     sections_tournoi_complet.append((f"🤼 Feuille de Poule : {nom_poule}", df_poule_vue))
                 
-            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
-            pdf_bytes_tournoi_complet = generer_pdf_tournoi_complet("Dossier Officiel du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+            # --- GÉNÉRATION DU CLASSEUR EXCEL OFFICIEL FFLDA ---
+            output_excel = io.BytesIO()
+            coords_matchs_tapis = {}
+            tapis_slots_map = {}
+            poule_sheet_names = {}
 
-            st.markdown("### 📄 Impression & Exportations PDF (1 Page par Onglet / Section)")
-            col_pdf_top, col_html_top = st.columns([1, 1])
+            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                writer.book.calculation.fullCalcOnLoad = True
+                
+                resume_data = [
+                    {"Étape de la journée": texte_pesee_1, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
+                ]
+                if poules_u7:
+                    resume_data.append({"Étape de la journée": "Animation U7 (3 Plateaux)", "Horaire / Valeur": str_comp_u7})
+                    resume_data.append({"Étape de la journée": "Groupes U7 (Plateaux)", "Horaire / Valeur": f"{len(poules_u7)} groupes"})
+                resume_data.extend([
+                    {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
+                    {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
+                ])
+                if "2" in type_pesee and dt_pesee_2:
+                    resume_data.append({"Étape de la journée": "2ème pesée (U11/U13)", "Horaire / Valeur": dt_pesee_2.strftime('%H:%M')})
+                
+                resume_data.extend([
+                    {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
+                ])
+                if poules_u13:
+                    resume_data.append({"Étape de la journée": "Compétition U13", "Horaire / Valeur": str_comp_u13})
+                resume_data.append({"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')})
+                pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
+                
+                max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
+                grille = []
+                for row_idx in range(max_lignes):
+                    ligne = {}
+                    for t in range(nb_tapis):
+                        col = f"Tapis {t + 1}"
+                        if row_idx < len(planning_tapis[t]):
+                            m = planning_tapis[t][row_idx]
+                            if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
+                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
+                            elif m["Type"] == "VIDE": ligne[col] = ""
+                            else:
+                                arb_str = f"\n🛡️ Arbitre : {m['Arbitre']}" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
+                                t_nom = m.get('Nom_Tour') or (f"Tour {m['Tour']}" if m.get('Tour') else "")
+                                tour_str = f"\n🎯 Tour : {t_nom}" if t_nom else ""
+                                ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]{tour_str}\n{m['Combattant 1']} VS {m['Combattant 2']}{arb_str}"
+                        else: ligne[col] = ""
+                    grille.append(ligne)
+                pd.DataFrame(grille).to_excel(writer, sheet_name="Grille de Passage", index=False, startrow=1)
+                
+                b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+                bleu = PatternFill("solid", fgColor="0055A4")
+                rouge = PatternFill("solid", fgColor="EF4135")
+                bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
+                rouge_lutte = PatternFill("solid", fgColor="E53935") 
+                bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
+                gris_clair = PatternFill("solid", fgColor="F2F2F2")
+                entete_noir = PatternFill("solid", fgColor="000000")
+
+                for t in range(nb_tapis):
+                    ws_mat = writer.book.create_sheet(f"Grille Tapis {t + 1}")
+                    ws_mat.views.sheetView[0].showGridLines = True
+                    ws_mat.page_setup.orientation = ws_mat.ORIENTATION_LANDSCAPE
+                    ws_mat.page_setup.paperSize = ws_mat.PAPERSIZE_A4
+                    ws_mat.sheet_properties.pageSetUpPr.fitToPage = True
+                    ws_mat.page_setup.fitToWidth = 1
+                    ws_mat.page_setup.fitToHeight = 0
+                    
+                    ws_mat.row_dimensions[1].height = 35
+                    ws_mat.merge_cells(start_row=1, start_column=1, end_row=1, end_column=9)
+                    titre_mat = ws_mat.cell(row=1, column=1, value=f"🏆 {nom_competition.upper()} - GRILLE DE PASSAGE : TAPIS {t + 1} 🏆")
+                    titre_mat.font = Font(name="Arial", size=16, bold=True, color="FFFFFF")
+                    titre_mat.fill = bleu
+                    titre_mat.alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if (liste_arbitres and tapis_arbitres[t]) else "Aucun arbitre affecté"
+                    ws_mat.row_dimensions[2].height = 22
+                    ws_mat.merge_cells(start_row=2, start_column=1, end_row=2, end_column=9)
+                    sub_mat = ws_mat.cell(row=2, column=1, value=f"🛡️ Arbitrage : {noms_arb}  |  * Annotations des scores sous chaque match (Pt Clt, Actions, Total Score)")
+                    sub_mat.font = Font(name="Arial", size=10, italic=True, bold=True, color="0055A4")
+                    sub_mat.alignment = Alignment(horizontal="center", vertical="center")
+
+                    matches_on_tapis = [it for it in planning_tapis[t] if it.get("Type") == "MATCH"]
+                    max_nom_t = max([len(str(it.get('Lutteur1', ''))) for it in matches_on_tapis] + [len(str(it.get('Lutteur2', ''))) for it in matches_on_tapis] + [15])
+                    max_club_t = max([len(str(it.get('Club1', ''))) for it in matches_on_tapis] + [len(str(it.get('Club2', ''))) for it in matches_on_tapis] + [12])
+                    w_nom_t = max(max_nom_t + 4, 25)
+                    w_club_t = max(max_club_t + 4, 18)
+
+                    ws_mat.column_dimensions['A'].width = 16
+                    ws_mat.column_dimensions['B'].width = 6
+                    ws_mat.column_dimensions['C'].width = w_nom_t
+                    ws_mat.column_dimensions['D'].width = w_club_t
+                    ws_mat.column_dimensions['E'].width = 10
+                    ws_mat.column_dimensions['F'].width = 5
+                    ws_mat.column_dimensions['G'].width = w_nom_t
+                    ws_mat.column_dimensions['H'].width = w_club_t
+                    ws_mat.column_dimensions['I'].width = 10
+
+                    ws_mat.row_dimensions[3].height = 25
+                    headers_mat = ["HEURE", "N°", "LUTTEUR (ROUGE)", "CLUB", "POINTS", "VS", "LUTTEUR (BLEU)", "CLUB", "POINTS"]
+                    for col_idx, h in enumerate(headers_mat, 1):
+                        c = ws_mat.cell(row=3, column=col_idx, value=h)
+                        c.font, c.border = Font(name="Arial", size=10, bold=True, color="FFFFFF"), b_style
+                        if col_idx in [3, 4, 5]: c.fill = rouge
+                        elif col_idx in [7, 8, 9]: c.fill = bleu
+                        else: c.fill = entete_noir
+                        c.alignment = Alignment(horizontal="center", vertical="center")
+
+                    m_count = 0
+                    current_row = 4
+                    for item in planning_tapis[t]:
+                        if item["Type"] == "PAUSE":
+                            ws_mat.row_dimensions[current_row].height = 22
+                            ws_mat.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=9)
+                            c_p = ws_mat.cell(row=current_row, column=1, value=f"⏸️ [{item['Heure']}] PAUSE DE LA COMPÉTITION")
+                            c_p.font, c_p.fill, c_p.alignment = Font(name="Arial", size=11, bold=True, color="FFFFFF"), rouge, Alignment(horizontal="center", vertical="center")
+                            for k in range(1, 10): ws_mat.cell(row=current_row, column=k).border = b_style
+                            current_row += 1
+                        elif item["Type"] == "ATTENTE":
+                            ws_mat.row_dimensions[current_row].height = 18
+                            ws_mat.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=9)
+                            c_a = ws_mat.cell(row=current_row, column=1, value=f"⏳ [{item['Heure']}] {item['Texte']}")
+                            c_a.font, c_a.fill, c_a.alignment = Font(name="Arial", size=9, italic=True, color="333333"), gris_clair, Alignment(horizontal="center", vertical="center")
+                            for k in range(1, 10): ws_mat.cell(row=current_row, column=k).border = b_style
+                            current_row += 1
+                        elif item["Type"] == "MATCH":
+                            m_count += 1
+                            r_m = current_row
+                            r_c = current_row + 1
+                            ws_mat.row_dimensions[r_m].height = 20
+                            ws_mat.row_dimensions[r_c].height = 16
+
+                            ws_mat.merge_cells(start_row=r_m, start_column=1, end_row=r_c, end_column=1)
+                            c_h = ws_mat.cell(row=r_m, column=1, value=item["Heure"])
+                            c_h.font, c_h.border, c_h.alignment = Font(name="Arial", size=10, bold=True), b_style, Alignment(horizontal="center", vertical="center")
+                            ws_mat.cell(row=r_c, column=1).border = b_style
+
+                            ws_mat.merge_cells(start_row=r_m, start_column=2, end_row=r_c, end_column=2)
+                            c_num = ws_mat.cell(row=r_m, column=2, value=f"M{m_count}")
+                            c_num.font, c_num.border, c_num.alignment = Font(name="Arial", size=10, bold=True), b_style, Alignment(horizontal="center", vertical="center")
+                            ws_mat.cell(row=r_c, column=2).border = b_style
+
+                            c_r_nom = ws_mat.cell(row=r_m, column=3, value=f"🔴 {item['Combattant 1']}")
+                            c_r_nom.font, c_r_nom.fill, c_r_nom.border = Font(name="Arial", size=10, bold=True, color="991B1B"), PatternFill("solid", fgColor="FEF2F2"), b_style
+                            
+                            c_r_clb = ws_mat.cell(row=r_m, column=4, value=item.get('Club 1', ''))
+                            c_r_clb.font, c_r_clb.fill, c_r_clb.border = Font(name="Arial", size=9), PatternFill("solid", fgColor="FEF2F2"), b_style
+                            
+                            c_r_pts = ws_mat.cell(row=r_m, column=5)
+                            c_r_pts.font, c_r_pts.border, c_r_pts.alignment = Font(name="Arial", size=11, bold=True), b_style, Alignment(horizontal="center", vertical="center")
+
+                            ws_mat.merge_cells(start_row=r_m, start_column=6, end_row=r_c, end_column=6)
+                            c_vs = ws_mat.cell(row=r_m, column=6, value="VS")
+                            c_vs.font, c_vs.border, c_vs.alignment = Font(name="Arial", size=9, bold=True, color="666666"), b_style, Alignment(horizontal="center", vertical="center")
+                            ws_mat.cell(row=r_c, column=6).border = b_style
+
+                            c_b_nom = ws_mat.cell(row=r_m, column=7, value=f"🔵 {item['Combattant 2']}")
+                            c_b_nom.font, c_b_nom.fill, c_b_nom.border = Font(name="Arial", size=10, bold=True, color="1E40AF"), PatternFill("solid", fgColor="EFF6FF"), b_style
+                            
+                            c_b_clb = ws_mat.cell(row=r_m, column=8, value=item.get('Club 2', ''))
+                            c_b_clb.font, c_b_clb.fill, c_b_clb.border = Font(name="Arial", size=9), PatternFill("solid", fgColor="EFF6FF"), b_style
+                            
+                            c_b_pts = ws_mat.cell(row=r_m, column=9)
+                            c_b_pts.font, c_b_pts.border, c_b_pts.alignment = Font(name="Arial", size=11, bold=True), b_style, Alignment(horizontal="center", vertical="center")
+
+                            ws_mat.merge_cells(start_row=r_c, start_column=3, end_row=r_c, end_column=4)
+                            tour_str_t = item.get('Nom_Tour') or f"Tour {item.get('Tour', '')}"
+                            cat_info = f"Cat: {item['Cat']} | {tour_str_t}"
+                            c_cat = ws_mat.cell(row=r_c, column=3, value=cat_info)
+                            c_cat.font, c_cat.border = Font(name="Arial", size=8, italic=True, color="555555"), b_style
+                            ws_mat.cell(row=r_c, column=4).border = b_style
+
+                            c_r_ann = ws_mat.cell(row=r_c, column=5)
+                            c_r_ann.font, c_r_ann.border, c_r_ann.alignment = Font(name="Arial", size=7, italic=True), b_style, Alignment(horizontal="center", vertical="center")
+
+                            ws_mat.merge_cells(start_row=r_c, start_column=7, end_row=r_c, end_column=8)
+                            arb_t = f"Arbitre: {item.get('Arbitre', 'Non attribué')}"
+                            c_arb = ws_mat.cell(row=r_c, column=7, value=arb_t)
+                            c_arb.font, c_arb.border = Font(name="Arial", size=8, italic=True, color="555555"), b_style
+                            ws_mat.cell(row=r_c, column=8).border = b_style
+
+                            c_b_ann = ws_mat.cell(row=r_c, column=9)
+                            c_b_ann.font, c_b_ann.border, c_b_ann.alignment = Font(name="Arial", size=7, italic=True), b_style, Alignment(horizontal="center", vertical="center")
+
+                            cat_cle = item['Cat']
+                            p1_nom_c = item['Combattant 1']
+                            p2_nom_c = item['Combattant 2']
+                            pair_key1 = (cat_cle, p1_nom_c, p2_nom_c)
+                            pair_key2 = (cat_cle, p2_nom_c, p1_nom_c)
+                            
+                            tapis_info = {
+                                'tapis_idx': t,
+                                'sheet_name': f"Grille Tapis {t + 1}",
+                                'm_num': f"M{m_count}",
+                                'c_r': c_r_nom,
+                                'c_b': c_b_nom,
+                                'ptr': c_r_pts,
+                                'ptb': c_b_pts,
+                                'row_m': r_m
+                            }
+                            coords_matchs_tapis[pair_key1] = tapis_info
+                            coords_matchs_tapis[pair_key2] = tapis_info
+                            tapis_slots_map.setdefault(cat_cle, []).append(tapis_info)
+                            current_row += 2
+
+                # Feuille récapitulative des Arbitres
+                if liste_arbitres:
+                    ws_arb_sheet = writer.book.create_sheet("Corps Arbitral")
+                    ws_arb_sheet.views.sheetView[0].showGridLines = True
+                    ws_arb_sheet.page_setup.orientation = ws_arb_sheet.ORIENTATION_LANDSCAPE
+                    ws_arb_sheet.page_setup.paperSize = ws_arb_sheet.PAPERSIZE_A4
+                    ws_arb_sheet.sheet_properties.pageSetUpPr.fitToPage = True
+                    ws_arb_sheet.page_setup.fitToWidth = 1
+                    ws_arb_sheet.page_setup.fitToHeight = 0
+                    
+                    ws_arb_sheet.row_dimensions[1].height = 30
+                    ws_arb_sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+                    c_title_arb = ws_arb_sheet.cell(row=1, column=1, value=f"🛡️ CORPS ARBITRAL OFFICIEL — {nom_competition.upper()}")
+                    c_title_arb.font, c_title_arb.fill, c_title_arb.alignment = Font(name="Arial", size=14, bold=True, color="FFFFFF"), bleu, Alignment(horizontal="center", vertical="center")
+                    for k in range(1, 7): ws_arb_sheet.cell(row=1, column=k).border = b_style
+                    
+                    ws_arb_sheet.row_dimensions[2].height = 22
+                    headers_arb = ["N° LICENCE", "NOM Prénom", "CLUB", "COMITÉ", "CATÉGORIE ARBITRE", "AFFECTATION TAPIS"]
+                    for col_idx, h in enumerate(headers_arb, 1):
+                        c = ws_arb_sheet.cell(row=2, column=col_idx, value=h)
+                        c.font, c.fill, c.border = Font(name="Arial", size=10, bold=True, color="FFFFFF"), entete_noir, b_style
+                        c.alignment = Alignment(horizontal="center", vertical="center")
+                        
+                    for row_idx, a in enumerate(liste_arbitres, 3):
+                        tapis_affecte_str = "Non affecté"
+                        for t_idx in range(nb_tapis):
+                            if any(arb['Licence'] == a['Licence'] for arb in tapis_arbitres[t_idx]):
+                                tapis_affecte_str = f"Tapis {t_idx + 1}"
+                                break
+                                
+                        row_vals = [
+                            a.get('Licence', '-'),
+                            a.get('Nom_Complet', ''),
+                            a.get('Club', ''),
+                            a.get('Comite', ''),
+                            a.get('Categorie', 'Arbitre'),
+                            tapis_affecte_str
+                        ]
+                        ws_arb_sheet.row_dimensions[row_idx].height = 18
+                        is_even = (row_idx % 2 == 0)
+                        for col_idx, val in enumerate(row_vals, 1):
+                            cell = ws_arb_sheet.cell(row=row_idx, column=col_idx, value=val)
+                            cell.border = b_style
+                            cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
+                            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                    ws_arb_sheet.column_dimensions['A'].width = 15
+                    ws_arb_sheet.column_dimensions['B'].width = 25
+                    ws_arb_sheet.column_dimensions['C'].width = 20
+                    ws_arb_sheet.column_dimensions['D'].width = 15
+                    ws_arb_sheet.column_dimensions['E'].width = 25
+                    ws_arb_sheet.column_dimensions['F'].width = 25
+
+                feuilles_creees = set()
+                for nom_poule, liste_p in participants_par_poule.items():
+                    nom_base = abreger_nom_onglet(nom_poule)
+                    nom_onglet_court = nom_base
+                    suffix_i = 1
+                    while nom_onglet_court.lower() in feuilles_creees or nom_onglet_court in writer.book.sheetnames:
+                        nom_onglet_court = f"{nom_base[:28]}_{suffix_i}"
+                        suffix_i += 1
+                    feuilles_creees.add(nom_onglet_court.lower())
+                    poule_sheet_names[nom_poule] = nom_onglet_court
+                    ws_poule = writer.book.create_sheet(nom_onglet_court)
+                    
+                    p_obj = poule_obj_map.get(nom_poule)
+                    if p_obj and p_obj.get('type_formule') == 'tableau':
+                        construire_feuille_tableau_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
+                    elif p_obj and p_obj.get('type_formule') == 'poules_croisees':
+                        construire_feuille_poules_croisees_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
+                    elif p_obj and p_obj.get('type_formule') == 'plateau_u7':
+                        construire_feuille_plateau_u7_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition)
+                    else:
+                        construire_feuille_poule_nordique_excel(ws_poule, nom_poule, liste_p, rondes_par_categorie.get(nom_poule, []), coords_matchs_tapis, nom_competition)
+
+                # Génération du PDF imprimable basé à 100% sur le classeur Excel officiel FFLDA
+                pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(writer.book, nom_competition)
+                pdf_grille_bytes = generer_pdf_depuis_classeur_excel([writer.book["Grille de Passage"]], nom_competition)
+
+            excel_bytes_tournoi_complet = output_excel.getvalue()
+            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
+
+            st.markdown("### 📄 Impression & Exportations Officielles (Format Excel FFLDA - A4 Paysage)")
+            col_pdf_top, col_xl_top, col_html_top = st.columns([1, 1, 1])
             with col_pdf_top:
                 st.download_button(
-                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage - 1 page par onglet)",
+                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage - Format Excel)",
                     data=pdf_bytes_tournoi_complet,
                     file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
                     mime="application/pdf",
                     key="btn_pdf_top"
                 )
+            with col_xl_top:
+                st.download_button(
+                    label="📥 Télécharger le Classeur Officiel Excel (.xlsx)",
+                    data=excel_bytes_tournoi_complet,
+                    file_name=f"Tournoi_{nom_competition.replace(' ', '_')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_excel_top"
+                )
             with col_html_top:
-                bouton_imprimer(html_tournoi_complet, filename="Dossier_Tournoi_Impression.html", label="🖨️ Imprimer la Version Web Paysage A4 (1 page par onglet)", key="btn_html_top")
+                bouton_imprimer(html_tournoi_complet, filename="Dossier_Tournoi_Impression.html", label="🖨️ Imprimer la Version Web Paysage A4", key="btn_html_top")
 
             st.markdown("---")
 
@@ -4928,9 +5391,8 @@ else:
                 
                 col_p1, col_h1 = st.columns(2)
                 with col_p1:
-                    pdf_grille_bytes = generer_pdf_tournoi_complet("Grille de Passage Officielle", nom_competition, [("📅 Grille de Passage - Tapis", pd.DataFrame(grille_ui))])
                     st.download_button(
-                        label="📄 Télécharger la Grille Globale en PDF (A4 Paysage)",
+                        label="📄 Télécharger la Grille Globale en PDF (A4 Paysage - Format Excel)",
                         data=pdf_grille_bytes,
                         file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
                         mime="application/pdf",
@@ -5062,409 +5524,25 @@ else:
 
             st.markdown("---")
             
-            # --- EXPORT EXCEL OFFICIEL FFLDA ---
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                writer.book.calculation.fullCalcOnLoad = True
-                
-                resume_data = [
-                    {"Étape de la journée": texte_pesee_1, "Horaire / Valeur": dt_pesee_u9.strftime('%H:%M')},
-                ]
-                if poules_u7:
-                    resume_data.append({"Étape de la journée": "Animation U7 (3 Plateaux)", "Horaire / Valeur": str_comp_u7})
-                    resume_data.append({"Étape de la journée": "Groupes U7 (Plateaux)", "Horaire / Valeur": f"{len(poules_u7)} groupes"})
-                resume_data.extend([
-                    {"Étape de la journée": "Compétition U9", "Horaire / Valeur": str_comp_u9},
-                    {"Étape de la journée": "Pause de la compétition", "Horaire / Valeur": valeur_pause}
-                ])
-                if "2" in type_pesee and dt_pesee_2:
-                    resume_data.append({"Étape de la journée": "2ème pesée (U11/U13)", "Horaire / Valeur": dt_pesee_2.strftime('%H:%M')})
-                
-                resume_data.extend([
-                    {"Étape de la journée": "Compétition U11", "Horaire / Valeur": str_comp_u11},
-                ])
-                if poules_u13:
-                    resume_data.append({"Étape de la journée": "Compétition U13", "Horaire / Valeur": str_comp_u13})
-                resume_data.append({"Étape de la journée": "Fin de la compétition estimée", "Horaire / Valeur": fin_estimee.strftime('%H:%M')})
-                pd.DataFrame(resume_data).to_excel(writer, sheet_name="Résumé", index=False)
-                
-                max_lignes = max(len(liste) for liste in planning_tapis.values()) if planning_tapis else 0
-                grille = []
-                for row_idx in range(max_lignes):
-                    ligne = {}
-                    for t in range(nb_tapis):
-                        col = f"Tapis {t + 1}"
-                        if row_idx < len(planning_tapis[t]):
-                            m = planning_tapis[t][row_idx]
-                            if m["Type"] == "PAUSE": ligne[col] = f"[{m['Heure']}]\n⏸️ PAUSE DE LA COMPÉTITION"
-                            elif m["Type"] == "ATTENTE": ligne[col] = f"[{m['Heure']}]\n{m['Texte']}"
-                            elif m["Type"] == "VIDE": ligne[col] = ""
-                            else:
-                                arb_str = f"\n🛡️ Arbitre : {m['Arbitre']}" if m.get('Arbitre') and m['Arbitre'] != "Non attribué" else ""
-                                t_nom = m.get('Nom_Tour') or (f"Tour {m['Tour']}" if m.get('Tour') else "")
-                                tour_str = f"\n🎯 Tour : {t_nom}" if t_nom else ""
-                                ligne[col] = f"🕘 {m['Heure']} ({m['Duree']} min)\n[{m['Cat']}]{tour_str}\n{m['Combattant 1']} VS {m['Combattant 2']}{arb_str}"
-                        else: ligne[col] = ""
-                    grille.append(ligne)
-                pd.DataFrame(grille).to_excel(writer, sheet_name="Grille de Passage", index=False, startrow=1)
-                
-                b_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-                bleu = PatternFill("solid", fgColor="0055A4")
-                rouge = PatternFill("solid", fgColor="EF4135")
-                bleu_clair = PatternFill("solid", fgColor="DDEBF7") 
-                rouge_lutte = PatternFill("solid", fgColor="E53935") 
-                bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
-                gris_clair = PatternFill("solid", fgColor="F2F2F2")
-                entete_noir = PatternFill("solid", fgColor="000000")
-
-                coords_matchs_tapis = {}
-                tapis_slots_map = {}
-
-                for t in range(nb_tapis):
-                    ws_mat = writer.book.create_sheet(f"Grille Tapis {t + 1}")
-                    ws_mat.views.sheetView[0].showGridLines = True
-                    ws_mat.page_setup.orientation = ws_mat.ORIENTATION_LANDSCAPE
-                    ws_mat.page_setup.paperSize = ws_mat.PAPERSIZE_A4
-                    ws_mat.sheet_properties.pageSetUpPr.fitToPage = True
-                    ws_mat.page_setup.fitToWidth = 1
-                    ws_mat.page_setup.fitToHeight = 0
-                    
-                    ws_mat.row_dimensions[1].height = 35
-                    ws_mat.merge_cells(start_row=1, start_column=1, end_row=1, end_column=9)
-                    titre_mat = ws_mat.cell(row=1, column=1, value=f"🏆 {nom_competition.upper()} - GRILLE DE PASSAGE : TAPIS {t + 1} 🏆")
-                    titre_mat.font = Font(name="Arial", size=16, bold=True, color="FFFFFF")
-                    titre_mat.fill = bleu
-                    titre_mat.alignment = Alignment(horizontal="center", vertical="center")
-                    
-                    noms_arb = ", ".join([a['Nom_Complet'] for a in tapis_arbitres[t]]) if (liste_arbitres and tapis_arbitres[t]) else "Aucun arbitre affecté"
-                    ws_mat.row_dimensions[2].height = 22
-                    ws_mat.merge_cells(start_row=2, start_column=1, end_row=2, end_column=9)
-                    sub_mat = ws_mat.cell(row=2, column=1, value=f"🛡️ Arbitrage : {noms_arb}  |  * Annotations des scores sous chaque match (Pt Clt, Actions, Total Score)")
-                    sub_mat.font = Font(name="Arial", size=10, italic=True, bold=True, color="0055A4")
-                    sub_mat.alignment = Alignment(horizontal="center", vertical="center")
-
-                    matches_on_tapis = [it for it in planning_tapis[t] if it.get("Type") == "MATCH"]
-                    max_nom_t = max([len(str(it.get('Lutteur1', ''))) for it in matches_on_tapis] + [len(str(it.get('Lutteur2', ''))) for it in matches_on_tapis] + [15])
-                    max_club_t = max([len(str(it.get('Club1', ''))) for it in matches_on_tapis] + [len(str(it.get('Club2', ''))) for it in matches_on_tapis] + [12])
-                    w_nom_t = max(max_nom_t + 4, 25)
-                    w_club_t = max(max_club_t + 4, 18)
-
-                    ws_mat.column_dimensions['A'].width = 16
-                    ws_mat.column_dimensions['B'].width = 6
-                    ws_mat.column_dimensions['C'].width = w_nom_t
-                    ws_mat.column_dimensions['D'].width = w_club_t
-                    ws_mat.column_dimensions['E'].width = 10
-                    ws_mat.column_dimensions['F'].width = 5
-                    ws_mat.column_dimensions['G'].width = w_nom_t
-                    ws_mat.column_dimensions['H'].width = w_club_t
-                    ws_mat.column_dimensions['I'].width = 10
-
-                    r_curr = 4
-                    m_count_t = 0
-                    for item in planning_tapis[t]:
-                        if item["Type"] == "PAUSE":
-                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr, end_column=9)
-                            p_cell = ws_mat.cell(row=r_curr, column=1, value=f"[{item['Heure']}] ⏸️ PAUSE DE LA COMPÉTITION")
-                            p_cell.fill, p_cell.font, p_cell.alignment = rouge, Font(bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
-                            ws_mat.row_dimensions[r_curr].height = 24
-                            r_curr += 2
-                        elif item["Type"] == "ATTENTE":
-                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr, end_column=9)
-                            a_cell = ws_mat.cell(row=r_curr, column=1, value=f"[{item['Heure']}] ⏳ {item['Texte']}")
-                            a_cell.fill, a_cell.font, a_cell.alignment = PatternFill("solid", fgColor="EFEFEF"), Font(italic=True, color="666666", size=10), Alignment(horizontal="center", vertical="center")
-                            ws_mat.row_dimensions[r_curr].height = 22
-                            r_curr += 2
-                        elif item["Type"] == "MATCH":
-                            m_count_t += 1
-                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr, end_column=9)
-                            arb_txt = f"  |  🛡️ Arbitre : {item['Arbitre']}" if item.get('Arbitre') and item['Arbitre'] != "Non attribué" else ""
-                            tour_label = item.get('Nom_Tour') or (f"Tour {item['Tour']}" if item.get('Tour') else "")
-                            tour_txt = f"  |  🎯 Tour : {tour_label}" if tour_label else ""
-                            hdr_text = f"MATCH N° {m_count_t}  |  🕘 {item['Heure']} ({item['Duree']} min)  |  Catégorie : {item['Cat']}{tour_txt}{arb_txt}"
-                            h_cell = ws_mat.cell(row=r_curr, column=1, value=hdr_text)
-                            age_m = extraire_age_de_texte(item.get('Cat', ''))
-                            cfg_m = COULEURS_AGE_GRILLE.get(age_m, COULEURS_AGE_GRILLE['AUTRE'])
-                            h_cell.fill, h_cell.font, h_cell.alignment = cfg_m['bg_excel_header'], Font(name="Arial", bold=True, color="FFFFFF", size=11), Alignment(horizontal="center", vertical="center")
-                            ws_mat.row_dimensions[r_curr].height = 24
-                            r_curr += 1
-
-                            c_tour_h = ws_mat.cell(row=r_curr, column=1, value="TOUR / PHASE")
-                            c_tour_h.fill, c_tour_h.font, c_tour_h.alignment, c_tour_h.border = gris_clair, Font(bold=True, size=8), Alignment(horizontal="center", vertical="center"), b_style
-
-                            c_num_h = ws_mat.cell(row=r_curr, column=2, value="N°")
-                            c_num_h.alignment, c_num_h.border, c_num_h.fill = Alignment(horizontal="center", vertical="center"), b_style, gris_clair
-                            
-                            c_rouge_h = ws_mat.cell(row=r_curr, column=3, value="LUTTEUR ROUGE")
-                            c_rouge_h.fill, c_rouge_h.font, c_rouge_h.alignment, c_rouge_h.border = rouge_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
-                            ws_mat.cell(row=r_curr, column=4).border = b_style
-                            
-                            c_ptr = ws_mat.cell(row=r_curr, column=5, value="Pt Clt")
-                            c_ptr.font, c_ptr.alignment, c_ptr.border = Font(bold=True), Alignment(horizontal="center", vertical="center"), b_style
-                            
-                            ws_mat.cell(row=r_curr, column=6, value="VS").alignment = Alignment(horizontal="center", vertical="center")
-                            
-                            c_bleu_h = ws_mat.cell(row=r_curr, column=7, value="LUTTEUR BLEU")
-                            c_bleu_h.fill, c_bleu_h.font, c_bleu_h.alignment, c_bleu_h.border = bleu_lutte, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center"), b_style
-                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
-                            ws_mat.cell(row=r_curr, column=8).border = b_style
-                            
-                            c_ptb = ws_mat.cell(row=r_curr, column=9, value="Pt Clt")
-                            c_ptb.font, c_ptb.alignment, c_ptb.border = Font(bold=True), Alignment(horizontal="center", vertical="center"), b_style
-                            
-                            r_curr += 1
-                            
-                            c_tour_v = ws_mat.cell(row=r_curr, column=1, value=tour_label)
-                            c_tour_v.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                            c_tour_v.font = Font(bold=True, size=9, color="0055A4")
-                            c_tour_v.border = b_style
-                            ws_mat.merge_cells(start_row=r_curr, start_column=1, end_row=r_curr+2, end_column=1)
-                            ws_mat.cell(row=r_curr+1, column=1).border = b_style
-                            ws_mat.cell(row=r_curr+2, column=1).border = b_style
-
-                            ws_mat.cell(row=r_curr, column=2, value=m_count_t).alignment = Alignment(horizontal="center", vertical="center")
-                            ws_mat.cell(row=r_curr, column=2).font = Font(bold=True, color="E53935", size=12)
-                            ws_mat.cell(row=r_curr, column=2).border = b_style
-                            ws_mat.merge_cells(start_row=r_curr, start_column=2, end_row=r_curr+2, end_column=2)
-                            ws_mat.cell(row=r_curr+1, column=2).border = b_style
-                            ws_mat.cell(row=r_curr+2, column=2).border = b_style
-                            
-                            c1_str = f"{item['Combattant 1']}"
-                            if item.get('Club 1'): c1_str += f" ({item['Club 1']})"
-                            if item.get('Comité 1') and item['Comité 1'] != 'Comité Non Renseigné': c1_str += f" - {item['Comité 1']}"
-                            
-                            c_r_info = ws_mat.cell(row=r_curr, column=3, value=c1_str)
-                            c_r_info.border = b_style
-                            c_r_info.alignment = Alignment(vertical="center")
-                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
-                            ws_mat.cell(row=r_curr, column=4).border = b_style
-                            
-                            box_ptr = ws_mat.cell(row=r_curr, column=5)
-                            box_ptr.border, box_ptr.fill = b_style, gris_clair
-                            box_ptr.alignment = Alignment(horizontal="center", vertical="center")
-                            
-                            c_vs_mid = ws_mat.cell(row=r_curr, column=6, value="-")
-                            c_vs_mid.alignment = Alignment(horizontal="center", vertical="center")
-                            c_vs_mid.border = b_style
-                            
-                            c2_str = f"{item['Combattant 2']}"
-                            if item.get('Club 2'): c2_str += f" ({item['Club 2']})"
-                            if item.get('Comité 2') and item['Comité 2'] != 'Comité Non Renseigné': c2_str += f" - {item['Comité 2']}"
-                            
-                            c_b_info = ws_mat.cell(row=r_curr, column=7, value=c2_str)
-                            c_b_info.border = b_style
-                            c_b_info.alignment = Alignment(vertical="center")
-                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
-                            ws_mat.cell(row=r_curr, column=8).border = b_style
-                            
-                            box_ptb = ws_mat.cell(row=r_curr, column=9)
-                            box_ptb.border, box_ptb.fill = b_style, gris_clair
-                            box_ptb.alignment = Alignment(horizontal="center", vertical="center")
-                            
-                            def reg_tapis_slot(k, sl):
-                                if k not in tapis_slots_map:
-                                    tapis_slots_map[k] = [sl]
-                                elif isinstance(tapis_slots_map[k], list):
-                                    tapis_slots_map[k].append(sl)
-                                else:
-                                    tapis_slots_map[k] = [tapis_slots_map[k], sl]
-
-                            cat_m = item.get('Cat', '')
-                            c1_m = str(item.get('Combattant 1', ''))
-                            c2_m = str(item.get('Combattant 2', ''))
-                            s1 = (ws_mat, f"C{r_curr}")
-                            s2 = (ws_mat, f"G{r_curr}")
-                            
-                            reg_tapis_slot((cat_m, c1_m), s1)
-                            reg_tapis_slot((cat_m, c2_m), s2)
-                            reg_tapis_slot(c1_m, s1)
-                            reg_tapis_slot(c2_m, s2)
-                            
-                            b_c1 = re.sub(r'\s*\[.*?\]', '', c1_m).strip()
-                            b_c2 = re.sub(r'\s*\[.*?\]', '', c2_m).strip()
-                            if b_c1 and b_c1 != c1_m:
-                                reg_tapis_slot((cat_m, b_c1), s1)
-                                reg_tapis_slot(b_c1, s1)
-                            if b_c2 and b_c2 != c2_m:
-                                reg_tapis_slot((cat_m, b_c2), s2)
-                                reg_tapis_slot(b_c2, s2)
-                            
-                            r_curr += 1
-                            
-                            ws_mat.cell(row=r_curr, column=3, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
-                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
-                            ws_mat.cell(row=r_curr, column=5, value="Total Score").font = Font(size=9, italic=True)
-                            
-                            ws_mat.cell(row=r_curr, column=7, value="Points Techniques (Actions)").font = Font(size=9, italic=True)
-                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
-                            ws_mat.cell(row=r_curr, column=9, value="Total Score").font = Font(size=9, italic=True)
-                            
-                            r_curr += 1
-                            
-                            ws_mat.row_dimensions[r_curr].height = 25
-                            c_act_r = ws_mat.cell(row=r_curr, column=3)
-                            c_act_r.border = b_style
-                            ws_mat.cell(row=r_curr, column=4).border = b_style
-                            ws_mat.merge_cells(start_row=r_curr, start_column=3, end_row=r_curr, end_column=4)
-                            
-                            ws_mat.cell(row=r_curr, column=5).border = b_style
-                            
-                            c_act_b = ws_mat.cell(row=r_curr, column=7)
-                            c_act_b.border = b_style
-                            ws_mat.cell(row=r_curr, column=8).border = b_style
-                            ws_mat.merge_cells(start_row=r_curr, start_column=7, end_row=r_curr, end_column=8)
-                            
-                            ws_mat.cell(row=r_curr, column=9).border = b_style
-
-                            # Enregistrement des coordonnées des cases Pt Clt, Actions et Total Score sur la Grille Tapis X
-                            m_coord_info = {
-                                'sheet': f"Grille Tapis {t + 1}",
-                                'ptr_cell': f"E{r_curr - 2}",
-                                'ptb_cell': f"I{r_curr - 2}",
-                                'act_r_cell': f"C{r_curr}",
-                                'tot_r_cell': f"E{r_curr}",
-                                'act_b_cell': f"G{r_curr}",
-                                'tot_b_cell': f"I{r_curr}",
-                                'p1': item['Combattant 1'],
-                                'p2': item['Combattant 2']
-                            }
-                            coords_matchs_tapis[(cat_m, c1_m, c2_m)] = m_coord_info
-                            if (b_c1 and b_c1 != c1_m) or (b_c2 and b_c2 != c2_m):
-                                coords_matchs_tapis[(cat_m, b_c1 or c1_m, b_c2 or c2_m)] = m_coord_info
-                            
-                            r_curr += 2 
-                
-                for ws_name in writer.book.sheetnames:
-                    ws_sheet = writer.book[ws_name]
-                    ws_sheet.page_setup.orientation = ws_sheet.ORIENTATION_LANDSCAPE
-                    ws_sheet.page_setup.paperSize = ws_sheet.PAPERSIZE_A4
-                    ws_sheet.sheet_properties.pageSetUpPr.fitToPage = True
-                    ws_sheet.page_setup.fitToWidth = 1
-                    ws_sheet.page_setup.fitToHeight = 0
-                
-                ws_res = writer.sheets["Résumé"]
-                for cell in ws_res[1]: 
-                    cell.fill, cell.font, cell.alignment = bleu, Font(bold=True, color="FFFFFF"), Alignment(horizontal="center")
-                ws_res.column_dimensions['A'].width = 50
-                ws_res.column_dimensions['B'].width = 25
-                for row in ws_res.iter_rows(min_row=2, max_row=ws_res.max_row):
-                    for cell in row:
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
-                        cell.font = Font(size=12)
-                
-                ws_grille = writer.sheets["Grille de Passage"]
-                ws_grille.row_dimensions[1].height = 65
-                ws_grille.merge_cells(start_row=1, start_column=1, end_row=1, end_column=nb_tapis)
-                titre_cell = ws_grille.cell(row=1, column=1, value=f"🏆 {nom_competition.upper()} — PLANNING OFFICIEL  (🟡 U7 | 🟢 U9 | 🔵 U11 | 🟣 U13) 🏆")
-                titre_cell.font = Font(name="Arial", size=20, bold=True, color="FFFFFF")
-                titre_cell.fill = bleu
-                titre_cell.alignment = Alignment(horizontal="center", vertical="center")
-                
-                try:
-                    from openpyxl.drawing.image import Image as OpenpyxlImage
-                    if os.path.exists("logo_fflda.png"):
-                        img = OpenpyxlImage("logo_fflda.png")
-                    else:
-                        url_logo = "https://www.fflutte.com/content/uploads/2021/10/fflutte-bleu-1024x842.png"
-                        req = urllib.request.Request(url_logo, headers={'User-Agent': 'Mozilla/5.0'})
-                        with urllib.request.urlopen(req) as response: img_data = io.BytesIO(response.read())
-                        img = OpenpyxlImage(img_data)
-                    img.height, img.width = 30, 36
-                    ws_grille.add_image(img, 'A1')
-                except Exception: pass 
-
-                ws_grille.freeze_panes = 'A3'
-                
-                for col in range(1, nb_tapis + 1):
-                    c = ws_grille.cell(row=2, column=col)
-                    c.fill, c.font, c.border = rouge, Font(bold=True, size=14, color="FFFFFF"), b_style
-                    c.alignment = Alignment(horizontal="center", vertical="center")
-                    ws_grille.column_dimensions[c.column_letter].width = 45
-                    
-                for row in ws_grille.iter_rows(min_row=3, max_row=ws_grille.max_row):
-                    ws_grille.row_dimensions[row[0].row].height = 90
-                    for cell in row:
-                        cell.border, cell.alignment = b_style, Alignment(wrap_text=True, horizontal="center", vertical="center")
-                        if cell.value:
-                            val_s = str(cell.value)
-                            if "PAUSE" in val_s:
-                                cell.fill, cell.font = rouge, Font(name="Arial", bold=True, color="FFFFFF", size=12)
-                            elif any(k in val_s for k in ["Attente", "Pesée", "échauffement", "Repos"]):
-                                cell.fill, cell.font = PatternFill("solid", fgColor="EFEFEF"), Font(name="Arial", italic=True, color="666666", size=11)
-                            else:
-                                age_k = extraire_age_de_texte(val_s)
-                                cfg_c = COULEURS_AGE_GRILLE.get(age_k, COULEURS_AGE_GRILLE['AUTRE'])
-                                cell.fill = cfg_c['bg_excel_pastel']
-                                cell.font = Font(name="Arial", size=10, color="0F172A")
-
-                df_excel_arb = None
-                if liste_arbitres:
-                    lignes_excel_arb = []
-                    for t in range(nb_tapis):
-                        for a in tapis_arbitres[t]:
-                            lignes_excel_arb.append({
-                                "Tapis Affecté": f"Tapis {t + 1}",
-                                "Nom": a['Nom'],
-                                "Prénom": a['Prenom'],
-                                "N° Licence": a['Licence'],
-                                "Club": a['Club'],
-                                "Comité Régional": a['Comite']
-                            })
-                    if lignes_excel_arb:
-                        df_excel_arb = pd.DataFrame(lignes_excel_arb)
-                        df_excel_arb.to_excel(writer, sheet_name="Corps d'Arbitrage", index=False, startrow=4)
-                        ws_arb_sheet = writer.sheets["Corps d'Arbitrage"]
-                        ws_arb_sheet.views.sheetView[0].showGridLines = True
-                        ws_arb_sheet.cell(row=1, column=1, value=f"COMPÉTITION : {nom_competition.upper()}").font = Font(name="Arial", size=15, bold=True, color="0055A4")
-                        ws_arb_sheet.cell(row=2, column=1, value="🛡️ CORPS D'ARBITRAGE ET AFFECTATION AUX TAPIS - FFLDA").font = Font(name="Arial", size=12, bold=True, color="666666")
-                        ws_arb_sheet.cell(row=3, column=1, value=f"Édité le {datetime.now().strftime('%d/%m/%Y à %H:%M')}").font = Font(name="Arial", size=9, italic=True, color="888888")
-                        
-                        for col_idx in range(1, len(df_excel_arb.columns) + 1):
-                            cell = ws_arb_sheet.cell(row=5, column=col_idx)
-                            cell.fill, cell.font, cell.alignment = bleu, Font(name="Arial", size=10, bold=True, color="FFFFFF"), Alignment(horizontal="center", vertical="center")
-                        
-                        for row_idx in range(6, ws_arb_sheet.max_row + 1):
-                            is_even = (row_idx % 2 == 0)
-                            for col_idx in range(1, len(df_excel_arb.columns) + 1):
-                                cell = ws_arb_sheet.cell(row=row_idx, column=col_idx)
-                                cell.border = b_style
-                                cell.fill = bleu_clair if is_even else PatternFill(fill_type=None)
-                                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-                        ws_arb_sheet.column_dimensions['A'].width = 15
-                        ws_arb_sheet.column_dimensions['B'].width = 25
-                        ws_arb_sheet.column_dimensions['C'].width = 20
-                        ws_arb_sheet.column_dimensions['D'].width = 15
-                        ws_arb_sheet.column_dimensions['E'].width = 25
-                        ws_arb_sheet.column_dimensions['F'].width = 25
-
-                rouge_lutte = PatternFill("solid", fgColor="E53935") 
-                bleu_lutte = PatternFill("solid", fgColor="1E88E5")  
-                gris_clair = PatternFill("solid", fgColor="F2F2F2")
-                entete_noir = PatternFill("solid", fgColor="000000")
-
-                feuilles_creees = set()
-                for nom_poule, liste_p in participants_par_poule.items():
-                    nom_base = abreger_nom_onglet(nom_poule)
-                    nom_onglet_court = nom_base
-                    suffix_i = 1
-                    while nom_onglet_court.lower() in feuilles_creees or nom_onglet_court in writer.book.sheetnames:
-                        nom_onglet_court = f"{nom_base[:28]}_{suffix_i}"
-                        suffix_i += 1
-                    feuilles_creees.add(nom_onglet_court.lower())
-                    ws_poule = writer.book.create_sheet(nom_onglet_court)
-                    
-                    p_obj = poule_obj_map.get(nom_poule)
-                    if p_obj and p_obj.get('type_formule') == 'tableau':
-                        construire_feuille_tableau_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
-                    elif p_obj and p_obj.get('type_formule') == 'poules_croisees':
-                        construire_feuille_poules_croisees_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition, tapis_slots=tapis_slots_map)
-                    elif p_obj and p_obj.get('type_formule') == 'plateau_u7':
-                        construire_feuille_plateau_u7_excel(ws_poule, p_obj, nom_poule, liste_p, coords_matchs_tapis, nom_competition)
-                    else:
-                        construire_feuille_poule_nordique_excel(ws_poule, nom_poule, liste_p, rondes_par_categorie.get(nom_poule, []), coords_matchs_tapis, nom_competition)
-
-            st.download_button(label="📥 Télécharger le Planning & Feuilles de Poules (Excel)", data=output.getvalue(), file_name="Tournoi_U7_U9_U11_U13.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            # --- TÉLÉCHARGEMENTS COMPLETS DU TOURNOI (FORMATS OFFICIELS FFLDA) ---
+            st.markdown("### 📥 Téléchargements Complets du Tournoi (Formats Officiels FFLDA)")
+            col_b_pdf, col_b_xl = st.columns(2)
+            with col_b_pdf:
+                st.download_button(
+                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Paysage - Format Excel)",
+                    data=pdf_bytes_tournoi_complet,
+                    file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key="btn_pdf_bottom"
+                )
+            with col_b_xl:
+                st.download_button(
+                    label="📥 Télécharger le Classeur Officiel Excel (.xlsx)",
+                    data=excel_bytes_tournoi_complet,
+                    file_name=f"Tournoi_{nom_competition.replace(' ', '_')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_excel_bottom"
+                )
         except Exception as e:
             import traceback
             st.error(f"Erreur lors de l'analyse du fichier : {e}")
