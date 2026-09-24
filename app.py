@@ -44,7 +44,7 @@ with st.sidebar:
         poules_par_niveau = st.checkbox("Créer des poules par niveau (débutants/confirmés)", value=True)
         separer_clubs = st.checkbox("Éviter les lutteurs d'un même club dans la même poule (dans la mesure du possible)", value=True)
         eviter_arbitre_meme_club = st.checkbox("Éviter les matchs entre arbitres et lutteurs du même club", value=True)
-        meme_tapis_poule = st.checkbox("Maintenir chaque poule / lutteur sur un même tapis", value=True)
+        meme_tapis_poule = st.checkbox("Maintenir chaque poule / lutteur sur un même tapis", value=True, help="Chaque catégorie de même style et de même poids (ex: U13 Gréco 30 kg) est affectée intégralement à un tapis fixe unique pour tous ses combats. Les catégories de styles ou poids différents sont réparties de manière à équilibrer au mieux le nombre total de matchs par tapis.")
         tolerance_poids = st.number_input("Tolérance d'écart de poids (%) [U7, U9, U11]", min_value=10, max_value=15, value=10, step=1)
         repos_matchs = st.number_input("Matchs de repos minimum", min_value=1, max_value=10, value=3)
         duree_plateau_u7 = st.number_input("Temps de chaque plateau U7 (min)", min_value=3, max_value=30, value=10, step=1, help="L'animation U7 est sous forme de 3 plateaux d'activités avec rotation. Par exemple, 10 min par plateau = 3x10 min = 30 min consacrées aux U7 au total.")
@@ -266,7 +266,9 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             'nom': nom, 
             'participants': list(participants), 
             'rondes': [], 
-            'type_formule': 'seul'
+            'type_formule': 'seul',
+            'cat_poids': cat_poids,
+            'style_grp': style_grp
         }
     elif n < 6:
         # Cas 1 : Poule nordique unique (2 à 5 lutteurs)
@@ -275,7 +277,9 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             'nom': nom, 
             'participants': list(participants), 
             'rondes': generer_rondes_fflda(participants), 
-            'type_formule': 'poule'
+            'type_formule': 'poule',
+            'cat_poids': cat_poids,
+            'style_grp': style_grp
         }
     elif n == 6:
         # Cas 2 : Exactement 6 lutteurs (2 poules de 3 + Phase finale croisée)
@@ -336,7 +340,9 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             'rondes': [r1, r2, r3, r4, r5], 
             'type_formule': 'poules_croisees',
             'poule_a': poule_a,
-            'poule_b': poule_b
+            'poule_b': poule_b,
+            'cat_poids': cat_poids,
+            'style_grp': style_grp
         }
     else:
         # Cas 3 : Plus de 6 lutteurs (Tableau avec repêchage des 1/4 - 2 médailles de bronze)
@@ -623,7 +629,9 @@ def generer_competition_u13(age, style_grp, suffixe_niveau, cat_poids, participa
             'nom': nom,
             'participants': list(participants),
             'rondes': rondes,
-            'type_formule': 'tableau'
+            'type_formule': 'tableau',
+            'cat_poids': cat_poids,
+            'style_grp': style_grp
         }
 
 # --- GÉNÉRATEUR VISUEL DE TABLEAU À ÉLIMINATION DIRECTE & REPÊCHAGES U13 (DE GAUCHE À DROITE) ---
@@ -4168,10 +4176,51 @@ else:
                 last_match_time = {}
 
                 if meme_tapis:
-                    # Chaque poule (et ses lutteurs) reste affectée à un tapis fixe
+                    # RÈGLE OFFICIELLE : Chaque poule de même style et même catégorie de poids (ex: U13 Gréco 30 kg) est affectée au même tapis fixe.
+                    # Une même catégorie de poids d'un autre style (ex: U13 Libre 30 kg ou U13 Féminine 30 kg) peut aller sur un tapis différent,
+                    # ce qui permet un équilibrage encore plus optimal du nombre de matchs par tapis (Algorithme LPT).
+                    def obtenir_cle_poids_lot(p_obj):
+                        nom_p = p_obj.get('nom', '')
+                        parts_nom = [x.strip() for x in nom_p.split('|')]
+                        age_p = parts_nom[0] if parts_nom else 'U13'
+                        style_p = p_obj.get('style_grp') or (parts_nom[1] if len(parts_nom) >= 2 else '')
+                        cat_p = p_obj.get('cat_poids')
+                        
+                        if cat_p:
+                            return f"{age_p} | {style_p} | {str(cat_p).strip()}"
+                        
+                        m_poids = re.search(r'\b(\+?\d+\s*kg)\b', nom_p, re.IGNORECASE)
+                        if m_poids:
+                            return f"{age_p} | {style_p} | {m_poids.group(1).strip()}"
+                        
+                        # Pour U9 / U11 : chaque poule morphologique constitue son propre groupe
+                        return nom_p
+
+                    # 1. Regroupement par catégorie de poids (tous les combats de la même catégorie de poids restent ensemble)
+                    lots_poids = {}
+                    for p in poules_phase:
+                        cle = obtenir_cle_poids_lot(p)
+                        if cle not in lots_poids:
+                            lots_poids[cle] = []
+                        lots_poids[cle].append(p)
+
+                    # 2. Calcul du nombre de matchs par lot de catégorie de poids
+                    lots_avec_poids = []
+                    for cle, liste_p in lots_poids.items():
+                        nb_m = sum(sum(len(r) for r in p.get('rondes', [])) for p in liste_p)
+                        lots_avec_poids.append((cle, liste_p, nb_m))
+
+                    # 3. Tri décroissant par nombre de matchs (LPT - Longest Processing Time First)
+                    lots_avec_poids.sort(key=lambda x: x[2], reverse=True)
+
+                    # 4. Affectation équilibrée sur les tapis : chaque lot de poids va sur le tapis actuellement le moins chargé en matchs
                     tapis_poules = {t: [] for t in range(nb_tapis)}
-                    for idx, p in enumerate(poules_phase):
-                        tapis_poules[idx % nb_tapis].append(p)
+                    charge_matchs_tapis = [0] * nb_tapis
+
+                    for cle, liste_p, nb_m in lots_avec_poids:
+                        t_min = min(range(nb_tapis), key=lambda t: (charge_matchs_tapis[t], t))
+                        tapis_poules[t_min].extend(liste_p)
+                        charge_matchs_tapis[t_min] += nb_m
 
                     for t in range(nb_tapis):
                         poules_t = tapis_poules[t]
