@@ -5713,46 +5713,6 @@ else:
                 except Exception:
                     pdf_bytes_tournoi_complet = b""
 
-            pdf_grille_bytes = None
-            if wb_officiel is not None:
-                sheet_gp = None
-                if hasattr(wb_officiel, 'sheetnames') and "Grille de Passage" in wb_officiel.sheetnames:
-                    sheet_gp = wb_officiel["Grille de Passage"]
-                elif hasattr(wb_officiel, 'worksheets'):
-                    for s in wb_officiel.worksheets:
-                        if s.title == "Grille de Passage":
-                            sheet_gp = s
-                            break
-                if sheet_gp is not None:
-                    try:
-                        pdf_grille_bytes = generer_pdf_depuis_classeur_excel([sheet_gp], nom_competition, wb=wb_officiel)
-                    except Exception:
-                        pdf_grille_bytes = None
-            html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
-
-            st.markdown("### 📄 Impression & Exportations Officielles (Format Excel FFLDA - A4 Portrait)")
-            col_pdf_top, col_xl_top, col_html_top = st.columns([1, 1, 1])
-            with col_pdf_top:
-                st.download_button(
-                    label="📄 Télécharger le Dossier Officiel en PDF (A4 Portrait - Format Excel)",
-                    data=pdf_bytes_tournoi_complet,
-                    file_name=f"Dossier_Officiel_{nom_competition.replace(' ', '_')}.pdf",
-                    mime="application/pdf",
-                    key="btn_pdf_top"
-                )
-            with col_xl_top:
-                st.download_button(
-                    label="📥 Télécharger le Classeur Officiel Excel (.xlsx)",
-                    data=excel_bytes_tournoi_complet,
-                    file_name=f"Tournoi_{nom_competition.replace(' ', '_')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="btn_excel_top"
-                )
-            with col_html_top:
-                bouton_imprimer(html_tournoi_complet, filename="Dossier_Tournoi_Impression.html", label="🖨️ Imprimer la Version Web Paysage A4", key="btn_html_top")
-
-            st.markdown("---")
-
             # --- ONGLETS INTERACTIFS DE L'APPLICATION ---
             noms_onglets = ["📊 Résumé & Stats", "📅 Grille Globale", "🛡️ Équipes d'Arbitrage"] + [f"🥋 Grille Tapis {t + 1}" for t in range(nb_tapis)] + [
                 f"🏅 {p[:18]}" if 'plateau' in p.lower() else f"Groupe : {p[:18]}" for p in participants_par_poule.keys()
@@ -5795,37 +5755,10 @@ else:
                 html_grille_ui = generer_html_grille_coloree(grille_ui, nb_tapis)
                 st.markdown(html_grille_ui, unsafe_allow_html=True)
                 st.write("")
-                
-                col_p1, col_h1 = st.columns([1, 1])
-                with col_p1:
-                    if pdf_grille_bytes:
-                        st.download_button(
-                            label="📄 Télécharger la Grille Globale en PDF (A4 Portrait - Format Excel)",
-                            data=pdf_grille_bytes,
-                            file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
-                            mime="application/pdf",
-                            key="btn_pdf_grille"
-                        )
-                with col_h1:
-                    bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Apercu_Web.html", label="🖨️ Aperçu Web HTML (Optionnel)", key="btn_t1")
 
             with onglets_ui[2]:
                 st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
                 if liste_arbitres:
-                    if wb_officiel is not None and hasattr(wb_officiel, 'sheetnames') and "Corps d'Arbitrage" in wb_officiel.sheetnames:
-                        try:
-                            pdf_arb_bytes = generer_pdf_depuis_classeur_excel([wb_officiel["Corps d'Arbitrage"]], nom_competition, wb=wb_officiel)
-                            if pdf_arb_bytes:
-                                st.download_button(
-                                    label="📄 Télécharger le Corps d'Arbitrage en PDF (A4 Portrait - Format Excel)",
-                                    data=pdf_arb_bytes,
-                                    file_name=f"Corps_Arbitrage_{nom_competition.replace(' ', '_')}.pdf",
-                                    mime="application/pdf",
-                                    key="btn_pdf_arb"
-                                )
-                                st.write("")
-                        except Exception:
-                            pass
                     for t in range(nb_tapis):
                         st.markdown(f"#### 🥋 Tapis {t + 1} ({len(tapis_arbitres[t])} arbitres)")
                         if tapis_arbitres[t]:
@@ -5841,23 +5774,6 @@ else:
             for t in range(nb_tapis):
                 with onglets_ui[3 + t]:
                     st.subheader(f"🥋 Grille de Passage & Feuille de Marque — Tapis {t + 1}")
-                    sheet_mat_name = f"Grille Tapis {t + 1}"
-                    pdf_tapis_bytes = None
-                    if wb_officiel is not None and hasattr(wb_officiel, 'sheetnames') and sheet_mat_name in wb_officiel.sheetnames:
-                        try:
-                            pdf_tapis_bytes = generer_pdf_depuis_classeur_excel([wb_officiel[sheet_mat_name]], nom_competition, wb=wb_officiel)
-                        except Exception:
-                            pdf_tapis_bytes = None
-                    
-                    if pdf_tapis_bytes:
-                        st.download_button(
-                            label=f"📄 Télécharger la Grille Tapis {t + 1} en PDF (A4 Portrait - Format Excel)",
-                            data=pdf_tapis_bytes,
-                            file_name=f"Grille_Tapis_{t + 1}_{nom_competition.replace(' ', '_')}.pdf",
-                            mime="application/pdf",
-                            key=f"btn_pdf_tapis_{t}"
-                        )
-                        st.write("")
                     if liste_arbitres and tapis_arbitres[t]:
                         arb_names_st = ", ".join([f"**{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]])
                         st.info(f"🛡️ **Équipe d'arbitrage désignée (Tapis {t + 1})** : {arb_names_st}")
@@ -5904,15 +5820,6 @@ else:
             start_idx_poules = 3 + nb_tapis
             for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=start_idx_poules):
                 with onglets_ui[idx]:
-                    nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                    sheet_nom = poule_sheet_names.get(nom_poule)
-                    pdf_sheet_bytes = None
-                    if wb_officiel is not None and sheet_nom and hasattr(wb_officiel, 'sheetnames') and sheet_nom in wb_officiel.sheetnames:
-                        try:
-                            pdf_sheet_bytes = generer_pdf_depuis_classeur_excel([wb_officiel[sheet_nom]], nom_competition, wb=wb_officiel)
-                        except Exception:
-                            pdf_sheet_bytes = None
-
                     p_obj = poule_obj_map.get(nom_poule)
                     if p_obj and p_obj.get('type_formule') == 'plateau_u7':
                         st.subheader(f"🏅 Animation U7 : {nom_poule}")
@@ -5931,19 +5838,6 @@ else:
                             for idx_p, p in enumerate(liste_p, 1)
                         ])
                         st.table(df_u7_tab)
-                        doc_print_u7 = generer_document_plateau_u7_imprimable(nom_poule, nom_competition, liste_p)
-                        col_u7_1, col_u7_2 = st.columns([1, 1])
-                        with col_u7_1:
-                            if pdf_sheet_bytes:
-                                st.download_button(
-                                    label="📄 Télécharger cette Feuille en PDF (A4 Portrait - Format Excel)",
-                                    data=pdf_sheet_bytes,
-                                    file_name=f"Plateau_U7_{nom_safe}.pdf",
-                                    mime="application/pdf",
-                                    key=f"btn_pdf_u7_{idx}"
-                                )
-                        with col_u7_2:
-                            bouton_imprimer(doc_print_u7, filename=f"Plateau_U7_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_u7_{idx}")
 
                     else:
                         st.subheader(f"Feuille : {nom_poule}")
@@ -5959,52 +5853,6 @@ else:
                             with c_pb:
                                 st.markdown("**Poule B**")
                                 st.table(pd.DataFrame(p_obj['poule_b'])[['Nom', 'Club', 'Poids']])
-                            
-                            bracket_html = generer_arbre_tableau_html(p_obj)
-                            doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
-                            col_pc_1, col_pc_2 = st.columns([1, 1])
-                            with col_pc_1:
-                                if pdf_sheet_bytes:
-                                    st.download_button(
-                                        label="📄 Télécharger cette Feuille en PDF (A4 Portrait - Format Excel)",
-                                        data=pdf_sheet_bytes,
-                                        file_name=f"Tableau_Croise_{nom_safe}.pdf",
-                                        mime="application/pdf",
-                                        key=f"btn_pdf_pc_{idx}"
-                                    )
-                            with col_pc_2:
-                                bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_tab_{idx}")
-
-                        elif p_obj and p_obj.get('type_formule') == 'tableau':
-                            bracket_html = generer_arbre_tableau_html(p_obj)
-                            doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
-                            col_tb_1, col_tb_2 = st.columns([1, 1])
-                            with col_tb_1:
-                                if pdf_sheet_bytes:
-                                    st.download_button(
-                                        label="📄 Télécharger cette Feuille en PDF (A4 Portrait - Format Excel)",
-                                        data=pdf_sheet_bytes,
-                                        file_name=f"Tableau_{nom_safe}.pdf",
-                                        mime="application/pdf",
-                                        key=f"btn_pdf_tab_{idx}"
-                                    )
-                            with col_tb_2:
-                                bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_tab_{idx}")
-                        else:
-                            st.markdown("##### 🥋 Combats & Fiche Imprimable :")
-                            doc_print_poule = generer_document_poule_imprimable(nom_poule, nom_competition, liste_p, rondes_par_categorie.get(nom_poule, []))
-                            col_po_1, col_po_2 = st.columns([1, 1])
-                            with col_po_1:
-                                if pdf_sheet_bytes:
-                                    st.download_button(
-                                        label="📄 Télécharger cette Poule en PDF (A4 Portrait - Format Excel)",
-                                        data=pdf_sheet_bytes,
-                                        file_name=f"Poule_{nom_safe}.pdf",
-                                        mime="application/pdf",
-                                        key=f"btn_pdf_poule_{idx}"
-                                    )
-                            with col_po_2:
-                                bouton_imprimer(doc_print_poule, filename=f"Poule_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_poule_{idx}")
 
             st.markdown("---")
             
