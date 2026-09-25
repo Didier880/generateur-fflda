@@ -1880,6 +1880,9 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         ws.column_dimensions[get_column_letter(col_pod)].width = col_pod_w
         ws.column_dimensions[get_column_letter(col_pod+1)].width = col_pod_w
 
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=col_pod+1)
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=col_pod+1)
+
         # Bannière principale
         ws.merge_cells(start_row=4, start_column=6, end_row=4, end_column=col_pod+1)
         c_bann = ws.cell(row=4, column=6, value="🏆 TABLEAU PRINCIPAL D'ÉLIMINATION DIRECTE (OR / ARGENT)")
@@ -2253,6 +2256,8 @@ def construire_feuille_tableau_excel(ws, p_obj, nom_poule, liste_p, coords_match
         col_pod = col_cur
         ws.column_dimensions[get_column_letter(col_pod)].width = col_pod_w
         ws.column_dimensions[get_column_letter(col_pod+1)].width = col_pod_w
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=col_pod+1)
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=col_pod+1)
         draw_excel_podium_card(ws, 6, col_pod, "🥇 CHAMPION (OR)", "Vainqueur Finale", fill_gold, font_color="B45309")
         draw_excel_podium_card(ws, 9, col_pod, "🥈 VICE-CHAMPION", "Finaliste", fill_silver, font_color="475569")
         draw_excel_podium_card(ws, 12, col_pod, "🥉 3ème PLACE (1)", "Bronze 1", fill_bronze, font_color="9A3412")
@@ -2415,6 +2420,9 @@ def construire_feuille_poules_croisees_excel(ws, p_obj, nom_poule, liste_p, coor
     ws.column_dimensions['O'].width = col_pod_w
     ws.column_dimensions['P'].width = col_pod_w
 
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=col_pod+1)
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=col_pod+1)
+
     ws.merge_cells(start_row=4, start_column=col_sf, end_row=4, end_column=col_pod+1)
     c_fin_h = ws.cell(row=4, column=col_sf, value="🏆 PHASE 2 : PHASE FINALE CROISÉE (Gauche ➔ Droite)")
     c_fin_h.font, c_fin_h.fill, c_fin_h.alignment = font_hdr, fill_sky, Alignment(horizontal="center", vertical="center")
@@ -2508,6 +2516,9 @@ def construire_feuille_plateau_u7_excel(ws, p_obj, nom_poule, liste_p, coords_ma
         "Plateau 1 : Motricité & Agilité", "Plateau 2 : Ateliers techniques", "Plateau 3 : Oppositions", 
         "Validation / Récompense"
     ]
+    
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
     
     for c_i, h in enumerate(headers, 1):
         c = ws.cell(row=4, column=c_i, value=h)
@@ -2735,6 +2746,9 @@ def construire_feuille_poule_nordique_excel(ws, nom_poule, liste_p, rondes, coor
     ws.column_dimensions[get_column_letter(col_pod - 1)].width = 3
     ws.column_dimensions[col_pod_lettre1].width = 16
     ws.column_dimensions[col_pod_lettre2].width = 16
+    
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=col_pod+1)
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=col_pod+1)
     
     form_gold = (
         f'=IF(SUM({plage_totaux})=0, "🥇 CHAMPION (OR)" & CHAR(10) & "En attente", '
@@ -3319,7 +3333,7 @@ def generer_document_html_imprimable(titre, nom_comp, sections):
     return html_doc
 
 # --- GÉNÉRATEUR DE DOCUMENTS PDF VECTORIELS DEPUIS LE CLASSEUR EXCEL OFFICIEL (A4 PORTRAIT) ---
-def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tournoi FFLDA"):
+def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tournoi FFLDA", wb=None):
     """
     Génère un fichier PDF vectoriel A4 Portrait à partir des feuilles du classeur Excel officiel FFLDA (openpyxl).
     Chaque feuille Excel (Poule nordique, Tableau éliminatoire, Poules croisées, Plateaux U7,
@@ -3338,21 +3352,31 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
     from reportlab import rl_config
     rl_config.allowTableBoundsErrors = 1
 
-    wb = None
-    if hasattr(workbook_or_sheets, 'worksheets'):
-        sheets = list(workbook_or_sheets.worksheets)
-        wb = workbook_or_sheets
-    elif hasattr(workbook_or_sheets, 'sheets'):
-        sheets = list(workbook_or_sheets.sheets.values()) if isinstance(workbook_or_sheets.sheets, dict) else list(workbook_or_sheets.sheets)
-        wb = getattr(workbook_or_sheets, 'book', None)
-    elif isinstance(workbook_or_sheets, (list, tuple)):
-        sheets = list(workbook_or_sheets)
-        if sheets and hasattr(sheets[0], 'parent'):
-            wb = sheets[0].parent
+    wb_ref = wb
+    if wb_ref is None:
+        if hasattr(workbook_or_sheets, 'worksheets'):
+            sheets = list(workbook_or_sheets.worksheets)
+            wb_ref = workbook_or_sheets
+        elif hasattr(workbook_or_sheets, 'sheets'):
+            sheets = list(workbook_or_sheets.sheets.values()) if isinstance(workbook_or_sheets.sheets, dict) else list(workbook_or_sheets.sheets)
+            wb_ref = getattr(workbook_or_sheets, 'book', None)
+        elif isinstance(workbook_or_sheets, (list, tuple)):
+            sheets = list(workbook_or_sheets)
+            if sheets and hasattr(sheets[0], 'parent'):
+                wb_ref = sheets[0].parent
+        else:
+            sheets = [workbook_or_sheets]
+            if hasattr(workbook_or_sheets, 'parent'):
+                wb_ref = workbook_or_sheets.parent
     else:
-        sheets = [workbook_or_sheets]
-        if hasattr(workbook_or_sheets, 'parent'):
-            wb = workbook_or_sheets.parent
+        if hasattr(workbook_or_sheets, 'worksheets'):
+            sheets = list(workbook_or_sheets.worksheets)
+        elif hasattr(workbook_or_sheets, 'sheets'):
+            sheets = list(workbook_or_sheets.sheets.values()) if isinstance(workbook_or_sheets.sheets, dict) else list(workbook_or_sheets.sheets)
+        elif isinstance(workbook_or_sheets, (list, tuple)):
+            sheets = list(workbook_or_sheets)
+        else:
+            sheets = [workbook_or_sheets]
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -3389,28 +3413,53 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
             return '#' + rgb_s[2:]
         return default
 
-    def resolve_formula_cell(formula_str, current_ws, wb_ref, depth=0):
-        if depth > 3:
+    def safe_hex_color(hex_str, default='#CBD5E1'):
+        try:
+            if hex_str and re.match(r'^#[0-9a-fA-F]{6}$', str(hex_str)):
+                return colors.HexColor(hex_str)
+        except Exception:
+            pass
+        return colors.HexColor(default)
+
+    def resolve_formula_cell(formula_str, current_ws, wb_reference, depth=0):
+        if depth > 4:
             return ""
         s = str(formula_str).strip()
         if not s.startswith('='):
             return s
             
+        # Détection podiums et classements
+        if '🥇' in s or 'CHAMPION' in s or 'OR' in s:
+            quoted = re.findall(r'"([^"]*)"', s)
+            p_parts = [q for q in quoted if any(k in q for k in ['🥇', 'OR', 'CHAMPION', 'En attente', 'Vainqueur'])]
+            if p_parts:
+                return "\n".join(p_parts[:2])
+        if '🥈' in s or 'ARGENT' in s or 'VICE' in s:
+            quoted = re.findall(r'"([^"]*)"', s)
+            p_parts = [q for q in quoted if any(k in q for k in ['🥈', 'ARGENT', 'VICE', 'En attente', 'Perdant'])]
+            if p_parts:
+                return "\n".join(p_parts[:2])
+        if '🥉' in s or 'BRONZE' in s or 'Bronze' in s:
+            quoted = re.findall(r'"([^"]*)"', s)
+            p_parts = [q for q in quoted if any(k in q for k in ['🥉', 'BRONZE', 'Bronze', 'En attente', 'Vainqueur'])]
+            if p_parts:
+                return "\n".join(p_parts[:2])
+
         quoted = re.findall(r'"([^"]*)"', s)
-        priority_keywords = ['🥇', '🥈', '🥉', 'CHAMPION', 'Vainqueur', 'Perdant', 'Qualifié', 'Repêché', 'TOUR', 'COMBAT']
+        priority_keywords = ['🔴', '🔵', 'Vainqueur', 'Perdant', 'Qualifié', 'Repêché', 'TOUR', 'COMBAT', 'Plateau']
         for q in quoted:
             if any(k in q for k in priority_keywords):
                 return q
                 
         try:
             m_ref = re.search(r"(?:'([^']+)'|([A-Za-z0-9_]+))!([A-Z]+[0-9]+)", s)
-            if m_ref and wb_ref:
+            if m_ref and wb_reference:
                 target_sheet_name = m_ref.group(1) or m_ref.group(2)
                 coord = m_ref.group(3)
-                if hasattr(wb_ref, 'sheetnames') and target_sheet_name in wb_ref.sheetnames:
-                    cell_obj = wb_ref[target_sheet_name][coord]
+                if hasattr(wb_reference, 'sheetnames') and target_sheet_name in wb_reference.sheetnames:
+                    cell_obj = wb_reference[target_sheet_name][coord]
                     t_val = getattr(cell_obj, 'value', None)
-                    res = resolve_formula_cell(t_val, wb_ref[target_sheet_name], wb_ref, depth + 1)
+                    res = resolve_formula_cell(t_val, wb_reference[target_sheet_name], wb_reference, depth + 1)
                     if res:
                         return res.replace('🔴 ', '').replace('🔵 ', '').strip()
         except Exception:
@@ -3422,13 +3471,13 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                 coord = m_local.group(1)
                 cell_obj = current_ws[coord]
                 t_val = getattr(cell_obj, 'value', None)
-                return resolve_formula_cell(t_val, current_ws, wb_ref, depth + 1)
+                return resolve_formula_cell(t_val, current_ws, wb_reference, depth + 1)
         except Exception:
             pass
             
         if quoted:
             for q in quoted:
-                if q.strip() and q not in ["En attente", " ", "🔴 ", "🔵 "]:
+                if q.strip() and q not in [" ", "🔴 ", "🔵 "]:
                     return q
         return ""
 
@@ -3437,7 +3486,7 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
             return ""
         s = str(val).strip()
         if s.startswith('='):
-            return resolve_formula_cell(s, current_ws, wb)
+            return resolve_formula_cell(s, current_ws, wb_ref)
         return s
 
     def cell_has_content(c_obj):
@@ -3457,6 +3506,8 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
     sheet_has_pages = False
 
     for sheet_idx, ws in enumerate(sheets):
+        if not hasattr(ws, 'cell'):
+            continue
         max_r = ws.max_row or 1
         max_c = ws.max_column or 1
         
@@ -3488,15 +3539,18 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
             
         total_w = sum(col_widths)
         scale = page_width / total_w if total_w > 0 else 1.0
-        scaled_widths = [max(cw * scale, 6.0) for cw in col_widths]
+        scaled_widths = [max(cw * scale, 5.0) for cw in col_widths]
+        sum_sw = sum(scaled_widths)
+        if sum_sw > page_width:
+            scaled_widths = [sw * (page_width / sum_sw) for sw in scaled_widths]
 
         data = []
         t_styles = [
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('LEFTPADDING', (0, 0), (-1, -1), 1.5),
             ('RIGHTPADDING', (0, 0), (-1, -1), 1.5),
-            ('TOPPADDING', (0, 0), (-1, -1), 1.5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
+            ('TOPPADDING', (0, 0), (-1, -1), 1.0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1.0),
         ]
 
         base_scale = 0.50 if max_c > 14 else (0.60 if max_c > 9 else 0.70)
@@ -3516,7 +3570,13 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                         orig_f_size = float(font.size)
                     except (ValueError, TypeError):
                         orig_f_size = 10
-                f_size = max(4.5, min(int(orig_f_size * base_scale), 11))
+                
+                if r == 1:
+                    f_size = max(9.5, min(int(orig_f_size * 0.9), 13))
+                elif r == 2:
+                    f_size = max(7.0, min(int(orig_f_size * 0.85), 9))
+                else:
+                    f_size = max(4.5, min(int(orig_f_size * base_scale), 11))
                 
                 f_color = get_hex(getattr(font, 'color', None), default='#1E293B')
                 if not f_color or f_color in ['#00000000', '#000000']:
@@ -3532,22 +3592,25 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                 if getattr(fill_obj, 'fill_type', None) in ['solid', 'lightGrid', 'darkGrid']:
                     bg_hex = get_hex(getattr(fill_obj, 'fgColor', None))
                     if bg_hex and bg_hex.upper() not in ['#FFFFFF', '#00000000']:
-                        t_styles.append(('BACKGROUND', (c - 1, r - 1), (c - 1, r - 1), colors.HexColor(bg_hex)))
+                        t_styles.append(('BACKGROUND', (c - 1, r - 1), (c - 1, r - 1), safe_hex_color(bg_hex)))
                         if bg_hex.upper() in ['#0055A4', '#EF4135', '#E53935', '#000000', '#334155', '#475569', '#1E88E5']:
                             f_color = '#FFFFFF'
+                
+                if (not fill_obj or not getattr(fill_obj, 'fill_type', None)) and f_color == '#FFFFFF':
+                    f_color = '#1E293B'
                     
                 b = cell.border
                 if b and (getattr(b.left, 'style', None) or getattr(b.top, 'style', None) or getattr(b.right, 'style', None) or getattr(b.bottom, 'style', None)):
                     b_col = get_hex(getattr(b.top, 'color', None), default='#CBD5E1')
-                    t_styles.append(('BOX', (c - 1, r - 1), (c - 1, r - 1), 0.5, colors.HexColor(b_col)))
+                    t_styles.append(('BOX', (c - 1, r - 1), (c - 1, r - 1), 0.5, safe_hex_color(b_col)))
                     
                 p_style = ParagraphStyle(
                     f'S_{sheet_idx}_{r}_{c}',
                     parent=styles['Normal'],
                     fontName='Helvetica-Bold' if is_bold else 'Helvetica',
                     fontSize=f_size,
-                    leading=f_size + 1.5,
-                    textColor=colors.HexColor(f_color),
+                    leading=f_size + 1.2,
+                    textColor=safe_hex_color(f_color, default='#1E293B'),
                     alignment=align_code
                 )
                 
@@ -3560,6 +3623,7 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                 row_cells.append(p)
             data.append(row_cells)
 
+        spanned_cells = set()
         for m_range in list(ws.merged_cells.ranges):
             min_col, min_row, max_col_r, max_row_r = m_range.min_col, m_range.min_row, m_range.max_col, m_range.max_row
             if min_row <= max_r and min_col <= max_c:
@@ -3571,7 +3635,30 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
                     c2 = min(end_c - 1, len(data[0]) - 1)
                     r2 = min(end_r - 1, len(data) - 1)
                     if c2 >= c1 and r2 >= r1 and (c2 > c1 or r2 > r1):
-                        t_styles.append(('SPAN', (c1, r1), (c2, r2)))
+                        span_coords = [(col_k, row_k) for col_k in range(c1, c2 + 1) for row_k in range(r1, r2 + 1)]
+                        if not any(coord in spanned_cells for coord in span_coords):
+                            t_styles.append(('SPAN', (c1, r1), (c2, r2)))
+                            for coord in span_coords:
+                                spanned_cells.add(coord)
+
+        # Auto-fusion horizontale pour lignes d'en-tête / bannières non fusionnées
+        for r_chk in range(1, min(max_r + 1, 5)):
+            r_idx = r_chk - 1
+            if (0, r_idx) not in spanned_cells:
+                v1 = ws.cell(row=r_chk, column=1).value
+                if v1 and str(v1).strip():
+                    last_empty_c = 1
+                    for c_chk in range(2, max_c + 1):
+                        if (c_chk - 1, r_idx) in spanned_cells or cell_has_content(ws.cell(row=r_chk, column=c_chk)):
+                            break
+                        last_empty_c = c_chk
+                    if last_empty_c > 1:
+                        c2_span = last_empty_c - 1
+                        span_coords = [(col_k, r_idx) for col_k in range(0, c2_span + 1)]
+                        if not any(coord in spanned_cells for coord in span_coords):
+                            t_styles.append(('SPAN', (0, r_idx), (c2_span, r_idx)))
+                            for coord in span_coords:
+                                spanned_cells.add(coord)
                 
         safe_styles = []
         for cmd in t_styles:
@@ -3608,7 +3695,7 @@ def generer_pdf_depuis_classeur_excel(workbook_or_sheets, nom_competition="Tourn
         doc.build(story)
         return buffer.getvalue()
     except Exception:
-        # Fallback d'urgence sans repeatRows ni spans
+        # Fallback d'urgence
         try:
             buf_fb = io.BytesIO()
             doc_fb = SimpleDocTemplate(buf_fb, pagesize=A4, rightMargin=12, leftMargin=12, topMargin=12, bottomMargin=12)
@@ -5616,7 +5703,7 @@ else:
             pdf_bytes_tournoi_complet = None
             if wb_officiel is not None:
                 try:
-                    pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(wb_officiel, nom_competition)
+                    pdf_bytes_tournoi_complet = generer_pdf_depuis_classeur_excel(wb_officiel, nom_competition, wb=wb_officiel)
                 except Exception as e_pdf:
                     st.warning(f"⚠️ Information : génération PDF depuis Excel : {e_pdf}")
 
@@ -5638,7 +5725,7 @@ else:
                             break
                 if sheet_gp is not None:
                     try:
-                        pdf_grille_bytes = generer_pdf_depuis_classeur_excel([sheet_gp], nom_competition)
+                        pdf_grille_bytes = generer_pdf_depuis_classeur_excel([sheet_gp], nom_competition, wb=wb_officiel)
                     except Exception:
                         pdf_grille_bytes = None
             html_tournoi_complet = generer_document_html_imprimable("Feuilles Officieuses du Tournoi & Poules FFLDA", nom_competition, sections_tournoi_complet)
@@ -5709,21 +5796,36 @@ else:
                 st.markdown(html_grille_ui, unsafe_allow_html=True)
                 st.write("")
                 
-                col_p1, col_h1 = st.columns(2)
+                col_p1, col_h1 = st.columns([1, 1])
                 with col_p1:
-                    st.download_button(
-                        label="📄 Télécharger la Grille Globale en PDF (A4 Portrait - Format Excel)",
-                        data=pdf_grille_bytes,
-                        file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
-                        mime="application/pdf",
-                        key="btn_pdf_grille"
-                    )
+                    if pdf_grille_bytes:
+                        st.download_button(
+                            label="📄 Télécharger la Grille Globale en PDF (A4 Portrait - Format Excel)",
+                            data=pdf_grille_bytes,
+                            file_name=f"Grille_Passage_{nom_competition.replace(' ', '_')}.pdf",
+                            mime="application/pdf",
+                            key="btn_pdf_grille"
+                        )
                 with col_h1:
-                    bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Impression.html", label="🖨️ Imprimer la Grille Globale (HTML A4)", key="btn_t1")
+                    bouton_imprimer(html_tournoi_complet, filename="Grille_Tapis_Apercu_Web.html", label="🖨️ Aperçu Web HTML (Optionnel)", key="btn_t1")
 
             with onglets_ui[2]:
                 st.subheader("🛡️ Désignation et Affectation des Arbitres par Tapis")
                 if liste_arbitres:
+                    if wb_officiel is not None and hasattr(wb_officiel, 'sheetnames') and "Corps d'Arbitrage" in wb_officiel.sheetnames:
+                        try:
+                            pdf_arb_bytes = generer_pdf_depuis_classeur_excel([wb_officiel["Corps d'Arbitrage"]], nom_competition, wb=wb_officiel)
+                            if pdf_arb_bytes:
+                                st.download_button(
+                                    label="📄 Télécharger le Corps d'Arbitrage en PDF (A4 Portrait - Format Excel)",
+                                    data=pdf_arb_bytes,
+                                    file_name=f"Corps_Arbitrage_{nom_competition.replace(' ', '_')}.pdf",
+                                    mime="application/pdf",
+                                    key="btn_pdf_arb"
+                                )
+                                st.write("")
+                        except Exception:
+                            pass
                     for t in range(nb_tapis):
                         st.markdown(f"#### 🥋 Tapis {t + 1} ({len(tapis_arbitres[t])} arbitres)")
                         if tapis_arbitres[t]:
@@ -5739,6 +5841,23 @@ else:
             for t in range(nb_tapis):
                 with onglets_ui[3 + t]:
                     st.subheader(f"🥋 Grille de Passage & Feuille de Marque — Tapis {t + 1}")
+                    sheet_mat_name = f"Grille Tapis {t + 1}"
+                    pdf_tapis_bytes = None
+                    if wb_officiel is not None and hasattr(wb_officiel, 'sheetnames') and sheet_mat_name in wb_officiel.sheetnames:
+                        try:
+                            pdf_tapis_bytes = generer_pdf_depuis_classeur_excel([wb_officiel[sheet_mat_name]], nom_competition, wb=wb_officiel)
+                        except Exception:
+                            pdf_tapis_bytes = None
+                    
+                    if pdf_tapis_bytes:
+                        st.download_button(
+                            label=f"📄 Télécharger la Grille Tapis {t + 1} en PDF (A4 Portrait - Format Excel)",
+                            data=pdf_tapis_bytes,
+                            file_name=f"Grille_Tapis_{t + 1}_{nom_competition.replace(' ', '_')}.pdf",
+                            mime="application/pdf",
+                            key=f"btn_pdf_tapis_{t}"
+                        )
+                        st.write("")
                     if liste_arbitres and tapis_arbitres[t]:
                         arb_names_st = ", ".join([f"**{a['Nom_Complet']}** ({a['Club']})" for a in tapis_arbitres[t]])
                         st.info(f"🛡️ **Équipe d'arbitrage désignée (Tapis {t + 1})** : {arb_names_st}")
@@ -5785,6 +5904,15 @@ else:
             start_idx_poules = 3 + nb_tapis
             for idx, (nom_poule, liste_p) in enumerate(participants_par_poule.items(), start=start_idx_poules):
                 with onglets_ui[idx]:
+                    nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
+                    sheet_nom = poule_sheet_names.get(nom_poule)
+                    pdf_sheet_bytes = None
+                    if wb_officiel is not None and sheet_nom and hasattr(wb_officiel, 'sheetnames') and sheet_nom in wb_officiel.sheetnames:
+                        try:
+                            pdf_sheet_bytes = generer_pdf_depuis_classeur_excel([wb_officiel[sheet_nom]], nom_competition, wb=wb_officiel)
+                        except Exception:
+                            pdf_sheet_bytes = None
+
                     p_obj = poule_obj_map.get(nom_poule)
                     if p_obj and p_obj.get('type_formule') == 'plateau_u7':
                         st.subheader(f"🏅 Animation U7 : {nom_poule}")
@@ -5804,8 +5932,18 @@ else:
                         ])
                         st.table(df_u7_tab)
                         doc_print_u7 = generer_document_plateau_u7_imprimable(nom_poule, nom_competition, liste_p)
-                        nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                        bouton_imprimer(doc_print_u7, filename=f"Plateau_U7_{nom_safe}.html", label="🖨️ Imprimer la Fiche Plateau U7 (A4 Paysage)", key=f"btn_print_u7_{idx}")
+                        col_u7_1, col_u7_2 = st.columns([1, 1])
+                        with col_u7_1:
+                            if pdf_sheet_bytes:
+                                st.download_button(
+                                    label="📄 Télécharger cette Feuille en PDF (A4 Portrait - Format Excel)",
+                                    data=pdf_sheet_bytes,
+                                    file_name=f"Plateau_U7_{nom_safe}.pdf",
+                                    mime="application/pdf",
+                                    key=f"btn_pdf_u7_{idx}"
+                                )
+                        with col_u7_2:
+                            bouton_imprimer(doc_print_u7, filename=f"Plateau_U7_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_u7_{idx}")
 
                     else:
                         st.subheader(f"Feuille : {nom_poule}")
@@ -5826,21 +5964,51 @@ else:
                             bracket_html = generer_arbre_tableau_html(p_obj)
                             st.markdown(bracket_html, unsafe_allow_html=True)
                             doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
-                            nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                            bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
+                            col_pc_1, col_pc_2 = st.columns([1, 1])
+                            with col_pc_1:
+                                if pdf_sheet_bytes:
+                                    st.download_button(
+                                        label="📄 Télécharger cette Feuille en PDF (A4 Portrait - Format Excel)",
+                                        data=pdf_sheet_bytes,
+                                        file_name=f"Tableau_Croise_{nom_safe}.pdf",
+                                        mime="application/pdf",
+                                        key=f"btn_pdf_pc_{idx}"
+                                    )
+                            with col_pc_2:
+                                bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_tab_{idx}")
 
                         elif p_obj and p_obj.get('type_formule') == 'tableau':
                             st.markdown("##### 🤼 Tableau Visuel Officiel FFLDA (Gauche ➔ Droite) :")
                             bracket_html = generer_arbre_tableau_html(p_obj)
                             st.markdown(bracket_html, unsafe_allow_html=True)
                             doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
-                            nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                            bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Imprimer ce Tableau U13 (A4 Paysage)", key=f"btn_print_tab_{idx}")
+                            col_tb_1, col_tb_2 = st.columns([1, 1])
+                            with col_tb_1:
+                                if pdf_sheet_bytes:
+                                    st.download_button(
+                                        label="📄 Télécharger cette Feuille en PDF (A4 Portrait - Format Excel)",
+                                        data=pdf_sheet_bytes,
+                                        file_name=f"Tableau_{nom_safe}.pdf",
+                                        mime="application/pdf",
+                                        key=f"btn_pdf_tab_{idx}"
+                                    )
+                            with col_tb_2:
+                                bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_tab_{idx}")
                         else:
                             st.markdown("##### 🥋 Combats & Fiche Imprimable :")
                             doc_print_poule = generer_document_poule_imprimable(nom_poule, nom_competition, liste_p, rondes_par_categorie.get(nom_poule, []))
-                            nom_safe = nom_poule.replace(' ', '_').replace('|', '_').replace('/', '_')
-                            bouton_imprimer(doc_print_poule, filename=f"Poule_{nom_safe}.html", label="🖨️ Imprimer cette Poule (A4 Paysage)", key=f"btn_print_poule_{idx}")
+                            col_po_1, col_po_2 = st.columns([1, 1])
+                            with col_po_1:
+                                if pdf_sheet_bytes:
+                                    st.download_button(
+                                        label="📄 Télécharger cette Poule en PDF (A4 Portrait - Format Excel)",
+                                        data=pdf_sheet_bytes,
+                                        file_name=f"Poule_{nom_safe}.pdf",
+                                        mime="application/pdf",
+                                        key=f"btn_pdf_poule_{idx}"
+                                    )
+                            with col_po_2:
+                                bouton_imprimer(doc_print_poule, filename=f"Poule_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_poule_{idx}")
 
             st.markdown("---")
             
