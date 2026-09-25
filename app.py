@@ -5960,9 +5960,7 @@ else:
                                 st.markdown("**Poule B**")
                                 st.table(pd.DataFrame(p_obj['poule_b'])[['Nom', 'Club', 'Poids']])
                             
-                            st.markdown("##### 🤼 Tableau Visuel de la Phase Finale (Gauche ➔ Droite) :")
                             bracket_html = generer_arbre_tableau_html(p_obj)
-                            st.markdown(bracket_html, unsafe_allow_html=True)
                             doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
                             col_pc_1, col_pc_2 = st.columns([1, 1])
                             with col_pc_1:
@@ -5977,10 +5975,11 @@ else:
                             with col_pc_2:
                                 bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_tab_{idx}")
 
+                            with st.expander("👁️ Afficher le schéma visuel du tableau / arbre (optionnel)", expanded=False):
+                                st.markdown(bracket_html, unsafe_allow_html=True)
+
                         elif p_obj and p_obj.get('type_formule') == 'tableau':
-                            st.markdown("##### 🤼 Tableau Visuel Officiel FFLDA (Gauche ➔ Droite) :")
                             bracket_html = generer_arbre_tableau_html(p_obj)
-                            st.markdown(bracket_html, unsafe_allow_html=True)
                             doc_print_bracket = generer_document_bracket_imprimable(nom_poule, nom_competition, bracket_html)
                             col_tb_1, col_tb_2 = st.columns([1, 1])
                             with col_tb_1:
@@ -5994,6 +5993,9 @@ else:
                                     )
                             with col_tb_2:
                                 bouton_imprimer(doc_print_bracket, filename=f"Tableau_{nom_safe}.html", label="🖨️ Aperçu Web HTML (Optionnel)", key=f"btn_print_tab_{idx}")
+
+                            with st.expander("👁️ Afficher le schéma visuel du tableau / arbre (optionnel)", expanded=False):
+                                st.markdown(bracket_html, unsafe_allow_html=True)
                         else:
                             st.markdown("##### 🥋 Combats & Fiche Imprimable :")
                             doc_print_poule = generer_document_poule_imprimable(nom_poule, nom_competition, liste_p, rondes_par_categorie.get(nom_poule, []))
