@@ -10122,6 +10122,25 @@ div[data-testid="stVerticalBlock"] {
 .score-pulse {
     animation: scorePulseAnim 0.6s ease-out !important;
 }
+:fullscreen #btn-fs-tv,
+:-webkit-full-screen #btn-fs-tv,
+:-moz-full-screen #btn-fs-tv {
+    opacity: 0.25;
+}
+:fullscreen #btn-fs-tv:hover,
+:-webkit-full-screen #btn-fs-tv:hover {
+    opacity: 1;
+}
+@media screen and (orientation: portrait) and (max-width: 900px) {
+    .banner-rotate-hint {
+        display: block !important;
+    }
+}
+@media screen and (orientation: landscape) {
+    .banner-rotate-hint {
+        display: none !important;
+    }
+}
 </style>
 ''', unsafe_allow_html=True)
 
@@ -10139,7 +10158,6 @@ div[data-testid="stVerticalBlock"] {
                                 var ctx = new AudioCtx();
                                 if (ctx.state === 'suspended') { ctx.resume(); }
                                 var now = ctx.currentTime;
-                                // 3 tonalités d'avertisseur de salle
                                 [0, 0.35, 0.70].forEach(function(offset) {
                                     var osc = ctx.createOscillator();
                                     var gain = ctx.createGain();
@@ -10158,34 +10176,71 @@ div[data-testid="stVerticalBlock"] {
                             }
                         };
 
-                        // Activation automatique du Plein Écran
-                        function declencherPleinEcranAuto() {
+                        // Verrouillage de l'orientation en Mode Paysage (Landscape)
+                        function verouillerModePaysage() {
                             try {
-                                var el = pDoc.documentElement;
-                                var isFS = pDoc.fullscreenElement || pDoc.webkitFullscreenElement || pDoc.mozFullScreenElement || pDoc.msFullscreenElement;
-                                if (!isFS) {
-                                    if (el.requestFullscreen) {
-                                        el.requestFullscreen().catch(function(){});
-                                    } else if (el.webkitRequestFullscreen) {
-                                        el.webkitRequestFullscreen();
-                                    } else if (el.msRequestFullscreen) {
-                                        el.msRequestFullscreen();
-                                    }
+                                if (pWin.screen && pWin.screen.orientation && pWin.screen.orientation.lock) {
+                                    pWin.screen.orientation.lock('landscape').catch(function() {
+                                        pWin.screen.orientation.lock('landscape-primary').catch(function(){});
+                                    });
+                                } else if (pWin.screen && pWin.screen.lockOrientation) {
+                                    pWin.screen.lockOrientation('landscape');
+                                } else if (pWin.screen && pWin.screen.mozLockOrientation) {
+                                    pWin.screen.mozLockOrientation('landscape');
+                                } else if (pWin.screen && pWin.screen.msLockOrientation) {
+                                    pWin.screen.msLockOrientation('landscape');
                                 }
                             } catch(e) {}
                         }
 
-                        // Tentative d'activation automatique immédiate
-                        declencherPleinEcranAuto();
+                        // Activation automatique et interactive du Plein Écran + Paysage
+                        pWin.lancerPleinEcranPaysage = function() {
+                            try {
+                                var el = pDoc.documentElement;
+                                var isFS = pDoc.fullscreenElement || pDoc.webkitFullscreenElement || pDoc.mozFullScreenElement || pDoc.msFullscreenElement;
+                                if (!isFS) {
+                                    var req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+                                    if (req) {
+                                        var prom = req.call(el, { navigationUI: "hide" });
+                                        if (prom && prom.then) {
+                                            prom.then(verouillerModePaysage).catch(function(){});
+                                        } else {
+                                            verouillerModePaysage();
+                                        }
+                                    } else {
+                                        verouillerModePaysage();
+                                    }
+                                } else {
+                                    verouillerModePaysage();
+                                }
+                            } catch(e) {
+                                verouillerModePaysage();
+                            }
+                        };
 
-                        // Enclenchement au premier clic ou toucher n'importe où sur l'écran
+                        // Tentative d'activation immédiate au chargement
+                        pWin.lancerPleinEcranPaysage();
+
+                        // Enclenchement au moindre clic, toucher ou interaction sur l'écran
                         try {
-                            pDoc.addEventListener('click', declencherPleinEcranAuto, {once: false});
-                            pDoc.addEventListener('touchstart', declencherPleinEcranAuto, {once: false});
+                            pDoc.addEventListener('click', pWin.lancerPleinEcranPaysage, {passive: true});
+                            pDoc.addEventListener('touchstart', pWin.lancerPleinEcranPaysage, {passive: true});
+                            pDoc.addEventListener('pointerdown', pWin.lancerPleinEcranPaysage, {passive: true});
+                            pWin.addEventListener('fullscreenchange', function() {
+                                var isFS = pDoc.fullscreenElement || pDoc.webkitFullscreenElement || pDoc.mozFullScreenElement || pDoc.msFullscreenElement;
+                                if (isFS) {
+                                    verouillerModePaysage();
+                                }
+                            });
                         } catch(e) {}
 
                         try {
                             var metas = [
+                                {name: 'screen-orientation', content: 'landscape'},
+                                {name: 'x5-orientation', content: 'landscape'},
+                                {name: 'x5-fullscreen', content: 'true'},
+                                {name: 'x5-page-mode', content: 'app'},
+                                {name: 'orientation', content: 'landscape'},
                                 {name: 'apple-mobile-web-app-capable', content: 'yes'},
                                 {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'},
                                 {name: 'mobile-web-app-capable', content: 'yes'}
@@ -10404,6 +10459,21 @@ div[data-testid="stVerticalBlock"] {
                     titre_tour_clean = str(titre_tour).upper().strip()
                     titre_num_clean = str(titre_num).strip()
 
+                    banner_rotate_html = (
+                        '<div class="banner-rotate-hint" style="display: none; background: #78350f; color: #fef08a; border: 1px solid #ca8a04; border-radius: 8px; padding: 6px 14px; text-align: center; font-size: 13px; font-weight: 800; margin-bottom: 6px;">'
+                        '📱 🔄 Pour un affichage optimal sur TV ou tablette, tournez votre appareil à l\'horizontale (Mode Paysage)'
+                        '</div>'
+                    )
+                    st.markdown(banner_rotate_html, unsafe_allow_html=True)
+
+                    btn_fs_html = (
+                        '<button id="btn-fs-tv" onclick="(function(){var p=window.parent||window; if(p.lancerPleinEcranPaysage){p.lancerPleinEcranPaysage();}else{var el=p.document.documentElement; (el.requestFullscreen||el.webkitRequestFullscreen).call(el);}})()" '
+                        'title="Activer Plein Écran & Mode Paysage" '
+                        'style="background: #111111; border: 1.5px solid #333333; color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; padding: 4px 10px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); transition: opacity 0.2s;">'
+                        '⛶ PLEIN ÉCRAN'
+                        '</button>'
+                    )
+
                     if afficher_victoire_10s and data_victoire:
                         # 🏆 ANNONCE DU VAINQUEUR PLEIN ÉCRAN (10 SECONDES)
                         v_nom_r = data_victoire.get("lutteur_r", nom_r)
@@ -10472,7 +10542,10 @@ div[data-testid="stVerticalBlock"] {
                             f'<span style="color: #64748b; font-weight: 900;">•</span>'
                             f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc;">COMBAT #{titre_num_clean}</span>'
                             f'</div>'
+                            f'<div style="display: flex; align-items: center; gap: 10px;">'
                             f'<div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase;">{titre_tour_clean}</div>'
+                            f'{btn_fs_html}'
+                            f'</div>'
                             f'</div>'
                             f'<div style="background: {bg_grad}; border: 4px solid #facc15; border-radius: 18px; margin: 12px; padding: clamp(16px, 3vw, 40px); box-shadow: 0 15px 50px {col_shadow}; text-align: center; color: white; min-height: 52vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; overflow: hidden;">'
                             f'<div style="color: #fde047; font-size: clamp(16px, 2.4vw, 34px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">🏆 VAINQUEUR DU COMBAT 🏆</div>'
@@ -10524,7 +10597,10 @@ div[data-testid="stVerticalBlock"] {
                             f'<span style="color: #64748b; font-weight: 900;">•</span>'
                             f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc; letter-spacing: 1px;">COMBAT #{titre_num_clean}</span>'
                             f'</div>'
+                            f'<div style="display: flex; align-items: center; gap: 10px;">'
                             f'<div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 15px rgba(250,204,21,0.3);">{titre_tour_clean}</div>'
+                            f'{btn_fs_html}'
+                            f'</div>'
                             f'</div>'
                             # 2. BANDEAU CENTRAL : ATHLÈTES & CLUBS
                             f'<div style="background: #000000; padding: clamp(12px, 1.8vw, 22px) clamp(16px, 2.5vw, 36px); display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; border-bottom: 2px solid #222222;">'
