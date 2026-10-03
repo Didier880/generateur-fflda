@@ -1,0 +1,21 @@
+# Exclure tout par défaut sauf le nécessaire
+*
+
+# Autoriser les fichiers nécessaires à Streamlit Cloud
+!.gitignore
+!app.py
+!requirements.txt
+!.streamlit/
+!.streamlit/config.toml
+!.devcontainer/
+!.devcontainer/**
+
+# Exclure explicitement les secrets
+.streamlit/secrets.toml
+secrets_a_copier.toml
+*.json
+*.xlsx
+*.xls
+*.csv
+*.pdf
+app copie*
