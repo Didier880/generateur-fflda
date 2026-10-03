@@ -5196,6 +5196,18 @@ def changer_periode_chrono(m_id, tapis_num=None, categorie=""):
         nouv_top = pytime.time() if en_cours else None
         publier_chrono_sync(m_id, tapis_num, nouv_sec, en_cours, nouv_top, nouv_per, categorie, pause30=False)
 
+def declencher_buzzer_manuel(m_id, categorie="", tapis_num=None):
+    """Déclenche manuellement le signal sonore (buzzer / klaxon) sur la table et le scoreboard."""
+    import time as pytime
+    now = pytime.time()
+    sec_actuelle, en_cours = calculer_temps_restant_chrono(m_id, categorie, tapis_num)
+    etat = recuperer_chrono_sync(m_id, tapis_num, categorie)
+    per = etat.get("per", 1)
+    pause30 = bool(etat.get("pause30", False))
+    top = pytime.time() if en_cours else None
+    publier_chrono_sync(m_id, tapis_num, sec_actuelle, en_cours, top, per, categorie, pause30=pause30, buzzer_event=now)
+    st.session_state[f"play_local_buzzer_{m_id}"] = now
+
 
 def generer_html_grille_coloree(grille_lignes, nb_tapis):
     """
@@ -10074,14 +10086,6 @@ if mode_app.startswith("2"):
                     )
                 with col_head_scb2:
                     components.html("""
-                    <div style="display:flex; justify-content:flex-end; align-items:center; height:100%; gap:8px;">
-                        <button id="bzTestBtn" style="background:#0f172a; color:#facc15; border:1px solid #ca8a04; padding:5px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer; font-family:-apple-system,BlinkMacSystemFont,sans-serif; transition:all 0.2s;" title="Tester le signal sonore de fin de combat">
-                            🔊 Test Buzzer
-                        </button>
-                        <button id="fsBtn" style="background:#1e293b; color:#94a3b8; border:1px solid #475569; padding:5px 12px; border-radius:8px; font-size:12px; font-weight:800; cursor:pointer; font-family:-apple-system,BlinkMacSystemFont,sans-serif; transition:all 0.2s;" onmouseover="this.style.color='#f8fafc'; this.style.borderColor='#94a3b8';" onmouseout="this.style.color='#94a3b8'; this.style.borderColor='#475569';">
-                            ⛶ Plein Écran
-                        </button>
-                    </div>
                     <script>
                     (function() {
                         var pDoc = window.parent.document;
@@ -10114,12 +10118,31 @@ if mode_app.startswith("2"):
                             }
                         };
 
-                        var bzBtn = document.getElementById('bzTestBtn');
-                        if (bzBtn) {
-                            bzBtn.addEventListener('click', function() {
-                                pWin._playArenaBuzzer();
-                            });
+                        // Activation automatique du Plein Écran
+                        function declencherPleinEcranAuto() {
+                            try {
+                                var el = pDoc.documentElement;
+                                var isFS = pDoc.fullscreenElement || pDoc.webkitFullscreenElement || pDoc.mozFullScreenElement || pDoc.msFullscreenElement;
+                                if (!isFS) {
+                                    if (el.requestFullscreen) {
+                                        el.requestFullscreen().catch(function(){});
+                                    } else if (el.webkitRequestFullscreen) {
+                                        el.webkitRequestFullscreen();
+                                    } else if (el.msRequestFullscreen) {
+                                        el.msRequestFullscreen();
+                                    }
+                                }
+                            } catch(e) {}
                         }
+
+                        // Tentative d'activation automatique immédiate
+                        declencherPleinEcranAuto();
+
+                        // Enclenchement au premier clic ou toucher n'importe où sur l'écran
+                        try {
+                            pDoc.addEventListener('click', declencherPleinEcranAuto, {once: false});
+                            pDoc.addEventListener('touchstart', declencherPleinEcranAuto, {once: false});
+                        } catch(e) {}
 
                         try {
                             var metas = [
@@ -10137,35 +10160,8 @@ if mode_app.startswith("2"):
                             });
                         } catch(e) {}
                     })();
-
-                    document.getElementById('fsBtn').addEventListener('click', function() {
-                        try {
-                            var pDoc = window.parent.document;
-                            var el = pDoc.documentElement;
-                            var isFS = pDoc.fullscreenElement || pDoc.webkitFullscreenElement || pDoc.mozFullScreenElement || pDoc.msFullscreenElement;
-                            if (!isFS) {
-                                if (el.requestFullscreen) {
-                                    el.requestFullscreen();
-                                } else if (el.webkitRequestFullscreen) {
-                                    el.webkitRequestFullscreen();
-                                } else if (el.msRequestFullscreen) {
-                                    el.msRequestFullscreen();
-                                }
-                            } else {
-                                if (pDoc.exitFullscreen) {
-                                    pDoc.exitFullscreen();
-                                } else if (pDoc.webkitExitFullscreen) {
-                                    pDoc.webkitExitFullscreen();
-                                } else if (pDoc.msExitFullscreen) {
-                                    pDoc.msExitFullscreen();
-                                }
-                            }
-                        } catch(e) {
-                            console.error(e);
-                        }
-                    });
                     </script>
-                    """, height=36)
+                    """, height=0)
 
                 @fragment_compat(run_every="1s")
                 def _fragment_scoreboard_tv():
@@ -10979,7 +10975,7 @@ if mode_app.startswith("2"):
                     badge_lbl = "● EN COMBAT" if en_cours else ("🔔 FIN DU TEMPS" if sec_r == 0 else "⏸️ PAUSE")
                     per_lbl = f"PÉRIODE {per}"
                 
-                c_head_chr, c_btn_scb = st.columns([3, 1.2])
+                c_head_chr, c_btn_bz, c_btn_scb = st.columns([2.5, 1.1, 1.1], gap="small")
                 with c_head_chr:
                     badge_per_style = "background: #78350f; color: #fde68a; border: 1px solid #f59e0b;" if pause30 else "background: #1e293b; color: #94a3b8;"
                     st.markdown(
@@ -10993,10 +10989,49 @@ if mode_app.startswith("2"):
                         f"</div>",
                         unsafe_allow_html=True
                     )
+                with c_btn_bz:
+                    st.button("🔊 Test Buzzer", key=f"btn_tb_bz_{m_id}", on_click=declencher_buzzer_manuel, args=(m_id, cat_m, tapis_num_actif), use_container_width=True, help="Déclencher le signal sonore / klaxon sur la table et le Scoreboard TV")
                 with c_btn_scb:
                     if st.button("📺 Scoreboard TV", key=f"btn_tb_scb_{m_id}", use_container_width=True, help="Afficher le grand Scoreboard TV haute visibilité pour ce tapis"):
                         st.session_state["vue_scoreboard_active"] = True
                         st.rerun()
+
+                # Signal sonore local Table de Marque (Web Audio API)
+                etat_chr_tb = recuperer_chrono_sync(m_id, tapis_num_actif, cat_m)
+                b_evt_tb = etat_chr_tb.get("buzzer_event", 0.0)
+                last_b_tb = st.session_state.get(f"last_buzzer_table_{m_id}", 0.0)
+                if b_evt_tb > 0 and (pytime.time() - b_evt_tb < 3.0) and (b_evt_tb != last_b_tb):
+                    st.session_state[f"last_buzzer_table_{m_id}"] = b_evt_tb
+                    st.session_state[f"play_local_buzzer_{m_id}"] = pytime.time()
+
+                if pytime.time() - st.session_state.get(f"play_local_buzzer_{m_id}", 0.0) < 2.5:
+                    components.html("""
+                    <script>
+                    (function() {
+                        try {
+                            var pWin = window.parent || window;
+                            var AudioCtx = pWin.AudioContext || pWin.webkitAudioContext;
+                            if (!AudioCtx) return;
+                            var ctx = new AudioCtx();
+                            if (ctx.state === 'suspended') { ctx.resume(); }
+                            var now = ctx.currentTime;
+                            [0, 0.35, 0.70].forEach(function(offset) {
+                                var osc = ctx.createOscillator();
+                                var gain = ctx.createGain();
+                                osc.type = 'sawtooth';
+                                osc.frequency.setValueAtTime(500, now + offset);
+                                osc.frequency.exponentialRampToValueAtTime(240, now + offset + 0.30);
+                                gain.gain.setValueAtTime(0.7, now + offset);
+                                gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.30);
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.start(now + offset);
+                                osc.stop(now + offset + 0.30);
+                            });
+                        } catch(e) {}
+                    })();
+                    </script>
+                    """, height=0)
 
                 st.markdown('<div id="chrono_barre_marker"></div>', unsafe_allow_html=True)
                 c_ch1, c_ch2, c_ch3, c_ch4, c_ch5 = st.columns([1.5, 1.2, 0.9, 0.9, 1.3], gap="small")
