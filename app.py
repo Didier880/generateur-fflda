@@ -10122,15 +10122,6 @@ div[data-testid="stVerticalBlock"] {
 .score-pulse {
     animation: scorePulseAnim 0.6s ease-out !important;
 }
-:fullscreen #btn-fs-tv,
-:-webkit-full-screen #btn-fs-tv,
-:-moz-full-screen #btn-fs-tv {
-    opacity: 0.25;
-}
-:fullscreen #btn-fs-tv:hover,
-:-webkit-full-screen #btn-fs-tv:hover {
-    opacity: 1;
-}
 @media screen and (orientation: portrait) and (max-width: 900px) {
     .banner-rotate-hint {
         display: block !important;
@@ -10466,14 +10457,6 @@ div[data-testid="stVerticalBlock"] {
                     )
                     st.markdown(banner_rotate_html, unsafe_allow_html=True)
 
-                    btn_fs_html = (
-                        '<button id="btn-fs-tv" onclick="(function(){var p=window.parent||window; if(p.lancerPleinEcranPaysage){p.lancerPleinEcranPaysage();}else{var el=p.document.documentElement; (el.requestFullscreen||el.webkitRequestFullscreen).call(el);}})()" '
-                        'title="Activer Plein Écran & Mode Paysage" '
-                        'style="background: #111111; border: 1.5px solid #333333; color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; padding: 4px 10px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); transition: opacity 0.2s;">'
-                        '⛶ PLEIN ÉCRAN'
-                        '</button>'
-                    )
-
                     if afficher_victoire_10s and data_victoire:
                         # 🏆 ANNONCE DU VAINQUEUR PLEIN ÉCRAN (10 SECONDES)
                         v_nom_r = data_victoire.get("lutteur_r", nom_r)
@@ -10542,10 +10525,7 @@ div[data-testid="stVerticalBlock"] {
                             f'<span style="color: #64748b; font-weight: 900;">•</span>'
                             f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc;">COMBAT #{titre_num_clean}</span>'
                             f'</div>'
-                            f'<div style="display: flex; align-items: center; gap: 10px;">'
                             f'<div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase;">{titre_tour_clean}</div>'
-                            f'{btn_fs_html}'
-                            f'</div>'
                             f'</div>'
                             f'<div style="background: {bg_grad}; border: 4px solid #facc15; border-radius: 18px; margin: 12px; padding: clamp(16px, 3vw, 40px); box-shadow: 0 15px 50px {col_shadow}; text-align: center; color: white; min-height: 52vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; overflow: hidden;">'
                             f'<div style="color: #fde047; font-size: clamp(16px, 2.4vw, 34px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">🏆 VAINQUEUR DU COMBAT 🏆</div>'
@@ -10597,10 +10577,7 @@ div[data-testid="stVerticalBlock"] {
                             f'<span style="color: #64748b; font-weight: 900;">•</span>'
                             f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc; letter-spacing: 1px;">COMBAT #{titre_num_clean}</span>'
                             f'</div>'
-                            f'<div style="display: flex; align-items: center; gap: 10px;">'
                             f'<div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 15px rgba(250,204,21,0.3);">{titre_tour_clean}</div>'
-                            f'{btn_fs_html}'
-                            f'</div>'
                             f'</div>'
                             # 2. BANDEAU CENTRAL : ATHLÈTES & CLUBS
                             f'<div style="background: #000000; padding: clamp(12px, 1.8vw, 22px) clamp(16px, 2.5vw, 36px); display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; border-bottom: 2px solid #222222;">'
