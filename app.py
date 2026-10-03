@@ -10050,20 +10050,25 @@ if mode_app.startswith("2"):
                 # Injection de style plein écran universel (Smart TV, tablettes, vidéoprojecteurs)
                 st.markdown('''
                 <style>
+                @import url('https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@700;800;900&display=swap');
                 header[data-testid="stHeader"] { display: none !important; }
                 footer { display: none !important; }
                 #MainMenu { visibility: hidden !important; }
                 section[data-testid="stSidebar"] { display: none !important; }
                 div[data-testid="collapsedControl"] { display: none !important; }
                 .block-container {
-                    padding-top: 0.2rem !important;
-                    padding-bottom: 0.2rem !important;
-                    padding-left: 0.6rem !important;
-                    padding-right: 0.6rem !important;
+                    padding-top: 0.15rem !important;
+                    padding-bottom: 0.15rem !important;
+                    padding-left: 0.5rem !important;
+                    padding-right: 0.5rem !important;
                     max-width: 100% !important;
                 }
                 div[data-testid="stVerticalBlock"] {
-                    gap: 0.3rem !important;
+                    gap: 0.2rem !important;
+                }
+                .font-uww-score {
+                    font-family: 'Teko', 'Impact', sans-serif !important;
+                    line-height: 0.85 !important;
                 }
                 @keyframes scorePulseAnim {
                     0% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255,255,255,0.2)); }
@@ -10076,16 +10081,7 @@ if mode_app.startswith("2"):
                 </style>
                 ''', unsafe_allow_html=True)
 
-                col_head_scb1, col_head_scb2 = st.columns([1, 1])
-                with col_head_scb1:
-                    st.markdown(
-                        f"<div style='margin-bottom: 4px;'>"
-                        f"<span style='background:#0055A4; color:white; font-size:clamp(14px, 1.5vw, 18px); font-weight:900; padding:5px 14px; border-radius:8px; display:inline-block;'>TAPIS {t_num}</span>"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
-                with col_head_scb2:
-                    components.html("""
+                components.html("""
                     <script>
                     (function() {
                         var pDoc = window.parent.document;
@@ -10360,14 +10356,9 @@ if mode_app.startswith("2"):
                     titre_num = data_victoire.get("match_num", num_m) if (afficher_victoire_10s and data_victoire) else num_m
                     titre_cat = data_victoire.get("categorie", cat_m) if (afficher_victoire_10s and data_victoire) else cat_m
                     titre_tour = data_victoire.get("tour", tour_m) if (afficher_victoire_10s and data_victoire) else tour_m
-
-                    st.markdown(
-                        f"<div style='background:#f1f5f9; border: 2px solid #cbd5e1; border-radius: 12px; padding: 10px 18px; margin-bottom: 8px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.06);'>"
-                        f"<div><span style='font-size: clamp(18px, 2.2vw, 26px); font-weight:900; color:#0f172a;'>Combat n°{titre_num}</span></div>"
-                        f"<div><span style='background:#0055A4; color:white; font-size: clamp(13px, 1.4vw, 16px); font-weight:800; padding:6px 14px; border-radius:8px; margin-right:8px;'>{titre_cat}</span><span style='background:#334155; color:white; font-size: clamp(13px, 1.4vw, 16px); font-weight:800; padding:6px 14px; border-radius:8px;'>Tour {titre_tour}</span></div>"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
+                    titre_cat_clean = str(titre_cat).replace(' | ', ' • ').strip()
+                    titre_tour_clean = str(titre_tour).upper().strip()
+                    titre_num_clean = str(titre_num).strip()
 
                     if afficher_victoire_10s and data_victoire:
                         # 🏆 ANNONCE DU VAINQUEUR PLEIN ÉCRAN (10 SECONDES)
@@ -10429,95 +10420,166 @@ if mode_app.startswith("2"):
                             vic_border = "#64748b"
 
                         st.markdown(
-                            f"<div style='background: {bg_grad}; border: 4px solid #facc15; border-radius: 24px; padding: clamp(16px, 3vw, 40px); box-shadow: 0 15px 50px {col_shadow}; text-align: center; color: white; min-height: 55vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; overflow: hidden; margin-bottom: 8px;'>"
-                            f"<div style='color: #fde047; font-size: clamp(16px, 2.4vw, 34px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;'>🏆 VAINQUEUR DU COMBAT 🏆</div>"
-                            f"<div style='font-size: clamp(32px, 6vw, 92px); font-weight: 900; line-height: 1.1; margin: 10px 0 6px 0; text-shadow: 0 4px 18px rgba(0,0,0,0.7); word-break: break-word;'>{nom_vainq}</div>"
-                            f"<div style='font-size: clamp(16px, 2.4vw, 32px); font-weight: 700; color: #f1f5f9; opacity: 0.95; margin-bottom: 18px;'>{club_vainq}</div>"
-                            f"<div style='background: {vic_bg}; border: 2px solid {vic_border}; color: white; font-size: clamp(14px, 2vw, 26px); font-weight: 900; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); border-radius: 9999px; margin-bottom: 22px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: inline-block;'>{vic_label}</div>"
-                            f"<div style='background: rgba(0,0,0,0.65); border: 2px solid rgba(255,255,255,0.2); border-radius: 16px; padding: clamp(8px, 1.2vw, 14px) clamp(14px, 2vw, 28px); display: inline-flex; align-items: center; justify-content: center; gap: clamp(8px, 1.5vw, 20px); flex-wrap: wrap;'>"
-                            f"<span style='font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #ef4444;'>🔴 {v_nom_r} ({v_sc_r})</span>"
-                            f"<span style='font-size: clamp(16px, 2vw, 24px); font-weight: 900; color: #94a3b8;'>—</span>"
-                            f"<span style='font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #38bdf8;'>({v_sc_b}) {v_nom_b} 🔵</span>"
-                            f"</div>"
-                            f"<div style='margin-top: 14px; font-size: clamp(12px, 1.3vw, 16px); font-weight: 700; color: #fef08a; opacity: 0.9;'>⏳ Prochain combat dans {sec_rest_10s}s...</div>"
-                            f"</div>",
+                            f"""
+                            <div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">
+                                <div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">
+                                    <span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase;">
+                                        {titre_cat_clean}
+                                    </span>
+                                    <div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8;">TAPIS {t_num}</span>
+                                        <span style="color: #64748b; font-weight: 900;">•</span>
+                                        <span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc;">COMBAT #{titre_num_clean}</span>
+                                    </div>
+                                    <div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase;">
+                                        {titre_tour_clean}
+                                    </div>
+                                </div>
+                                <div style="background: {bg_grad}; border: 4px solid #facc15; border-radius: 18px; margin: 12px; padding: clamp(16px, 3vw, 40px); box-shadow: 0 15px 50px {col_shadow}; text-align: center; color: white; min-height: 52vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; overflow: hidden;">
+                                    <div style="color: #fde047; font-size: clamp(16px, 2.4vw, 34px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">🏆 VAINQUEUR DU COMBAT 🏆</div>
+                                    <div style="font-size: clamp(32px, 6vw, 92px); font-weight: 900; line-height: 1.1; margin: 10px 0 6px 0; text-shadow: 0 4px 18px rgba(0,0,0,0.7); word-break: break-word;">{nom_vainq}</div>
+                                    <div style="font-size: clamp(16px, 2.4vw, 32px); font-weight: 700; color: #f1f5f9; opacity: 0.95; margin-bottom: 18px;">{club_vainq}</div>
+                                    <div style="background: {vic_bg}; border: 2px solid {vic_border}; color: white; font-size: clamp(14px, 2vw, 26px); font-weight: 900; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); border-radius: 9999px; margin-bottom: 22px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: inline-block;">{vic_label}</div>
+                                    <div style="background: rgba(0,0,0,0.65); border: 2px solid rgba(255,255,255,0.2); border-radius: 16px; padding: clamp(8px, 1.2vw, 14px) clamp(14px, 2vw, 28px); display: inline-flex; align-items: center; justify-content: center; gap: clamp(8px, 1.5vw, 20px); flex-wrap: wrap;">
+                                        <span style="font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #ef4444;">🔴 {v_nom_r} ({v_sc_r})</span>
+                                        <span style="font-size: clamp(16px, 2vw, 24px); font-weight: 900; color: #94a3b8;">—</span>
+                                        <span style="font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #38bdf8;">({v_sc_b}) {v_nom_b} 🔵</span>
+                                    </div>
+                                    <div style="margin-top: 14px; font-size: clamp(12px, 1.3vw, 16px); font-weight: 700; color: #fef08a; opacity: 0.9;">⏳ Prochain combat dans {sec_rest_10s}s...</div>
+                                </div>
+                            </div>
+                            """,
                             unsafe_allow_html=True
                         )
                     else:
-                        # GRANDE ARENA HAUTE VISIBILITÉ (3 Colonnes plein écran)
-                        col_r, col_c, col_b = st.columns([2.3, 1.4, 2.3], gap="small")
+                        # LE SCOREBOARD OFFICIEL HAUTE VISIBILITÉ (FORMAT UWW)
+                        caut_r_html = " ".join([
+                            "<span style='background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:2px 8px; border-radius:6px; margin-left:4px;'>⚠️ AVERT</span>"
+                            for _ in range(cautions_r)
+                        ]) if cautions_r > 0 else ""
+                        caut_b_html = " ".join([
+                            "<span style='background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:2px 8px; border-radius:6px; margin-right:4px;'>⚠️ AVERT</span>"
+                            for _ in range(cautions_b)
+                        ]) if cautions_b > 0 else ""
 
-                        # 🔴 COIN ROUGE
-                        with col_r:
-                            caut_r_html = " ".join(["<span style='background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:3px 8px; border-radius:6px; margin-right:4px;'>⚠️ AVERT</span>" for _ in range(cautions_r)]) if cautions_r > 0 else ""
-                            badge_av_r = "<div style='color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;'>👑 AVANTAGE UWW (DÉPARTAGE)</div>" if (est_egalite and meneur == "Rouge") else ""
-                            st.markdown(
-                                f"<div style='background: linear-gradient(145deg, #b91c1c 0%, #7f1d1d 100%); border: 3px solid #ef4444; border-radius: 20px; padding: clamp(8px, 1.5vw, 18px); box-shadow: 0 10px 30px rgba(220,38,38,0.3); text-align: center; color: white; min-height: 55vh; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; overflow: hidden;'>"
-                                f"<div>"
-                                f"<div style='font-size: clamp(18px, 2.8vw, 42px); font-weight: 900; line-height: 1.15; margin: 4px 0 2px 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); word-break: break-word; {underline_r}'>{nom_r}</div>"
-                                f"<div style='font-size: clamp(11px, 1.4vw, 18px); font-weight: 700; opacity: 0.9; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{club_r}</div>"
-                                f"{badge_av_r}"
-                                f"</div>"
-                                f"<div class='{pulse_r}' style='background: #090d16; border: 3px solid #ef4444; border-radius: 16px; padding: clamp(6px, 1.2vw, 12px) 2px; margin: 8px 0; box-shadow: inset 0 0 25px rgba(239,68,68,0.35); flex-grow: 1; display: flex; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; width: 100%;'>"
-                                f"<span style='font-family: monospace; font-size: clamp(38px, 8.5vw, 150px); font-weight: 900; color: #ff4444; text-shadow: 0 0 30px rgba(255,68,68,0.85); line-height: 1; white-space: nowrap;'>{sc_r}</span>"
-                                f"</div>"
-                                f"<div style='min-height: 24px;'>{caut_r_html}</div>"
-                                f"</div>",
-                                unsafe_allow_html=True
-                            )
+                        badge_av_r = "<div style='color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;'>👑 AVANTAGE UWW (DÉPARTAGE)</div>" if (est_egalite and meneur == "Rouge") else ""
+                        badge_av_b = "<div style='color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;'>👑 AVANTAGE UWW (DÉPARTAGE)</div>" if (est_egalite and meneur == "Bleu") else ""
 
-                        # ⏱️ CHRONOMÈTRE CENTRAL (PUR AFFICHAGE, PAS DE BOUTONS)
-                        with col_c:
-                            centre_info_html = f"<div style='font-size: clamp(10px, 1.1vw, 12px); color: #cbd5e1; margin-top: 6px; font-weight: 600;'>{('⚖️ <b>Égalité</b> — Avantage <b style=\"color:#facc15;\">' + str(meneur) + '</b><br><span style=\"font-size:10px; color:#94a3b8;\">(' + motif_dep + ')</span>') if est_egalite else ''}</div>"
+                        centre_info_html = f"<div style='font-size: clamp(10px, 1.1vw, 12px); color: #cbd5e1; margin-top: 4px; font-weight: 600;'>{('⚖️ <b>Égalité</b> — Avantage <b style=\"color:#facc15;\">' + str(meneur) + '</b> (' + motif_dep + ')') if est_egalite else ''}</div>"
+                        badge_per_style = "background: #78350f; color: #fde68a; border: 1px solid #f59e0b;" if pause30 else "background: #1e293b; color: #facc15; border: 1px solid #334155;"
 
-                            badge_per_style = "background: #78350f; color: #fde68a; border: 1px solid #f59e0b;" if pause30 else "background: #1e293b; color: #94a3b8;"
-                            st.markdown(
-                                f"<div style='background: #0f172a; border: 3px solid #334155; border-radius: 20px; padding: clamp(8px, 1.5vw, 18px); box-shadow: 0 10px 30px rgba(0,0,0,0.4); text-align: center; color: white; display: flex; flex-direction: column; justify-content: space-between; min-height: 55vh; box-sizing: border-box; overflow: hidden;'>"
-                                f"<div>"
-                                f"<div style='{badge_per_style} font-size: clamp(10px, 1.2vw, 14px); font-weight: 900; padding: 4px 10px; border-radius: 8px; display: inline-block; margin-bottom: 6px;'>{lbl_periode_tv}</div>"
-                                f"<div style='background: #000000; border: 3px solid {col_chr_color}; border-radius: 16px; padding: clamp(6px, 1.2vw, 14px) 2px; margin: 6px 0 10px 0; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); flex-grow: 1; display: flex; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; width: 100%;'>"
-                                f"<span style='font-family: monospace; font-size: clamp(18px, 4.2vw, 85px); font-weight: 900; color: {col_chr_color}; letter-spacing: clamp(0px, 0.2vw, 2px); text-shadow: 0 0 15px {col_chr_color}; line-height: 1; white-space: nowrap; max-width: 100%; display: inline-block;'>{chrono_txt}</span>"
-                                f"</div>"
-                                f"<div style='color: {col_chr_color}; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{stat_badge}</div>"
-                                f"</div>"
-                                f"<div style='margin-top: 6px;'>"
-                                f"{centre_info_html}"
-                                f"</div>"
-                                f"</div>",
-                                unsafe_allow_html=True
-                            )
+                        club_r_txt = str(club_r).strip().upper() if club_r and str(club_r).lower() not in ['nan', 'none', '-'] else "COIN ROUGE"
+                        club_b_txt = str(club_b).strip().upper() if club_b and str(club_b).lower() not in ['nan', 'none', '-'] else "COIN BLEU"
 
-                        # 🔵 COIN BLEU
-                        with col_b:
-                            caut_b_html = " ".join(["<span style='background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:3px 8px; border-radius:6px; margin-right:4px;'>⚠️ AVERT</span>" for _ in range(cautions_b)]) if cautions_b > 0 else ""
-                            badge_av_b = "<div style='color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;'>👑 AVANTAGE UWW (DÉPARTAGE)</div>" if (est_egalite and meneur == "Bleu") else ""
-                            st.markdown(
-                                f"<div style='background: linear-gradient(145deg, #1d4ed8 0%, #1e3a8a 100%); border: 3px solid #3b82f6; border-radius: 20px; padding: clamp(8px, 1.5vw, 18px); box-shadow: 0 10px 30px rgba(37,99,235,0.3); text-align: center; color: white; min-height: 55vh; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; overflow: hidden;'>"
-                                f"<div>"
-                                f"<div style='font-size: clamp(18px, 2.8vw, 42px); font-weight: 900; line-height: 1.15; margin: 4px 0 2px 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); word-break: break-word; {underline_b}'>{nom_b}</div>"
-                                f"<div style='font-size: clamp(11px, 1.4vw, 18px); font-weight: 700; opacity: 0.9; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{club_b}</div>"
-                                f"{badge_av_b}"
-                                f"</div>"
-                                f"<div class='{pulse_b}' style='background: #090d16; border: 3px solid #3b82f6; border-radius: 16px; padding: clamp(6px, 1.2vw, 12px) 2px; margin: 8px 0; box-shadow: inset 0 0 25px rgba(59,130,246,0.35); flex-grow: 1; display: flex; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; width: 100%;'>"
-                                f"<span style='font-family: monospace; font-size: clamp(38px, 8.5vw, 150px); font-weight: 900; color: #38bdf8; text-shadow: 0 0 30px rgba(56,189,248,0.85); line-height: 1; white-space: nowrap;'>{sc_b}</span>"
-                                f"</div>"
-                                f"<div style='min-height: 24px;'>{caut_b_html}</div>"
-                                f"</div>",
-                                unsafe_allow_html=True
-                            )
+                        st.markdown(
+                            f"""
+                            <div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">
+                                <!-- 1. BANDEAU SUPÉRIEUR (STYLE/POIDS | MATCH & TAPIS | PHASE/TOUR) -->
+                                <div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase; letter-spacing: 1px;">
+                                            {titre_cat_clean}
+                                        </span>
+                                    </div>
+                                    <div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">TAPIS {t_num}</span>
+                                        <span style="color: #64748b; font-weight: 900;">•</span>
+                                        <span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc; letter-spacing: 1px;">COMBAT #{titre_num_clean}</span>
+                                    </div>
+                                    <div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 15px rgba(250,204,21,0.3);">
+                                        {titre_tour_clean}
+                                    </div>
+                                </div>
+
+                                <!-- 2. BANDEAU CENTRAL : ATHLÈTES & CLUBS (INSPIRÉ UWW SANS DRAPEAUX) -->
+                                <div style="background: #030712; padding: clamp(12px, 1.8vw, 22px) clamp(16px, 2.5vw, 36px); display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; border-bottom: 2px solid #0f172a;">
+                                    <!-- COIN ROUGE -->
+                                    <div style="display: flex; flex-direction: column; padding-right: clamp(10px, 1.8vw, 24px);">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap;">
+                                            <span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px rgba(239,68,68,0.7);"></span>
+                                            <span style="font-size: clamp(13px, 1.6vw, 22px); font-weight: 900; color: #f87171; letter-spacing: 1px; text-transform: uppercase;">
+                                                {club_r_txt}
+                                            </span>
+                                            {caut_r_html}
+                                        </div>
+                                        <div style="font-size: clamp(22px, 3.6vw, 52px); font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.1; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.7); {underline_r}">
+                                            {nom_r}
+                                        </div>
+                                        {badge_av_r}
+                                    </div>
+
+                                    <!-- SÉPARATEUR VERTICAL -->
+                                    <div style="background: #1e293b; height: 75%; width: 2px; justify-self: center;"></div>
+
+                                    <!-- COIN BLEU -->
+                                    <div style="display: flex; flex-direction: column; align-items: flex-end; padding-left: clamp(10px, 1.8vw, 24px); text-align: right;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; justify-content: flex-end; flex-wrap: wrap;">
+                                            {caut_b_html}
+                                            <span style="font-size: clamp(13px, 1.6vw, 22px); font-weight: 900; color: #60a5fa; letter-spacing: 1px; text-transform: uppercase;">
+                                                {club_b_txt}
+                                            </span>
+                                            <span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.7);"></span>
+                                        </div>
+                                        <div style="font-size: clamp(22px, 3.6vw, 52px); font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.1; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.7); {underline_b}">
+                                            {nom_b}
+                                        </div>
+                                        {badge_av_b}
+                                    </div>
+                                </div>
+
+                                <!-- 3. ZONE INFÉRIEURE : LES 3 BLOCS MASSIFS UWW (SCORE ROUGE | CHRONO | SCORE BLEU) -->
+                                <div style="display: grid; grid-template-columns: 2.3fr 1.6fr 2.3fr; height: clamp(190px, 38vh, 440px); overflow: hidden;">
+                                    <!-- BLOC SCORE ROUGE MASSIF -->
+                                    <div class="{pulse_r}" style="background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%); display: flex; align-items: center; justify-content: center; position: relative; user-select: none;">
+                                        <span class="font-uww-score" style="font-size: clamp(85px, 19vw, 240px); font-weight: 900; color: #ffffff; text-shadow: 0 4px 25px rgba(0,0,0,0.5);">
+                                            {sc_r}
+                                        </span>
+                                    </div>
+
+                                    <!-- BLOC CHRONOMÈTRE NOIR CARBONE -->
+                                    <div style="background: #000000; border-left: 3px solid #0f172a; border-right: 3px solid #0f172a; display: flex; flex-direction: column; justify-content: space-around; align-items: center; padding: 10px 4px; user-select: none;">
+                                        <div style="{badge_per_style} font-size: clamp(10px, 1.2vw, 15px); font-weight: 900; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 1px;">
+                                            {lbl_periode_tv}
+                                        </div>
+                                        <div style="font-family: 'Teko', 'Impact', monospace; font-size: clamp(44px, 10vw, 145px); font-weight: 900; color: {col_chr_color}; line-height: 0.9; text-shadow: 0 0 25px {col_chr_color}55;">
+                                            {chrono_txt}
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                                            <div style="color: {col_chr_color}; font-size: clamp(9px, 1vw, 12px); font-weight: 900; letter-spacing: 0.5px;">
+                                                {stat_badge}
+                                            </div>
+                                            {centre_info_html}
+                                        </div>
+                                    </div>
+
+                                    <!-- BLOC SCORE BLEU MASSIF -->
+                                    <div class="{pulse_b}" style="background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); display: flex; align-items: center; justify-content: center; position: relative; user-select: none;">
+                                        <span class="font-uww-score" style="font-size: clamp(85px, 19vw, 240px); font-weight: 900; color: #ffffff; text-shadow: 0 4px 25px rgba(0,0,0,0.5);">
+                                            {sc_b}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
 
                     # Bandeau Combat suivant en préparation (compact)
                     nxt_idx = cur_idx if (afficher_victoire_10s and data_victoire and cur_idx != data_victoire.get("idx")) else (cur_idx + 1)
                     if liste_m and 0 <= nxt_idx < len(liste_m):
                         nxt = liste_m[nxt_idx]
                         st.markdown(
-                            f"<div style='margin-top: 10px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between;'>"
-                            f"<span style='font-size: 11px; font-weight: 900; color: #d97706; text-transform: uppercase; letter-spacing: 1px;'>⚡ COMBAT SUIVANT (EN PRÉPARATION) :</span>"
-                            f"<span style='font-size: 14px; font-weight: 700; color: #1e293b;'>"
-                            f"<span style='color: #dc2626;'>🔴 {nxt.get('lutteur_rouge','')}</span> ({nxt.get('club_rouge','')}) vs <span style='color: #2563eb;'>🔵 {nxt.get('lutteur_bleu','')}</span> ({nxt.get('club_bleu','')})"
-                            f"</span>"
-                            f"<span style='font-size: 12px; color: #64748b; font-weight: 600;'>Combat n°{nxt.get('match_num')}</span>"
-                            f"</div>",
+                            f"""
+                            <div style="margin-top: 8px; background: #0b1120; border: 2px solid #1e293b; border-radius: 12px; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
+                                <span style="font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px;">⚡ PROCHAIN COMBAT :</span>
+                                <span style="font-size: clamp(12px, 1.4vw, 17px); font-weight: 800; color: #e2e8f0;">
+                                    <span style="color: #f87171;">🔴 {nxt.get('lutteur_rouge','')}</span> ({nxt.get('club_rouge','')})
+                                    <span style="color: #64748b; margin: 0 8px;">vs</span>
+                                    <span style="color: #60a5fa;">🔵 {nxt.get('lutteur_bleu','')}</span> ({nxt.get('club_bleu','')})
+                                </span>
+                                <span style="font-size: clamp(11px, 1.2vw, 15px); color: #94a3b8; font-weight: 800;">Combat n°{nxt.get('match_num')}</span>
+                            </div>
+                            """,
                             unsafe_allow_html=True
                         )
 
@@ -10658,7 +10720,7 @@ if mode_app.startswith("2"):
                     st.rerun()
 
             # LE COMBAT ACTIF (TABLE DE MARQUE)
-            m_actuel = matchs_du_tapis[idx_match_actif]
+            m_actuel = matchs_du_tapis[idx_match_actif] if (matchs_du_tapis and 0 <= idx_match_actif < len(matchs_du_tapis)) else {}
             cat_m = m_actuel.get("categorie", "")
             age_m = extraire_age_de_texte(cat_m)
             is_u13 = "U13" in age_m.upper()
