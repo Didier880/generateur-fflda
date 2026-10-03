@@ -86,24 +86,36 @@ except Exception:
 
 if st.session_state.get("vue_scoreboard_active"):
     st.markdown('''
-    <style>
-    header[data-testid="stHeader"] { display: none !important; }
-    footer { display: none !important; }
-    #MainMenu { visibility: hidden !important; }
-    section[data-testid="stSidebar"] { display: none !important; }
-    div[data-testid="collapsedControl"] { display: none !important; }
-    .block-container {
-        padding-top: 0.2rem !important;
-        padding-bottom: 0.2rem !important;
-        padding-left: 0.6rem !important;
-        padding-right: 0.6rem !important;
-        max-width: 100% !important;
-    }
-    div[data-testid="stVerticalBlock"] {
-        gap: 0.3rem !important;
-    }
-    </style>
-    ''', unsafe_allow_html=True)
+<style>
+header[data-testid="stHeader"], header { display: none !important; visibility: hidden !important; }
+footer { display: none !important; visibility: hidden !important; }
+#MainMenu { visibility: hidden !important; }
+section[data-testid="stSidebar"] { display: none !important; }
+div[data-testid="collapsedControl"] { display: none !important; }
+div[data-testid="stToolbar"] { display: none !important; }
+div[data-testid="stElementToolbar"] { display: none !important; }
+div[data-testid="stDecoration"] { display: none !important; }
+html, body, #root, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"], section.main, .main, .block-container, div[data-testid="stVerticalBlock"], div[data-testid="stMarkdownContainer"] {
+    background-color: #000000 !important;
+    background: #000000 !important;
+    color: #ffffff !important;
+}
+.block-container {
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.2rem !important;
+    padding-left: 0.4rem !important;
+    padding-right: 0.4rem !important;
+    max-width: 100% !important;
+    background-color: #000000 !important;
+    background: #000000 !important;
+}
+div[data-testid="stVerticalBlock"] {
+    gap: 0.2rem !important;
+    background-color: #000000 !important;
+    background: #000000 !important;
+}
+</style>
+''', unsafe_allow_html=True)
 
 # --- ÉCRAN DE CONNEXION OBLIGATOIRE ---
 if not st.session_state.get("authentifie"):
@@ -1105,16 +1117,36 @@ def charger_liste_arbitres(fichier_arbitres_in=None):
 is_kiosque = st.session_state.get("mode_kiosque_qr", False) or st.session_state.get("vue_scoreboard_active", False)
 
 if is_kiosque:
-    st.markdown("""
-    <style>
-    [data-testid="stSidebar"] { display: none !important; }
-    [data-testid="collapsedControl"] { display: none !important; }
-    #MainMenu { visibility: hidden !important; }
-    header { visibility: hidden !important; }
-    footer { visibility: hidden !important; }
-    .block-container { padding-top: 1.2rem !important; padding-bottom: 2rem !important; max-width: 98% !important; }
-    </style>
-    """, unsafe_allow_html=True)
+    if st.session_state.get("vue_scoreboard_active"):
+        st.markdown("""
+<style>
+[data-testid="stSidebar"] { display: none !important; }
+[data-testid="collapsedControl"] { display: none !important; }
+#MainMenu { visibility: hidden !important; }
+header { visibility: hidden !important; display: none !important; }
+footer { visibility: hidden !important; display: none !important; }
+div[data-testid="stToolbar"] { display: none !important; }
+div[data-testid="stElementToolbar"] { display: none !important; }
+div[data-testid="stDecoration"] { display: none !important; }
+html, body, #root, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"], section.main, .main, .block-container, div[data-testid="stVerticalBlock"], div[data-testid="stMarkdownContainer"] {
+    background-color: #000000 !important;
+    background: #000000 !important;
+    color: #ffffff !important;
+}
+.block-container { padding-top: 0.1rem !important; padding-bottom: 0.5rem !important; max-width: 100% !important; background-color: #000000 !important; background: #000000 !important; }
+</style>
+""", unsafe_allow_html=True)
+    else:
+        st.markdown("""
+<style>
+[data-testid="stSidebar"] { display: none !important; }
+[data-testid="collapsedControl"] { display: none !important; }
+#MainMenu { visibility: hidden !important; }
+header { visibility: hidden !important; }
+footer { visibility: hidden !important; }
+.block-container { padding-top: 1.2rem !important; padding-bottom: 2rem !important; max-width: 98% !important; }
+</style>
+""", unsafe_allow_html=True)
 else:
     st.markdown("""
     <style>
@@ -10049,37 +10081,49 @@ if mode_app.startswith("2"):
                 """
                 # Injection de style plein écran universel (Smart TV, tablettes, vidéoprojecteurs)
                 st.markdown('''
-                <style>
-                @import url('https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@700;800;900&display=swap');
-                header[data-testid="stHeader"] { display: none !important; }
-                footer { display: none !important; }
-                #MainMenu { visibility: hidden !important; }
-                section[data-testid="stSidebar"] { display: none !important; }
-                div[data-testid="collapsedControl"] { display: none !important; }
-                .block-container {
-                    padding-top: 0.15rem !important;
-                    padding-bottom: 0.15rem !important;
-                    padding-left: 0.5rem !important;
-                    padding-right: 0.5rem !important;
-                    max-width: 100% !important;
-                }
-                div[data-testid="stVerticalBlock"] {
-                    gap: 0.2rem !important;
-                }
-                .font-uww-score {
-                    font-family: 'Teko', 'Impact', sans-serif !important;
-                    line-height: 0.85 !important;
-                }
-                @keyframes scorePulseAnim {
-                    0% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255,255,255,0.2)); }
-                    50% { transform: scale(1.08); filter: drop-shadow(0 0 35px rgba(255,255,255,0.95)); }
-                    100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255,255,255,0.2)); }
-                }
-                .score-pulse {
-                    animation: scorePulseAnim 0.6s ease-out !important;
-                }
-                </style>
-                ''', unsafe_allow_html=True)
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Inter:wght@700;800;900&display=swap');
+html, body, #root, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"], section.main, .main, .block-container, div[data-testid="stVerticalBlock"], div[data-testid="stMarkdownContainer"] {
+    background-color: #000000 !important;
+    background: #000000 !important;
+    color: #ffffff !important;
+}
+header[data-testid="stHeader"], header { display: none !important; visibility: hidden !important; }
+footer { display: none !important; visibility: hidden !important; }
+#MainMenu { visibility: hidden !important; }
+section[data-testid="stSidebar"] { display: none !important; }
+div[data-testid="collapsedControl"] { display: none !important; }
+div[data-testid="stToolbar"] { display: none !important; }
+div[data-testid="stElementToolbar"] { display: none !important; }
+div[data-testid="stDecoration"] { display: none !important; }
+.block-container {
+    padding-top: 0.15rem !important;
+    padding-bottom: 0.15rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    max-width: 100% !important;
+    background-color: #000000 !important;
+    background: #000000 !important;
+}
+div[data-testid="stVerticalBlock"] {
+    gap: 0.2rem !important;
+    background-color: #000000 !important;
+    background: #000000 !important;
+}
+.font-uww-score {
+    font-family: 'Teko', 'Impact', sans-serif !important;
+    line-height: 0.85 !important;
+}
+@keyframes scorePulseAnim {
+    0% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255,255,255,0.2)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 35px rgba(255,255,255,0.95)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255,255,255,0.2)); }
+}
+.score-pulse {
+    animation: scorePulseAnim 0.6s ease-out !important;
+}
+</style>
+''', unsafe_allow_html=True)
 
                 components.html("""
                     <script>
@@ -10420,10 +10464,10 @@ if mode_app.startswith("2"):
                             vic_border = "#64748b"
 
                         html_vic = (
-                            f'<div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">'
-                            f'<div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">'
-                            f'<span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase;">{titre_cat_clean}</span>'
-                            f'<div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; display: flex; align-items: center; gap: 8px;">'
+                            f'<div style="background: #000000; border: 2px solid #222222; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.95); margin-bottom: 6px;">'
+                            f'<div style="background: #000000; border-bottom: 2px solid #222222; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">'
+                            f'<span style="background: #111111; border: 1px solid #333333; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase;">{titre_cat_clean}</span>'
+                            f'<div style="background: #111111; border: 2px solid #333333; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; display: flex; align-items: center; gap: 8px;">'
                             f'<span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8;">TAPIS {t_num}</span>'
                             f'<span style="color: #64748b; font-weight: 900;">•</span>'
                             f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc;">COMBAT #{titre_num_clean}</span>'
@@ -10463,19 +10507,19 @@ if mode_app.startswith("2"):
                             centre_info_html = f'<div style="font-size: clamp(10px, 1.1vw, 12px); color: #cbd5e1; margin-top: 4px; font-weight: 600;">⚖️ <b>Égalité</b> — Avantage <b style="color:#facc15;">{meneur}</b> ({motif_dep})</div>'
                         else:
                             centre_info_html = ''
-                        badge_per_style = "background: #78350f; color: #fde68a; border: 1px solid #f59e0b;" if pause30 else "background: #1e293b; color: #facc15; border: 1px solid #334155;"
+                        badge_per_style = "background: #78350f; color: #fde68a; border: 1px solid #f59e0b;" if pause30 else "background: #111111; color: #facc15; border: 1px solid #333333;"
 
                         club_r_txt = str(club_r).strip().upper() if club_r and str(club_r).lower() not in ['nan', 'none', '-'] else "COIN ROUGE"
                         club_b_txt = str(club_b).strip().upper() if club_b and str(club_b).lower() not in ['nan', 'none', '-'] else "COIN BLEU"
 
                         html_scb = (
-                            f'<div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">'
+                            f'<div style="background: #000000; border: 2px solid #222222; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.95); margin-bottom: 6px;">'
                             # 1. BANDEAU SUPÉRIEUR
-                            f'<div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">'
+                            f'<div style="background: #000000; border-bottom: 2px solid #222222; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">'
                             f'<div style="display: flex; align-items: center; gap: 8px;">'
-                            f'<span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase; letter-spacing: 1px;">{titre_cat_clean}</span>'
+                            f'<span style="background: #111111; border: 1px solid #333333; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase; letter-spacing: 1px;">{titre_cat_clean}</span>'
                             f'</div>'
-                            f'<div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;">'
+                            f'<div style="background: #111111; border: 2px solid #333333; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.7); display: flex; align-items: center; gap: 8px;">'
                             f'<span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">TAPIS {t_num}</span>'
                             f'<span style="color: #64748b; font-weight: 900;">•</span>'
                             f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc; letter-spacing: 1px;">COMBAT #{titre_num_clean}</span>'
@@ -10483,7 +10527,7 @@ if mode_app.startswith("2"):
                             f'<div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 15px rgba(250,204,21,0.3);">{titre_tour_clean}</div>'
                             f'</div>'
                             # 2. BANDEAU CENTRAL : ATHLÈTES & CLUBS
-                            f'<div style="background: #030712; padding: clamp(12px, 1.8vw, 22px) clamp(16px, 2.5vw, 36px); display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; border-bottom: 2px solid #0f172a;">'
+                            f'<div style="background: #000000; padding: clamp(12px, 1.8vw, 22px) clamp(16px, 2.5vw, 36px); display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; border-bottom: 2px solid #222222;">'
                             # COIN ROUGE
                             f'<div style="display: flex; flex-direction: column; padding-right: clamp(10px, 1.8vw, 24px);">'
                             f'<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap;">'
@@ -10495,7 +10539,7 @@ if mode_app.startswith("2"):
                             f'{badge_av_r}'
                             f'</div>'
                             # SÉPARATEUR
-                            f'<div style="background: #1e293b; height: 75%; width: 2px; justify-self: center;"></div>'
+                            f'<div style="background: #222222; height: 75%; width: 2px; justify-self: center;"></div>'
                             # COIN BLEU
                             f'<div style="display: flex; flex-direction: column; align-items: flex-end; padding-left: clamp(10px, 1.8vw, 24px); text-align: right;">'
                             f'<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; justify-content: flex-end; flex-wrap: wrap;">'
@@ -10514,7 +10558,7 @@ if mode_app.startswith("2"):
                             f'<span class="font-uww-score" style="font-size: clamp(85px, 19vw, 240px); font-weight: 900; color: #ffffff; text-shadow: 0 4px 25px rgba(0,0,0,0.5);">{sc_r}</span>'
                             f'</div>'
                             # CHRONO NOIR
-                            f'<div style="background: #000000; border-left: 3px solid #0f172a; border-right: 3px solid #0f172a; display: flex; flex-direction: column; justify-content: space-around; align-items: center; padding: 10px 4px; user-select: none;">'
+                            f'<div style="background: #000000; border-left: 2px solid #222222; border-right: 2px solid #222222; display: flex; flex-direction: column; justify-content: space-around; align-items: center; padding: 10px 4px; user-select: none;">'
                             f'<div style="{badge_per_style} font-size: clamp(10px, 1.2vw, 15px); font-weight: 900; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 1px;">{lbl_periode_tv}</div>'
                             f'<div style="font-family: \'Teko\', \'Impact\', monospace; font-size: clamp(44px, 10vw, 145px); font-weight: 900; color: {col_chr_color}; line-height: 0.9; text-shadow: 0 0 25px {col_chr_color}55;">{chrono_txt}</div>'
                             f'<div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">'
@@ -10536,14 +10580,14 @@ if mode_app.startswith("2"):
                     if liste_m and 0 <= nxt_idx < len(liste_m):
                         nxt = liste_m[nxt_idx]
                         html_nxt = (
-                            f'<div style="margin-top: 8px; background: #0b1120; border: 2px solid #1e293b; border-radius: 12px; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">'
-                            f'<span style="font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px;">⚡ PROCHAIN COMBAT :</span>'
-                            f'<span style="font-size: clamp(12px, 1.4vw, 17px); font-weight: 800; color: #e2e8f0;">'
+                            f'<div style="margin-top: 6px; background: #000000; border: 2px solid #222222; border-radius: 12px; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 14px rgba(0,0,0,0.7);">'
+                            f'<span style="font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1px;">⚡ PROCHAIN COMBAT :</span>'
+                            f'<span style="font-size: clamp(12px, 1.4vw, 17px); font-weight: 800; color: #ffffff;">'
                             f'<span style="color: #f87171;">🔴 {nxt.get("lutteur_rouge","")}</span> ({nxt.get("club_rouge","")}) '
-                            f'<span style="color: #64748b; margin: 0 8px;">vs</span> '
+                            f'<span style="color: #94a3b8; margin: 0 8px;">vs</span> '
                             f'<span style="color: #60a5fa;">🔵 {nxt.get("lutteur_bleu","")}</span> ({nxt.get("club_bleu","")})'
                             f'</span>'
-                            f'<span style="font-size: clamp(11px, 1.2vw, 15px); color: #94a3b8; font-weight: 800;">Combat n°{nxt.get("match_num")}</span>'
+                            f'<span style="font-size: clamp(11px, 1.2vw, 15px); color: #ffffff; font-weight: 800;">Combat n°{nxt.get("match_num")}</span>'
                             f'</div>'
                         )
                         st.markdown(html_nxt, unsafe_allow_html=True)
