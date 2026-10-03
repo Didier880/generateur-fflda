@@ -5116,14 +5116,7 @@ def calculer_temps_restant_chrono(m_id, categorie="", tapis_num=None):
         ecoule = maintenant - top
         sec_restante = max(0.0, sec_base - ecoule)
         if sec_restante <= 0.0:
-            if per == 1 and not pause30:
-                # 🔔 Fin P1 -> Démarrage automatique de la pause réglementaire de 30 secondes
-                pause30 = True
-                sec_restante = 30.0
-                en_marche = True
-                top = maintenant
-                publier_chrono_sync(m_id, tapis_num, 30.0, True, top, 1, categorie, pause30=True, buzzer_event=maintenant)
-            elif pause30:
+            if pause30:
                 # 🔔 Fin pause 30s -> Passage à la Période 2 prête (arrêtée, attend le coup de sifflet)
                 age = extraire_age_de_texte(categorie)
                 duree_p2 = 180.0 if age in ["U13", "U15", "U17", "SENIOR"] else 120.0
@@ -5134,11 +5127,11 @@ def calculer_temps_restant_chrono(m_id, categorie="", tapis_num=None):
                 top = None
                 publier_chrono_sync(m_id, tapis_num, duree_p2, False, None, 2, categorie, pause30=False, buzzer_event=maintenant)
             else:
-                # 🔔 Fin de combat (Période 2 expirée)
+                # 🔔 Fin du temps (P1 ou P2) -> reste sur zéro, chrono arrêté
                 sec_restante = 0.0
                 en_marche = False
                 top = None
-                publier_chrono_sync(m_id, tapis_num, 0, False, None, per, categorie, pause30=False, buzzer_event=maintenant)
+                publier_chrono_sync(m_id, tapis_num, 0.0, False, None, per, categorie, pause30=False, buzzer_event=maintenant)
     else:
         sec_restante = sec_base
         
@@ -5227,6 +5220,12 @@ def changer_periode_chrono(m_id, tapis_num=None, categorie=""):
         nouv_sec = duree_regl if sec_actuelle <= 0 else sec_actuelle
         nouv_top = pytime.time() if en_cours else None
         publier_chrono_sync(m_id, tapis_num, nouv_sec, en_cours, nouv_top, nouv_per, categorie, pause30=False)
+
+def lancer_pause_30s(m_id, categorie="", tapis_num=None):
+    """Lance immédiatement le décompte de la pause réglementaire de 30 secondes."""
+    import time as pytime
+    maintenant = pytime.time()
+    publier_chrono_sync(m_id, tapis_num, 30.0, True, maintenant, 1, categorie, pause30=True)
 
 def declencher_buzzer_manuel(m_id, categorie="", tapis_num=None):
     """Déclenche manuellement le signal sonore (buzzer / klaxon) sur la table et le scoreboard."""
@@ -10364,10 +10363,10 @@ div[data-testid="stVerticalBlock"] {
 
                     if pause30:
                         col_chr_color = "#f59e0b"
-                        stat_badge = "⏸️ PAUSE RÉGLEMENTAIRE (30s)"
-                        lbl_periode_tv = "⏸️ PAUSE (30s)"
+                        stat_badge = ""
+                        lbl_periode_tv = "PAUSE"
                     else:
-                        stat_badge = "● EN COMBAT" if est_run else ("🔔 TEMPS ÉCOULÉ" if sec_rest == 0 else "⏸️ TEMPS MORT")
+                        stat_badge = ""
                         col_chr_color = "#ef4444" if sec_rest == 0 else ("#22c55e" if est_run else "#f59e0b")
                         lbl_periode_tv = f"PÉRIODE {per_actuelle}"
 
@@ -10433,10 +10432,10 @@ div[data-testid="stVerticalBlock"] {
                                 pause30 = st.session_state.get(f"chrono_pause30_{cur_m_id}", False)
                                 if pause30:
                                     col_chr_color = "#f59e0b"
-                                    stat_badge = "⏸️ PAUSE RÉGLEMENTAIRE (30s)"
-                                    lbl_periode_tv = "⏸️ PAUSE (30s)"
+                                    stat_badge = ""
+                                    lbl_periode_tv = "PAUSE"
                                 else:
-                                    stat_badge = "● EN COMBAT" if est_run else ("🔔 TEMPS ÉCOULÉ" if sec_rest == 0 else "⏸️ TEMPS MORT")
+                                    stat_badge = ""
                                     col_chr_color = "#ef4444" if sec_rest == 0 else ("#22c55e" if est_run else "#f59e0b")
                                     lbl_periode_tv = f"PÉRIODE {per_actuelle}"
                                 underline_r = ""
@@ -10615,7 +10614,7 @@ div[data-testid="stVerticalBlock"] {
                             f'<div style="{badge_per_style} font-size: clamp(10px, 1.2vw, 15px); font-weight: 900; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 1px;">{lbl_periode_tv}</div>'
                             f'<div style="font-family: \'Teko\', \'Impact\', monospace; font-size: clamp(44px, 10vw, 145px); font-weight: 900; color: {col_chr_color}; line-height: 0.9; text-shadow: 0 0 25px {col_chr_color}55;">{chrono_txt}</div>'
                             f'<div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">'
-                            f'<div style="color: {col_chr_color}; font-size: clamp(9px, 1vw, 12px); font-weight: 900; letter-spacing: 0.5px;">{stat_badge}</div>'
+                            f'{(f"<div style=\'color: {col_chr_color}; font-size: clamp(9px, 1vw, 12px); font-weight: 900; letter-spacing: 0.5px;\'>{stat_badge}</div>") if stat_badge else ""}'
                             f'{centre_info_html}'
                             f'</div>'
                             f'</div>'
@@ -11092,22 +11091,23 @@ div[data-testid="stVerticalBlock"] {
                 
                 if pause30:
                     col_c_bg = "#f59e0b"
-                    badge_lbl = "⏸️ PAUSE (30s)"
-                    per_lbl = "PAUSE 30s"
+                    badge_lbl = ""
+                    per_lbl = "PAUSE"
                 else:
                     col_c_bg = "#ef4444" if sec_r == 0 else ("#16a34a" if en_cours else "#d97706")
-                    badge_lbl = "● EN COMBAT" if en_cours else ("🔔 FIN DU TEMPS" if sec_r == 0 else "⏸️ PAUSE")
+                    badge_lbl = ""
                     per_lbl = f"PÉRIODE {per}"
                 
                 c_head_chr, c_btn_bz, c_btn_scb = st.columns([2.5, 1.1, 1.1], gap="small")
                 with c_head_chr:
                     badge_per_style = "background: #78350f; color: #fde68a; border: 1px solid #f59e0b;" if pause30 else "background: #1e293b; color: #94a3b8;"
+                    badge_span = f"<span style='color: {col_c_bg}; font-size: clamp(10px, 1.1vw, 11px); font-weight: 800; letter-spacing: 0.5px; white-space: nowrap;'>{badge_lbl}</span>" if badge_lbl else ""
                     st.markdown(
                         f"<div style='background: #0f172a; border: 2px solid {col_c_bg}; border-radius: 12px; padding: 6px 12px; margin-bottom: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; box-sizing: border-box; overflow: hidden;'>"
                         f"<div style='display: flex; align-items: center; gap: 8px; flex-wrap: wrap;'>"
                         f"<span style='font-family: monospace; font-size: clamp(18px, 4vw, 26px); font-weight: 900; color: {col_c_bg}; letter-spacing: 1px; text-shadow: 0 0 10px {col_c_bg}; white-space: nowrap;'>⏱️ {txt_chrono}</span>"
                         f"<span style='{badge_per_style} font-size: clamp(10px, 1.2vw, 12px); font-weight: 800; padding: 2px 7px; border-radius: 6px; white-space: nowrap;'>{per_lbl}</span>"
-                        f"<span style='color: {col_c_bg}; font-size: clamp(10px, 1.1vw, 11px); font-weight: 800; letter-spacing: 0.5px; white-space: nowrap;'>{badge_lbl}</span>"
+                        f"{badge_span}"
                         f"</div>"
                         f"<span style='font-size: 11px; color: #94a3b8; white-space: nowrap;'>Tapis {tapis_num_actif}</span>"
                         f"</div>",
@@ -11158,7 +11158,7 @@ div[data-testid="stVerticalBlock"] {
                     """, height=0)
 
                 st.markdown('<div id="chrono_barre_marker"></div>', unsafe_allow_html=True)
-                c_ch1, c_ch2, c_ch3, c_ch4, c_ch5 = st.columns([1.5, 1.2, 0.9, 0.9, 1.3], gap="small")
+                c_ch1, c_ch2, c_ch3, c_ch4, c_ch5, c_ch6 = st.columns([1.4, 1.1, 0.8, 0.8, 1.3, 1.2], gap="small")
                 with c_ch1:
                     lbl_tgl = "⏸️ Pause" if en_cours else "▶️ Démarrer"
                     st.button(lbl_tgl, key=f"btn_tb_tgl_{m_id}", on_click=toggle_chrono_match, args=(m_id, cat_m, tapis_num_actif), use_container_width=True, type="primary" if en_cours else "secondary")
@@ -11169,9 +11169,13 @@ div[data-testid="stVerticalBlock"] {
                 with c_ch4:
                     st.button("+10s", key=f"btn_tb_p10_{m_id}", on_click=ajuster_chrono_match, args=(m_id, 10, cat_m, tapis_num_actif), use_container_width=True)
                 with c_ch5:
-                    lbl_btn_per = "▶️ Lancer P2" if pause30 else f"P{2 if per == 1 else 1} 🔁"
-                    help_btn_per = "Passer directement à la Période 2 sans attendre la fin des 30s" if pause30 else "Basculer vers la période suivante"
-                    st.button(lbl_btn_per, key=f"btn_tb_per_{m_id}", on_click=changer_periode_chrono, args=(m_id, tapis_num_actif, cat_m), use_container_width=True, help=help_btn_per)
+                    if pause30:
+                        st.button("▶️ Passer à P2", key=f"btn_tb_p2_{m_id}", on_click=changer_periode_chrono, args=(m_id, tapis_num_actif, cat_m), use_container_width=True, help="Arrêter la pause et passer directement à la Période 2")
+                    else:
+                        st.button("⏸️ Pause 30s", key=f"btn_tb_p30_{m_id}", on_click=lancer_pause_30s, args=(m_id, cat_m, tapis_num_actif), use_container_width=True, help="Lancer le décompte de la pause réglementaire de 30 secondes")
+                with c_ch6:
+                    lbl_btn_per = f"P{2 if per == 1 else 1} 🔁"
+                    st.button(lbl_btn_per, key=f"btn_tb_per_{m_id}", on_click=changer_periode_chrono, args=(m_id, tapis_num_actif, cat_m), use_container_width=True, help="Basculer manuellement entre Période 1 et 2")
 
             _fragment_chrono_barre_arbitre()
 
