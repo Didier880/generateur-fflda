@@ -5126,8 +5126,15 @@ def calculer_temps_restant_chrono(m_id, categorie="", tapis_num=None):
                 en_marche = False
                 top = None
                 publier_chrono_sync(m_id, tapis_num, duree_p2, False, None, 2, categorie, pause30=False, buzzer_event=maintenant)
+            elif per == 1:
+                # 🔔 Fin P1 -> Démarrage automatique de la pause réglementaire de 30 secondes
+                pause30 = True
+                sec_restante = 30.0
+                en_marche = True
+                top = maintenant
+                publier_chrono_sync(m_id, tapis_num, 30.0, True, top, 1, categorie, pause30=True, buzzer_event=maintenant)
             else:
-                # 🔔 Fin du temps (P1 ou P2) -> reste sur zéro, chrono arrêté
+                # 🔔 Fin de combat (Période 2 expirée) -> reste sur zéro, chrono arrêté
                 sec_restante = 0.0
                 en_marche = False
                 top = None
