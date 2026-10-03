@@ -10419,169 +10419,134 @@ if mode_app.startswith("2"):
                             vic_bg = "#334155"
                             vic_border = "#64748b"
 
-                        st.markdown(
-                            f"""
-                            <div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">
-                                <div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">
-                                    <span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase;">
-                                        {titre_cat_clean}
-                                    </span>
-                                    <div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; display: flex; align-items: center; gap: 8px;">
-                                        <span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8;">TAPIS {t_num}</span>
-                                        <span style="color: #64748b; font-weight: 900;">•</span>
-                                        <span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc;">COMBAT #{titre_num_clean}</span>
-                                    </div>
-                                    <div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase;">
-                                        {titre_tour_clean}
-                                    </div>
-                                </div>
-                                <div style="background: {bg_grad}; border: 4px solid #facc15; border-radius: 18px; margin: 12px; padding: clamp(16px, 3vw, 40px); box-shadow: 0 15px 50px {col_shadow}; text-align: center; color: white; min-height: 52vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; overflow: hidden;">
-                                    <div style="color: #fde047; font-size: clamp(16px, 2.4vw, 34px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">🏆 VAINQUEUR DU COMBAT 🏆</div>
-                                    <div style="font-size: clamp(32px, 6vw, 92px); font-weight: 900; line-height: 1.1; margin: 10px 0 6px 0; text-shadow: 0 4px 18px rgba(0,0,0,0.7); word-break: break-word;">{nom_vainq}</div>
-                                    <div style="font-size: clamp(16px, 2.4vw, 32px); font-weight: 700; color: #f1f5f9; opacity: 0.95; margin-bottom: 18px;">{club_vainq}</div>
-                                    <div style="background: {vic_bg}; border: 2px solid {vic_border}; color: white; font-size: clamp(14px, 2vw, 26px); font-weight: 900; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); border-radius: 9999px; margin-bottom: 22px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: inline-block;">{vic_label}</div>
-                                    <div style="background: rgba(0,0,0,0.65); border: 2px solid rgba(255,255,255,0.2); border-radius: 16px; padding: clamp(8px, 1.2vw, 14px) clamp(14px, 2vw, 28px); display: inline-flex; align-items: center; justify-content: center; gap: clamp(8px, 1.5vw, 20px); flex-wrap: wrap;">
-                                        <span style="font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #ef4444;">🔴 {v_nom_r} ({v_sc_r})</span>
-                                        <span style="font-size: clamp(16px, 2vw, 24px); font-weight: 900; color: #94a3b8;">—</span>
-                                        <span style="font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #38bdf8;">({v_sc_b}) {v_nom_b} 🔵</span>
-                                    </div>
-                                    <div style="margin-top: 14px; font-size: clamp(12px, 1.3vw, 16px); font-weight: 700; color: #fef08a; opacity: 0.9;">⏳ Prochain combat dans {sec_rest_10s}s...</div>
-                                </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
+                        html_vic = (
+                            f'<div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">'
+                            f'<div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">'
+                            f'<span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase;">{titre_cat_clean}</span>'
+                            f'<div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; display: flex; align-items: center; gap: 8px;">'
+                            f'<span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8;">TAPIS {t_num}</span>'
+                            f'<span style="color: #64748b; font-weight: 900;">•</span>'
+                            f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc;">COMBAT #{titre_num_clean}</span>'
+                            f'</div>'
+                            f'<div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase;">{titre_tour_clean}</div>'
+                            f'</div>'
+                            f'<div style="background: {bg_grad}; border: 4px solid #facc15; border-radius: 18px; margin: 12px; padding: clamp(16px, 3vw, 40px); box-shadow: 0 15px 50px {col_shadow}; text-align: center; color: white; min-height: 52vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; overflow: hidden;">'
+                            f'<div style="color: #fde047; font-size: clamp(16px, 2.4vw, 34px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">🏆 VAINQUEUR DU COMBAT 🏆</div>'
+                            f'<div style="font-size: clamp(32px, 6vw, 92px); font-weight: 900; line-height: 1.1; margin: 10px 0 6px 0; text-shadow: 0 4px 18px rgba(0,0,0,0.7); word-break: break-word;">{nom_vainq}</div>'
+                            f'<div style="font-size: clamp(16px, 2.4vw, 32px); font-weight: 700; color: #f1f5f9; opacity: 0.95; margin-bottom: 18px;">{club_vainq}</div>'
+                            f'<div style="background: {vic_bg}; border: 2px solid {vic_border}; color: white; font-size: clamp(14px, 2vw, 26px); font-weight: 900; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); border-radius: 9999px; margin-bottom: 22px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: inline-block;">{vic_label}</div>'
+                            f'<div style="background: rgba(0,0,0,0.65); border: 2px solid rgba(255,255,255,0.2); border-radius: 16px; padding: clamp(8px, 1.2vw, 14px) clamp(14px, 2vw, 28px); display: inline-flex; align-items: center; justify-content: center; gap: clamp(8px, 1.5vw, 20px); flex-wrap: wrap;">'
+                            f'<span style="font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #ef4444;">🔴 {v_nom_r} ({v_sc_r})</span>'
+                            f'<span style="font-size: clamp(16px, 2vw, 24px); font-weight: 900; color: #94a3b8;">—</span>'
+                            f'<span style="font-size: clamp(14px, 1.8vw, 22px); font-weight: 800; color: #38bdf8;">({v_sc_b}) {v_nom_b} 🔵</span>'
+                            f'</div>'
+                            f'<div style="margin-top: 14px; font-size: clamp(12px, 1.3vw, 16px); font-weight: 700; color: #fef08a; opacity: 0.9;">⏳ Prochain combat dans {sec_rest_10s}s...</div>'
+                            f'</div>'
+                            f'</div>'
                         )
+                        st.markdown(html_vic, unsafe_allow_html=True)
                     else:
                         # LE SCOREBOARD OFFICIEL HAUTE VISIBILITÉ (FORMAT UWW)
                         caut_r_html = " ".join([
-                            "<span style='background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:2px 8px; border-radius:6px; margin-left:4px;'>⚠️ AVERT</span>"
+                            f'<span style="background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:2px 8px; border-radius:6px; margin-left:4px;">⚠️ AVERT</span>'
                             for _ in range(cautions_r)
                         ]) if cautions_r > 0 else ""
                         caut_b_html = " ".join([
-                            "<span style='background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:2px 8px; border-radius:6px; margin-right:4px;'>⚠️ AVERT</span>"
+                            f'<span style="background:#facc15; color:#78350f; font-weight:900; font-size:clamp(10px, 1.1vw, 13px); padding:2px 8px; border-radius:6px; margin-right:4px;">⚠️ AVERT</span>'
                             for _ in range(cautions_b)
                         ]) if cautions_b > 0 else ""
 
-                        badge_av_r = "<div style='color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;'>👑 AVANTAGE UWW (DÉPARTAGE)</div>" if (est_egalite and meneur == "Rouge") else ""
-                        badge_av_b = "<div style='color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;'>👑 AVANTAGE UWW (DÉPARTAGE)</div>" if (est_egalite and meneur == "Bleu") else ""
+                        badge_av_r = '<div style="color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;">👑 AVANTAGE UWW (DÉPARTAGE)</div>' if (est_egalite and meneur == "Rouge") else ""
+                        badge_av_b = '<div style="color: #facc15; font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; letter-spacing: 1px; margin-top: 4px;">👑 AVANTAGE UWW (DÉPARTAGE)</div>' if (est_egalite and meneur == "Bleu") else ""
 
-                        centre_info_html = f"<div style='font-size: clamp(10px, 1.1vw, 12px); color: #cbd5e1; margin-top: 4px; font-weight: 600;'>{('⚖️ <b>Égalité</b> — Avantage <b style=\"color:#facc15;\">' + str(meneur) + '</b> (' + motif_dep + ')') if est_egalite else ''}</div>"
+                        if est_egalite:
+                            centre_info_html = f'<div style="font-size: clamp(10px, 1.1vw, 12px); color: #cbd5e1; margin-top: 4px; font-weight: 600;">⚖️ <b>Égalité</b> — Avantage <b style="color:#facc15;">{meneur}</b> ({motif_dep})</div>'
+                        else:
+                            centre_info_html = ''
                         badge_per_style = "background: #78350f; color: #fde68a; border: 1px solid #f59e0b;" if pause30 else "background: #1e293b; color: #facc15; border: 1px solid #334155;"
 
                         club_r_txt = str(club_r).strip().upper() if club_r and str(club_r).lower() not in ['nan', 'none', '-'] else "COIN ROUGE"
                         club_b_txt = str(club_b).strip().upper() if club_b and str(club_b).lower() not in ['nan', 'none', '-'] else "COIN BLEU"
 
-                        st.markdown(
-                            f"""
-                            <div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">
-                                <!-- 1. BANDEAU SUPÉRIEUR (STYLE/POIDS | MATCH & TAPIS | PHASE/TOUR) -->
-                                <div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase; letter-spacing: 1px;">
-                                            {titre_cat_clean}
-                                        </span>
-                                    </div>
-                                    <div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;">
-                                        <span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">TAPIS {t_num}</span>
-                                        <span style="color: #64748b; font-weight: 900;">•</span>
-                                        <span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc; letter-spacing: 1px;">COMBAT #{titre_num_clean}</span>
-                                    </div>
-                                    <div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 15px rgba(250,204,21,0.3);">
-                                        {titre_tour_clean}
-                                    </div>
-                                </div>
-
-                                <!-- 2. BANDEAU CENTRAL : ATHLÈTES & CLUBS (INSPIRÉ UWW SANS DRAPEAUX) -->
-                                <div style="background: #030712; padding: clamp(12px, 1.8vw, 22px) clamp(16px, 2.5vw, 36px); display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; border-bottom: 2px solid #0f172a;">
-                                    <!-- COIN ROUGE -->
-                                    <div style="display: flex; flex-direction: column; padding-right: clamp(10px, 1.8vw, 24px);">
-                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap;">
-                                            <span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px rgba(239,68,68,0.7);"></span>
-                                            <span style="font-size: clamp(13px, 1.6vw, 22px); font-weight: 900; color: #f87171; letter-spacing: 1px; text-transform: uppercase;">
-                                                {club_r_txt}
-                                            </span>
-                                            {caut_r_html}
-                                        </div>
-                                        <div style="font-size: clamp(22px, 3.6vw, 52px); font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.1; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.7); {underline_r}">
-                                            {nom_r}
-                                        </div>
-                                        {badge_av_r}
-                                    </div>
-
-                                    <!-- SÉPARATEUR VERTICAL -->
-                                    <div style="background: #1e293b; height: 75%; width: 2px; justify-self: center;"></div>
-
-                                    <!-- COIN BLEU -->
-                                    <div style="display: flex; flex-direction: column; align-items: flex-end; padding-left: clamp(10px, 1.8vw, 24px); text-align: right;">
-                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; justify-content: flex-end; flex-wrap: wrap;">
-                                            {caut_b_html}
-                                            <span style="font-size: clamp(13px, 1.6vw, 22px); font-weight: 900; color: #60a5fa; letter-spacing: 1px; text-transform: uppercase;">
-                                                {club_b_txt}
-                                            </span>
-                                            <span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.7);"></span>
-                                        </div>
-                                        <div style="font-size: clamp(22px, 3.6vw, 52px); font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.1; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.7); {underline_b}">
-                                            {nom_b}
-                                        </div>
-                                        {badge_av_b}
-                                    </div>
-                                </div>
-
-                                <!-- 3. ZONE INFÉRIEURE : LES 3 BLOCS MASSIFS UWW (SCORE ROUGE | CHRONO | SCORE BLEU) -->
-                                <div style="display: grid; grid-template-columns: 2.3fr 1.6fr 2.3fr; height: clamp(190px, 38vh, 440px); overflow: hidden;">
-                                    <!-- BLOC SCORE ROUGE MASSIF -->
-                                    <div class="{pulse_r}" style="background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%); display: flex; align-items: center; justify-content: center; position: relative; user-select: none;">
-                                        <span class="font-uww-score" style="font-size: clamp(85px, 19vw, 240px); font-weight: 900; color: #ffffff; text-shadow: 0 4px 25px rgba(0,0,0,0.5);">
-                                            {sc_r}
-                                        </span>
-                                    </div>
-
-                                    <!-- BLOC CHRONOMÈTRE NOIR CARBONE -->
-                                    <div style="background: #000000; border-left: 3px solid #0f172a; border-right: 3px solid #0f172a; display: flex; flex-direction: column; justify-content: space-around; align-items: center; padding: 10px 4px; user-select: none;">
-                                        <div style="{badge_per_style} font-size: clamp(10px, 1.2vw, 15px); font-weight: 900; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 1px;">
-                                            {lbl_periode_tv}
-                                        </div>
-                                        <div style="font-family: 'Teko', 'Impact', monospace; font-size: clamp(44px, 10vw, 145px); font-weight: 900; color: {col_chr_color}; line-height: 0.9; text-shadow: 0 0 25px {col_chr_color}55;">
-                                            {chrono_txt}
-                                        </div>
-                                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                                            <div style="color: {col_chr_color}; font-size: clamp(9px, 1vw, 12px); font-weight: 900; letter-spacing: 0.5px;">
-                                                {stat_badge}
-                                            </div>
-                                            {centre_info_html}
-                                        </div>
-                                    </div>
-
-                                    <!-- BLOC SCORE BLEU MASSIF -->
-                                    <div class="{pulse_b}" style="background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); display: flex; align-items: center; justify-content: center; position: relative; user-select: none;">
-                                        <span class="font-uww-score" style="font-size: clamp(85px, 19vw, 240px); font-weight: 900; color: #ffffff; text-shadow: 0 4px 25px rgba(0,0,0,0.5);">
-                                            {sc_b}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
+                        html_scb = (
+                            f'<div style="background: #000000; border: 3px solid #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85); margin-bottom: 8px;">'
+                            # 1. BANDEAU SUPÉRIEUR
+                            f'<div style="background: #0b1120; border-bottom: 2px solid #1e293b; padding: clamp(8px, 1.2vw, 14px) clamp(16px, 2.5vw, 36px); display: flex; align-items: center; justify-content: space-between;">'
+                            f'<div style="display: flex; align-items: center; gap: 8px;">'
+                            f'<span style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; font-size: clamp(13px, 1.7vw, 24px); font-weight: 900; padding: 4px 12px; border-radius: 8px; text-transform: uppercase; letter-spacing: 1px;">{titre_cat_clean}</span>'
+                            f'</div>'
+                            f'<div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #334155; padding: clamp(4px, 0.5vw, 7px) clamp(14px, 1.8vw, 24px); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;">'
+                            f'<span style="font-size: clamp(11px, 1.2vw, 16px); font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">TAPIS {t_num}</span>'
+                            f'<span style="color: #64748b; font-weight: 900;">•</span>'
+                            f'<span style="font-size: clamp(16px, 2.2vw, 30px); font-weight: 900; color: #f8fafc; letter-spacing: 1px;">COMBAT #{titre_num_clean}</span>'
+                            f'</div>'
+                            f'<div style="font-size: clamp(15px, 2vw, 28px); font-weight: 900; color: #facc15; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 15px rgba(250,204,21,0.3);">{titre_tour_clean}</div>'
+                            f'</div>'
+                            # 2. BANDEAU CENTRAL : ATHLÈTES & CLUBS
+                            f'<div style="background: #030712; padding: clamp(12px, 1.8vw, 22px) clamp(16px, 2.5vw, 36px); display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; border-bottom: 2px solid #0f172a;">'
+                            # COIN ROUGE
+                            f'<div style="display: flex; flex-direction: column; padding-right: clamp(10px, 1.8vw, 24px);">'
+                            f'<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap;">'
+                            f'<span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px rgba(239,68,68,0.7);"></span>'
+                            f'<span style="font-size: clamp(13px, 1.6vw, 22px); font-weight: 900; color: #f87171; letter-spacing: 1px; text-transform: uppercase;">{club_r_txt}</span>'
+                            f'{caut_r_html}'
+                            f'</div>'
+                            f'<div style="font-size: clamp(22px, 3.6vw, 52px); font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.1; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.7); {underline_r}">{nom_r}</div>'
+                            f'{badge_av_r}'
+                            f'</div>'
+                            # SÉPARATEUR
+                            f'<div style="background: #1e293b; height: 75%; width: 2px; justify-self: center;"></div>'
+                            # COIN BLEU
+                            f'<div style="display: flex; flex-direction: column; align-items: flex-end; padding-left: clamp(10px, 1.8vw, 24px); text-align: right;">'
+                            f'<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; justify-content: flex-end; flex-wrap: wrap;">'
+                            f'{caut_b_html}'
+                            f'<span style="font-size: clamp(13px, 1.6vw, 22px); font-weight: 900; color: #60a5fa; letter-spacing: 1px; text-transform: uppercase;">{club_b_txt}</span>'
+                            f'<span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.7);"></span>'
+                            f'</div>'
+                            f'<div style="font-size: clamp(22px, 3.6vw, 52px); font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.1; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.7); {underline_b}">{nom_b}</div>'
+                            f'{badge_av_b}'
+                            f'</div>'
+                            f'</div>'
+                            # 3. ZONE INFÉRIEURE : LES 3 BLOCS MASSIFS
+                            f'<div style="display: grid; grid-template-columns: 2.3fr 1.6fr 2.3fr; height: clamp(190px, 38vh, 440px); overflow: hidden;">'
+                            # SCORE ROUGE
+                            f'<div class="{pulse_r}" style="background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%); display: flex; align-items: center; justify-content: center; position: relative; user-select: none;">'
+                            f'<span class="font-uww-score" style="font-size: clamp(85px, 19vw, 240px); font-weight: 900; color: #ffffff; text-shadow: 0 4px 25px rgba(0,0,0,0.5);">{sc_r}</span>'
+                            f'</div>'
+                            # CHRONO NOIR
+                            f'<div style="background: #000000; border-left: 3px solid #0f172a; border-right: 3px solid #0f172a; display: flex; flex-direction: column; justify-content: space-around; align-items: center; padding: 10px 4px; user-select: none;">'
+                            f'<div style="{badge_per_style} font-size: clamp(10px, 1.2vw, 15px); font-weight: 900; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 1px;">{lbl_periode_tv}</div>'
+                            f'<div style="font-family: \'Teko\', \'Impact\', monospace; font-size: clamp(44px, 10vw, 145px); font-weight: 900; color: {col_chr_color}; line-height: 0.9; text-shadow: 0 0 25px {col_chr_color}55;">{chrono_txt}</div>'
+                            f'<div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">'
+                            f'<div style="color: {col_chr_color}; font-size: clamp(9px, 1vw, 12px); font-weight: 900; letter-spacing: 0.5px;">{stat_badge}</div>'
+                            f'{centre_info_html}'
+                            f'</div>'
+                            f'</div>'
+                            # SCORE BLEU
+                            f'<div class="{pulse_b}" style="background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); display: flex; align-items: center; justify-content: center; position: relative; user-select: none;">'
+                            f'<span class="font-uww-score" style="font-size: clamp(85px, 19vw, 240px); font-weight: 900; color: #ffffff; text-shadow: 0 4px 25px rgba(0,0,0,0.5);">{sc_b}</span>'
+                            f'</div>'
+                            f'</div>'
+                            f'</div>'
                         )
+                        st.markdown(html_scb, unsafe_allow_html=True)
 
                     # Bandeau Combat suivant en préparation (compact)
                     nxt_idx = cur_idx if (afficher_victoire_10s and data_victoire and cur_idx != data_victoire.get("idx")) else (cur_idx + 1)
                     if liste_m and 0 <= nxt_idx < len(liste_m):
                         nxt = liste_m[nxt_idx]
-                        st.markdown(
-                            f"""
-                            <div style="margin-top: 8px; background: #0b1120; border: 2px solid #1e293b; border-radius: 12px; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
-                                <span style="font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px;">⚡ PROCHAIN COMBAT :</span>
-                                <span style="font-size: clamp(12px, 1.4vw, 17px); font-weight: 800; color: #e2e8f0;">
-                                    <span style="color: #f87171;">🔴 {nxt.get('lutteur_rouge','')}</span> ({nxt.get('club_rouge','')})
-                                    <span style="color: #64748b; margin: 0 8px;">vs</span>
-                                    <span style="color: #60a5fa;">🔵 {nxt.get('lutteur_bleu','')}</span> ({nxt.get('club_bleu','')})
-                                </span>
-                                <span style="font-size: clamp(11px, 1.2vw, 15px); color: #94a3b8; font-weight: 800;">Combat n°{nxt.get('match_num')}</span>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
+                        html_nxt = (
+                            f'<div style="margin-top: 8px; background: #0b1120; border: 2px solid #1e293b; border-radius: 12px; padding: 8px 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">'
+                            f'<span style="font-size: clamp(10px, 1.1vw, 13px); font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px;">⚡ PROCHAIN COMBAT :</span>'
+                            f'<span style="font-size: clamp(12px, 1.4vw, 17px); font-weight: 800; color: #e2e8f0;">'
+                            f'<span style="color: #f87171;">🔴 {nxt.get("lutteur_rouge","")}</span> ({nxt.get("club_rouge","")}) '
+                            f'<span style="color: #64748b; margin: 0 8px;">vs</span> '
+                            f'<span style="color: #60a5fa;">🔵 {nxt.get("lutteur_bleu","")}</span> ({nxt.get("club_bleu","")})'
+                            f'</span>'
+                            f'<span style="font-size: clamp(11px, 1.2vw, 15px); color: #94a3b8; font-weight: 800;">Combat n°{nxt.get("match_num")}</span>'
+                            f'</div>'
                         )
+                        st.markdown(html_nxt, unsafe_allow_html=True)
 
                 _fragment_scoreboard_tv()
             
