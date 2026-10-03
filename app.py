@@ -10173,6 +10173,22 @@ div[data-testid="stVerticalBlock"] {
                             }
                         };
 
+                        // Déclencheur instantané du buzzer audio par attribut DOM (0 iframe dynamique, 0 clignotement)
+                        var _lastBuzzerSignal = 0;
+                        setInterval(function() {
+                            try {
+                                var sig = pDoc.getElementById('arena-buzzer-signal');
+                                if (!sig) return;
+                                var val = parseFloat(sig.getAttribute('data-buzzer-evt') || '0');
+                                if (val > 0 && Math.abs(val - _lastBuzzerSignal) > 0.001) {
+                                    _lastBuzzerSignal = val;
+                                    if (pWin._playArenaBuzzer) {
+                                        pWin._playArenaBuzzer();
+                                    }
+                                }
+                            } catch(e) {}
+                        }, 50);
+
                         // Verrouillage de l'orientation en Mode Paysage (Landscape)
                         function verouillerModePaysage() {
                             try {
@@ -10352,16 +10368,7 @@ div[data-testid="stVerticalBlock"] {
                     st.session_state[cle_prev_r] = sc_r
                     st.session_state[cle_prev_b] = sc_b
 
-                    if doit_sonner_buzzer:
-                        components.html("""
-                        <script>
-                        try {
-                            if (window.parent && window.parent._playArenaBuzzer) {
-                                window.parent._playArenaBuzzer();
-                            }
-                        } catch(e) {}
-                        </script>
-                        """, height=0)
+                    b_event_to_play = b_event if (doit_sonner_buzzer and b_event > 0) else (pytime.time() if doit_sonner_buzzer else 0.0)
 
                     meneur, motif_dep, _ = evaluer_departage_uww(actions_r, actions_b, cautions_r, cautions_b)
                     est_egalite = (sc_r == sc_b and sc_r > 0)
@@ -10461,7 +10468,6 @@ div[data-testid="stVerticalBlock"] {
                         '📱 🔄 Pour un affichage optimal sur TV ou tablette, tournez votre appareil à l\'horizontale (Mode Paysage)'
                         '</div>'
                     )
-                    st.markdown(banner_rotate_html, unsafe_allow_html=True)
 
                     if afficher_victoire_10s and data_victoire:
                         # 🏆 ANNONCE DU VAINQUEUR PLEIN ÉCRAN (10 SECONDES)
@@ -10547,7 +10553,6 @@ div[data-testid="stVerticalBlock"] {
                             f'</div>'
                             f'</div>'
                         )
-                        st.markdown(html_vic, unsafe_allow_html=True)
                     else:
                         # LE SCOREBOARD OFFICIEL HAUTE VISIBILITÉ (FORMAT UWW)
                         caut_r_html = " ".join([
@@ -10632,9 +10637,9 @@ div[data-testid="stVerticalBlock"] {
                             f'</div>'
                             f'</div>'
                         )
-                        st.markdown(html_scb, unsafe_allow_html=True)
 
                     # Bandeau Combat suivant en préparation (compact)
+                    html_nxt = ""
                     nxt_idx = cur_idx if (afficher_victoire_10s and data_victoire and cur_idx != data_victoire.get("idx")) else (cur_idx + 1)
                     if liste_m and 0 <= nxt_idx < len(liste_m):
                         nxt = liste_m[nxt_idx]
@@ -10649,7 +10654,11 @@ div[data-testid="stVerticalBlock"] {
                             f'<span style="font-size: clamp(11px, 1.2vw, 15px); color: #ffffff; font-weight: 800;">Combat n°{nxt.get("match_num")}</span>'
                             f'</div>'
                         )
-                        st.markdown(html_nxt, unsafe_allow_html=True)
+
+                    centre_corps = html_vic if (afficher_victoire_10s and data_victoire) else html_scb
+                    buzzer_trigger_html = f'<div id="arena-buzzer-signal" data-buzzer-evt="{b_event_to_play}" style="display:none;"></div>'
+                    full_tv_dom = buzzer_trigger_html + banner_rotate_html + centre_corps + html_nxt
+                    st.markdown(full_tv_dom, unsafe_allow_html=True)
 
                 _fragment_scoreboard_tv()
             
